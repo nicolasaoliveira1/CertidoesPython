@@ -10,3 +10,7 @@ instance/
 
 # Arquivos de ambiente
 .env
+
+# Configurações do editor de código
+.vscode/
+.idea/
