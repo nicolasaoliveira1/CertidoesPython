@@ -1,0 +1,45 @@
+import enum
+from app import db
+from datetime import date, timedelta
+
+class TipoCertidao(enum.Enum):
+    FEDERAL = "Federal"
+    FGTS = "FGTS"
+    ESTADUAL = "Estadual"
+    MUNICIPAL = "Municipal"
+    TRABALHISTA = "Trabalhista"
+
+class Empresa(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    nome = db.Column(db.String(120), nullable=False)
+    cnpj = db.Column(db.String(18), unique=True, nullable=False)
+    cidade = db.Column(db.String(50), nullable=False)
+    inscricao_mobiliaria = db.Column(db.String(6), nullable=True)
+    
+    certidoes = db.relationship('Certidao', backref='empresa', lazy='dynamic', cascade="all, delete-orphan")
+    
+    def __repr__(self):
+        return f'<Empresa {self.nome}>'
+
+class Certidao(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    tipo = db.Column(db.Enum(TipoCertidao), nullable=False)
+    
+    data_validade = db.Column(db.Date, nullable=True)
+    empresa_id = db.Column(db.Integer, db.ForeignKey('empresa.id'), nullable=False)
+    
+    def __repr__(self):
+        return f'<Certidao {self.tipo.value} - {self.empresa.nome}>'
+    
+    @property
+    def status(self):
+        if self.data_validade is None:
+            return 'cinza'
+        hoje = date.today()
+        diferenca_dias = (self.data_validade - hoje).days
+        if diferenca_dias < 0:
+            return 'vermelho'
+        elif diferenca_dias <= 10:
+            return 'amarelo'
+        else:
+            return 'verde'
