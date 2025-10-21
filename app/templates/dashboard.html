@@ -2,7 +2,50 @@
 
 {% block content %}
 
-<h1 class="mb-4">Dashboard de Controle de Certidões</h1>
+<h1 class="mb-4">Controle de Certidões Fiscais</h1>
+
+{% with messages = get_flashed_messages(with_categories=true) %}
+  {% if messages %}
+    {% for category, message in messages %}
+      <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+        {{ message }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+      </div>
+    {% endfor %}
+  {% endif %}
+{% endwith %}
+
+<div class="card mb-4">
+    <div class="card-header fw-bold">
+        Cadastrar Nova Empresa
+    </div>
+    <div class="card-body">
+        <form method="POST" action="{{ url_for('main.adicionar_empresa') }}">
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <label for="nome" class="form-label">Nome da Empresa</label>
+                    <input type="text" class="form-control" id="nome" name="nome" required>
+                </div>
+                <div class="col-md-6">
+                    <label for="cnpj" class="form-label">CNPJ</label>
+                    <input type="text" class="form-control" id="cnpj" name="cnpj" placeholder="XX.XXX.XXX/XXXX-XX" required
+                    oninput="mascaraCnpj(this)" maxlength="18">
+                </div>
+                <div class="col-md-6">
+                    <label for="cidade" class="form-label">Cidade</label>
+                    <input type="text" class="form-control" id="cidade" name="cidade" required>
+                </div>
+                <div class="col-md-6">
+                    <label for="inscricao_mobiliaria" class="form-label">Inscrição Mobiliária (se houver)</label>
+                    <input type="text" class="form-control" id="inscricao_mobiliaria" name="inscricao_mobiliaria">
+                </div>
+                <div class="col-12 text-end">
+                    <button type="submit" class="btn btn-success">Cadastrar Empresa</button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
 
 <div class="table-responsive">
     <table class="table table-bordered table-hover align-middle">
@@ -24,7 +67,8 @@
                         <td rowspan="{{ empresa.certidoes.count() }}">{{ empresa.cnpj }}</td>
                     {% endif %}
                     
-                    <td>{{ certidao.tipo.value }}</td> <td>
+                    <td>{{ certidao.tipo.value }}</td>
+                    <td>
                         {{ certidao.data_validade.strftime('%d/%m/%Y') if certidao.data_validade else 'Não definida' }}
                     </td>
                     <td class="text-center">
