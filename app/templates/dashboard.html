@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<h1 class="mb-4">Dashboard de Controle de Certidões</h1>
+
+<div class="table-responsive">
+    <table class="table table-bordered table-hover align-middle">
+        <thead class="table-dark">
+            <tr>
+                <th>Empresa</th>
+                <th>CNPJ</th>
+                <th>Tipo de Certidão</th>
+                <th>Data de Validade</th>
+                <th class="text-center">Ações</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for empresa in empresas %}
+                {% for certidao in empresa.certidoes.all() %}
+                <tr class="status-{{ certidao.status }}">
+                    {% if loop.first %}
+                        <td rowspan="{{ empresa.certidoes.count() }}">{{ empresa.nome }}</td>
+                        <td rowspan="{{ empresa.certidoes.count() }}">{{ empresa.cnpj }}</td>
+                    {% endif %}
+                    
+                    <td>{{ certidao.tipo.value }}</td> <td>
+                        {{ certidao.data_validade.strftime('%d/%m/%Y') if certidao.data_validade else 'Não definida' }}
+                    </td>
+                    <td class="text-center">
+                        <button class="btn btn-sm btn-info">Abrir Site</button>
+                        <button class="btn btn-sm btn-warning">Editar</button>
+                        <button class="btn btn-sm btn-primary">Baixar</button>
+                    </td>
+                </tr>
+                {% endfor %}
+            {% else %}
+                <tr>
+                    <td colspan="5" class="text-center">Nenhuma empresa cadastrada ainda.</td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+{% endblock %}
