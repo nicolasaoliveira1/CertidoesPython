@@ -19,6 +19,10 @@ def adicionar_empresa():
     cidade = request.form.get('cidade')
     inscricao = request.form.get('inscricao_mobiliaria')
 
+    if not cnpj or len(cnpj) < 18:
+        flash('CNPJ incompleto, preencha todos os dígitos.', 'warning')
+        return redirect(url_for('main.dashboard'))
+        
     # validacao
     empresa_existente = Empresa.query.filter_by(cnpj=cnpj).first()
     if empresa_existente:
