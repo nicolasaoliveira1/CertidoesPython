@@ -1,6 +1,7 @@
 from flask import render_template, Blueprint, request, redirect, url_for, flash
 from app import db
-from app.models import Empresa, Certidao, TipoCertidao
+from app.models import Empresa, Certidao, TipoCertidao, StatusEspecial
+from datetime import datetime
 #esqueleto do routes para rodar a criação do banco, rotas serão definidas aqui posteriormente
 
 bp = Blueprint('main', __name__)
@@ -51,4 +52,38 @@ def adicionar_empresa():
         flash(f'Erro ao cadastrar empresa: {e}', 'danger')
 
     # Redirecionamento para dashboard
+    return redirect(url_for('main.dashboard'))
+
+@bp.route('/certidao/atualizar/<int:certidao_id>', methods=['POST'])
+def atualizar_validade(certidao_id):
+    certidao = Certidao.query.get_or_404(certidao_id)
+    nova_data_str = request.form.get('nova_validade')
+    
+    if nova_data_str:
+        nova_data = datetime.strptime(nova_data_str, '%Y-%m-%d').date()
+        certidao.data_validade = nova_data
+        certidao.status_especial = None
+        
+        try:
+            db.session.commit()
+            flash(f"Validade da certidão {certidao.tipo.value} da empresa {certidao.empresa.nome} atualizada com sucesso!", 'success')
+        except Exception as e:
+            db.session.rollback()
+            flash(f"Erro ao atualizar validade: {e}", 'danger')
+    else:
+        flash("Nenhuma data foi fornecida.", 'warning')
+    return redirect(url_for('main.dashboard'))
+
+@bp.route('/certidao/marcar_pendente/<int:certidao_id>', methods=['POST'])
+def marcar_pendente(certidao_id):
+    certidao = Certidao.query.get_or_404(certidao_id)
+    certidao.status_especial = StatusEspecial.PENDENTE  
+    certidao.data_validade = None
+    try:
+        db.session.commit()
+        flash(f'Certidão {certidao.tipo.value} da empresa {certidao.empresa.nome} marcada como Pendente.', 'info')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Erro ao marcar como pendente: {e}', 'danger')
+        
     return redirect(url_for('main.dashboard'))

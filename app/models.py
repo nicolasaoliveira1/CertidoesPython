@@ -9,6 +9,9 @@ class TipoCertidao(enum.Enum):
     MUNICIPAL = "Municipal"
     TRABALHISTA = "Trabalhista"
 
+class StatusEspecial(enum.Enum):
+    PENDENTE = "Pendente"
+
 class Empresa(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     nome = db.Column(db.String(120), nullable=False)
@@ -27,12 +30,16 @@ class Certidao(db.Model):
     
     data_validade = db.Column(db.Date, nullable=True)
     empresa_id = db.Column(db.Integer, db.ForeignKey('empresa.id'), nullable=False)
+    status_especial = db.Column(db.Enum(StatusEspecial), nullable=True)
     
     def __repr__(self):
         return f'<Certidao {self.tipo.value} - {self.empresa.nome}>'
     
     @property
     def status(self):
+        if self.status_especial == StatusEspecial.PENDENTE:
+            return 'vermelho'
+        
         if self.data_validade is None:
             return 'cinza'
         hoje = date.today()
