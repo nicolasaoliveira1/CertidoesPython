@@ -14,6 +14,14 @@
         .status-vermelho .date-cell { background-color: #ffb6b8 !important; }
         .status-cinza .date-cell { background-color: #e9ecef !important; }
 
+        .table-fixed-layout {
+            table-layout: fixed;
+        }
+
+        .table-fixed-layout th, .table-fixed-layout td {
+            word-wrap: break-word;
+        }
+
         .collapsible-header{
             cursor: pointer;
         }
@@ -101,6 +109,28 @@
                 }
             });
         }
+            document.addEventListener('DOMContentLoaded', () => {
+            const botoesAbrirSite = document.querySelectorAll('.btn-abrir-site');
+
+            botoesAbrirSite.forEach(botao => {
+                botao.addEventListener('click', function(event) {
+                    event.preventDefault();
+
+                    const url = this.href;
+                    const originalText = this.innerHTML;
+
+                    this.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Abrindo...';
+                    this.disabled = true;
+
+                    fetch(url)
+                        .catch(error => console.error('Erro ao acionar a automação:', error))
+                        .finally(() => {
+                            this.innerHTML = originalText;
+                            this.disabled = false;
+                        });
+                });
+            });
+        });
     </script>
 </body>
 </html>
