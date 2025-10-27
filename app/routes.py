@@ -8,7 +8,7 @@ bp = Blueprint('main', __name__)
 
 @bp.route('/')
 def dashboard():
-    empresas = Empresa.query.order_by(Empresa.nome).all()
+    empresas = Empresa.query.order_by(Empresa.id).all()
     
     return render_template('dashboard.html', empresas=empresas)
 
