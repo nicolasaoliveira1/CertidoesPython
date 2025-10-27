@@ -52,6 +52,24 @@
     </div>
 </div>
 
+<div class="card mb-4">
+    <div class="card-body">
+        <div class="row">
+            <div class="col-md-12">
+                <label for="filtroEmpresa" class="form-label fw-bold">Buscar Empresa por Nome:</label>
+                <input type="search" class="form-control" id="filtroEmpresa" 
+                       placeholder="Digite o nome da empresa para filtrar...">
+            </div>
+        </div>
+    </div>
+</div>
+<div class="card mb-4">
+    </div>
+
+<div class="table-responsive">
+    </div>
+
+
 <div class="table-responsive">
     <table class="table table-bordered align-middle">
         <thead class="table-dark">
@@ -66,7 +84,8 @@
         <tbody>
             {% for empresa in empresas %}
                 {% for certidao in empresa.certidoes.all() %}
-                <tr class="status-{{ certidao.status }}">
+                <tr class="status-{{ certidao.status }}"
+                    data-nome-empresa="{{empresa.nome}}">
                     {% if loop.first %}
                         <td rowspan="{{ empresa.certidoes.count() }}">{{ empresa.nome }}</td>
                         <td rowspan="{{ empresa.certidoes.count() }}">
