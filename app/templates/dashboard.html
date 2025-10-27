@@ -54,80 +54,108 @@
 
 <div class="card mb-4">
     <div class="card-body">
-        <div class="row">
-            <div class="col-md-12">
+        <div class="row g-3 align-items-end">
+
+            <div class="col-md-6">
                 <label for="filtroEmpresa" class="form-label fw-bold">Buscar Empresa por Nome:</label>
                 <input type="search" class="form-control" id="filtroEmpresa" 
                        placeholder="Digite o nome da empresa para filtrar...">
             </div>
+
+            <div class="col-md-6">
+                <form method="GET" action="{{ url_for('main.dashboard') }}">
+                    <label class="form-label fw-bold">Filtrar por Status:</label>
+                    <div class="btn-group w-100" role="group">
+                        <button type="submit" name="status" value="todas" 
+                                class="btn {% if status_filtro == 'todas' %}btn-primary{% else %}btn-outline-primary{% endif %}">
+                            Todas
+                        </button>
+                        <button type="submit" name="status" value="validas" 
+                                class="btn {% if status_filtro == 'validas' %}btn-success{% else %}btn-outline-success{% endif %}">
+                            Válidas
+                        </button>
+                        <button type="submit" name="status" value="a_vencer" 
+                                class="btn {% if status_filtro == 'a_vencer' %}btn-warning{% else %}btn-outline-warning{% endif %}">
+                            A Vencer
+                        </button>
+                        <button type="submit" name="status" value="vencidas" 
+                                class="btn {% if status_filtro == 'vencidas' %}btn-danger{% else %}btn-outline-danger{% endif %}">
+                            Vencidas
+                        </button>
+                        <button type="submit" name="status" value="pendentes" 
+                                class="btn {% if status_filtro == 'pendentes' %}btn-secondary{% else %}btn-outline-secondary{% endif %}">
+                            Pendentes
+                        </button>
+                    </div>
+                </form>
+            </div>
+
         </div>
     </div>
 </div>
-<div class="card mb-4">
-    </div>
 
 <div class="table-responsive">
-    </div>
-
-
-<div class="table-responsive">
-    <table class="table table-bordered align-middle">
+    <table class="table table-bordered align-middle table-fixed-layout">
         <thead class="table-dark">
             <tr>
-                <th>Empresa</th>
-                <th>CNPJ</th>
-                <th>Tipo de Certidão</th>
-                <th>Data de Validade</th>
-                <th class="text-center">Ações</th>
+                <th class="px-2">Empresa</th>
+                <th class="px-2">CNPJ</th>
+                <th class="px-2">Tipo de Certidão</th>
+                <th class="px-2">Data de Validade</th>
+                <th class="text-center px-2">Ações</th>
             </tr>
         </thead>
         <tbody>
-            {% for empresa in empresas %}
-                {% for certidao in empresa.certidoes.all() %}
-                <tr class="status-{{ certidao.status }}"
-                    data-nome-empresa="{{empresa.nome}}">
-                    {% if loop.first %}
-                        <td rowspan="{{ empresa.certidoes.count() }}">{{ empresa.nome }}</td>
-                        <td rowspan="{{ empresa.certidoes.count() }}">
-                            {{ empresa.cnpj }}
-
-                            {% if empresa.inscricao_mobiliaria %}
-                                <br>
-                                <small class="text-muted">IM: {{ empresa.inscricao_mobiliaria }}</small>
-                            {% endif %}
-                        </td>
+    {% for empresa in empresas %}
+        {% for certidao in empresa.certidoes.all() %}
+        <tr class="status-{{ certidao.status }}" data-nome-empresa="{{ empresa.nome }}">
+            {% if loop.first %}
+                <td rowspan="{{ empresa.certidoes.count() }}" class="px-2">{{ empresa.nome }}</td>
+                <td rowspan="{{ empresa.certidoes.count() }}" class="px-2">
+                    {{ empresa.cnpj }}
+                    {% if empresa.inscricao_mobiliaria %}
+                        <br>
+                        <small class="text-muted">IM: {{ empresa.inscricao_mobiliaria }}</small>
                     {% endif %}
-                    
-                    <td class="date-cell">{{ certidao.tipo.value }}</td>
-                    <td class="date-cell">
-                        {% if certidao.status_especial == 'PENDENTE' %}
-                            <span class="fw-bold">Pendente</span>
-                        {% else %}
-                            {{ certidao.data_validade.strftime('%d/%m/%Y') if certidao.data_validade else 'Pendente' }}
-                        {% endif %} 
-                    </td>
-                    <td class="text-center">
-                        <button class="btn btn-sm btn-info">Abrir Site</button>
-                        <button class="btn btn-sm btn-warning"
-                                data-bs-toggle="modal"
-                                data-bs-target="#editModal"
-                                data-certidao-id="{{certidao.id}}"
-                                data-certidao-info="{{certidao.tipo.value}} - {{certidao.empresa.nome}}">
-                                Editar
-                        </button>
-                        <button class="btn btn-sm btn-primary">Baixar</button>
-                    </td>
-                </tr>
-                {% endfor %}
-                <tr class="company-group-separator">
-                    <td colspan="5"></td>
-                </tr>
-            {% else %}
-                <tr>
-                    <td colspan="5" class="text-center">Nenhuma empresa cadastrada ainda.</td>
-                </tr>
-            {% endfor %}
-        </tbody>
+                </td>
+            {% endif %}
+            
+            <td class="date-cell px-2">{{ certidao.tipo.value }}</td>
+            <td class="date-cell px-2">
+                {% if certidao.status_especial and certidao.status_especial.value == 'Pendente' %}
+                    <span class="fw-semibold">Pendente</span>
+                {% else %}
+                    {{ certidao.data_validade.strftime('%d/%m/%Y') if certidao.data_validade else 'Não definida' }}
+                {% endif %}
+            </td>
+            <td class="text-center px-2">
+                <a href="{{ url_for('main.abrir_site_certidao', certidao_id=certidao.id) }}" 
+                    class="btn btn-sm btn-info btn-abrir-site">
+                    Abrir Site
+                </a>
+                <button class="btn btn-sm btn-warning"
+                        data-bs-toggle="modal"
+                        data-bs-target="#editModal"
+                        data-certidao-id="{{ certidao.id }}"
+                        data-certidao-info="{{ certidao.tipo.value }} - {{ certidao.empresa.nome }}">
+                    Editar
+                </button>
+                <button class="btn btn-sm btn-primary">Baixar</button>
+            </td>
+        </tr>
+        {% endfor %}
+        {% if not loop.last %}
+            <tr class="company-group-separator">
+                <td colspan="5"></td>
+            </tr>
+        {% endif %}
+    {% else %}
+        <tr>
+            <td colspan="5" class="text-center">Nenhuma empresa cadastrada ainda.</td>
+        </tr>
+    {% endfor %}
+</tbody>
+
     </table>
 </div>
 
