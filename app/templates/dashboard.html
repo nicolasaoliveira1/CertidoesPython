@@ -79,13 +79,23 @@
                         </td>
                     {% endif %}
                     
-                    <td>{{ certidao.tipo.value }}</td>
-                    <td>
-                        {{ certidao.data_validade.strftime('%d/%m/%Y') if certidao.data_validade else 'Não definida' }}
+                    <td class="date-cell">{{ certidao.tipo.value }}</td>
+                    <td class="date-cell">
+                        {% if certidao.status_especial == 'PENDENTE' %}
+                            <span class="fw-bold">Pendente</span>
+                        {% else %}
+                            {{ certidao.data_validade.strftime('%d/%m/%Y') if certidao.data_validade else 'Pendente' }}
+                        {% endif %} 
                     </td>
                     <td class="text-center">
                         <button class="btn btn-sm btn-info">Abrir Site</button>
-                        <button class="btn btn-sm btn-warning">Editar</button>
+                        <button class="btn btn-sm btn-warning"
+                                data-bs-toggle="modal"
+                                data-bs-target="#editModal"
+                                data-certidao-id="{{certidao.id}}"
+                                data-certidao-info="{{certidao.tipo.value}} - {{certidao.empresa.nome}}">
+                                Editar
+                        </button>
                         <button class="btn btn-sm btn-primary">Baixar</button>
                     </td>
                 </tr>
@@ -100,6 +110,32 @@
             {% endfor %}
         </tbody>
     </table>
+</div>
+
+</div> <div class="modal fade" id="editModal" tabindex="-1" aria-labelledby="editModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h1 class="modal-title fs-5" id="editModalLabel">Editar Validade</h1>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <form id="editForm" method="POST">
+          <div class="mb-3">
+            <label for="nova_validade" class="form-label">Selecione a nova data de validade:</label>
+            <input type="date" class="form-control" id="nova_validade" name="nova_validade" required>
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <form id ="pendenteForm" method="POST" class="me-auto">
+            <button type="submit" class="btn tn-outline-danger">Marcar como Pendente</button>
+        </form>
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button type="submit" form="editForm" class="btn btn-primary">Salvar Alterações</button>
+      </div>
+    </div>
+  </div>
 </div>
 
 {% endblock %}

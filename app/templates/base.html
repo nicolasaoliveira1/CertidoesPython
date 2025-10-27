@@ -9,10 +9,10 @@
 
     <style>
         /* cores de status das validades*/
-        .status-verde { background-color: #d1e7dd !important; }
-        .status-amarelo { background-color: #fff3cd !important; }
-        .status-vermelho { background-color: #f8d7da !important; }
-        .status-cinza { background-color: #e9ecef !important; }
+        .status-verde .date-cell { background-color: #c4ffcf !important; }
+        .status-amarelo .date-cell { background-color: #fffcaa !important; }
+        .status-vermelho .date-cell { background-color: #ffb6b8 !important; }
+        .status-cinza .date-cell { background-color: #e9ecef !important; }
 
         .collapsible-header{
             cursor: pointer;
@@ -51,6 +51,24 @@
 
             input.value = valor;
         }
+        const editModal = document.getElementById('editModal');
+        if (editModal) {
+            editModal.addEventListener('show.bs.modal', event => {
+                const button = event.relatedTarget;
+                const certidaoId = button.getAttribute('data-certidao-id');
+                const certidaoInfo = button.getAttribute('data-certidao-info');
+
+                const modalTitle = editModal.querySelector('.modal-title');
+                const modalForm = editModal.querySelector('#editForm');
+                const pendenteForm = editModal.querySelector('#pendenteForm')
+                
+                modalTitle.textContent = `Editar Validade: ${certidaoInfo}`;
+
+                modalForm.action = `/certidao/atualizar/${certidaoId}`;
+                pendenteForm.action = `/certidao/marcar_pendente/${certidaoId}`;
+            });
+        }
+
     </script>
 </body>
 </html>
