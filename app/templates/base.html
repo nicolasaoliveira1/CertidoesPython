@@ -69,6 +69,38 @@
             });
         }
 
+        const filtroInput = document.getElementById('filtroEmpresa');
+        if (filtroInput) {
+            const tabelaBody = document.querySelector('.table tbody');
+            
+            filtroInput.addEventListener('keyup', () => {
+                const termoBusca = filtroInput.value.toLowerCase();
+                const todasAsLinhas = tabelaBody.getElementsByTagName('tr');
+
+                for (let linha of todasAsLinhas) {
+                    if (linha.dataset.nomeEmpresa) {
+                        const nomeEmpresa = linha.dataset.nomeEmpresa.toLowerCase();
+                        if (nomeEmpresa.includes(termoBusca)) {
+                            linha.style.display = '';
+                        } else {
+                            linha.style.display = 'none';
+                        }
+                    }
+                }
+
+                for (let linha of todasAsLinhas) {
+                    if (linha.classList.contains('company-group-separator')) {
+                        const linhaAnterior = linha.previousElementSibling;
+        
+                        if (linhaAnterior && linhaAnterior.style.display !== 'none') {
+                            linha.style.display = '';
+                        } else {
+                            linha.style.display = 'none';
+                        }
+                    }
+                }
+            });
+        }
     </script>
 </body>
 </html>
