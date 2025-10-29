@@ -20,10 +20,5 @@ SITES_CERTIDOES = {
         'pre_fill_click_by': 'css_selector',                  
         'cnpj_field_id': 'gerarCertidaoForm:cpfCnpj',
         'by': 'id'
-    },
-    'MUNICIPAL': {
-        'url': '#',
-        'cnpj_field_id': None,
-        'by': None
     }
 }
