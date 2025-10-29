@@ -9,7 +9,7 @@ from selenium.webdriver.chrome.options import Options
 from app.automation import SITES_CERTIDOES
 from flask import render_template, Blueprint, request, redirect, url_for, flash, jsonify
 from app import db
-from app.models import Empresa, Certidao, TipoCertidao, StatusEspecial
+from app.models import Empresa, Certidao, TipoCertidao, StatusEspecial, Municipio
 from datetime import date, datetime, timedelta
 import time
 #esqueleto do routes para rodar a criação do banco, rotas serão definidas aqui posteriormente
@@ -117,81 +117,37 @@ def marcar_pendente(certidao_id):
         
     return redirect(url_for('main.dashboard'))
 
-# @bp.route('/certidao/abrir_site/<int:certidao_id>')
-# def abrir_site_certidao(certidao_id):
-#     certidao = Certidao.query.get_or_404(certidao_id)
-#     tipo_certidao_chave = certidao.tipo.name
-#     info_site = SITES_CERTIDOES.get(tipo_certidao_chave, {})
-
-#     if not info_site or info_site.get('url') == '#':
-#         flash(f'Automação para a certidão {certidao.tipo.value} ainda não implementada.', 'warning')
-#         return redirect(url_for('main.dashboard'))
-
-#     cnpj_limpo = ''.join(filter(str.isdigit, certidao.empresa.cnpj))
-#     driver = None 
-#     try:
-#         print("--- INICIANDO AUTOMAÇÃO ---")
-#         chrome_options = Options()
-#         chrome_options.add_argument("--incognito")
-#         chrome_options.add_argument("--start-maximized")
-        
-#         driver = webdriver.Chrome(service=ChromeService(ChromeDriverManager().install()), options=chrome_options)
-        
-#         print(f"1. Acessando a URL: {info_site['url']}")
-#         driver.get(info_site['url'])
-
-#         # Uma espera generosa de 20 segundos para dar tempo à página de "desenhar" seus elementos.
-#         wait = WebDriverWait(driver, 20)
-
-#         # A lógica sequencial que já funciona para os outros sites, agora funcionará para a Federal.
-
-#         if info_site.get('pre_fill_click_id'):
-#             print("Procurando pelo botão de clique prévio...")
-#             click_by_map = {'id': By.ID, 'css_selector': By.CSS_SELECTOR}
-#             click_by = click_by_map.get(info_site['pre_fill_click_by'])
-#             if click_by:
-#                 botao_inicial = wait.until(EC.element_to_be_clickable((click_by, info_site['pre_fill_click_id'])))
-#                 botao_inicial.click()
-#                 print("SUCESSO! Botão clicado.")
-#                 time.sleep(2)
-
-#         if info_site.get('cnpj_field_id') and info_site.get('by'):
-#             print("Procurando pelo campo do CNPJ...")
-#             field_by_map = {'id': By.ID, 'name': By.NAME}
-#             field_by = field_by_map.get(info_site.get('by'))
-#             if field_by:
-#                 # O WebDriverWait vai pacientemente esperar o <input name="niContribuinte"> aparecer.
-#                 campo_cnpj = wait.until(EC.visibility_of_element_located((field_by, info_site['cnpj_field_id'])))
-#                 campo_cnpj.send_keys(cnpj_limpo)
-#                 print("SUCESSO! CNPJ preenchido.")
-        
-#         print("--- AUTOMAÇÃO CONCLUÍDA, AGUARDANDO USUÁRIO ---")
-#         while True:
-#             try:
-#                 driver.window_handles
-#                 time.sleep(1)
-#             except:
-#                 break
-                
-#     except Exception as e:
-#         print(f"!!!!!!!!!! ERRO NO SELENIUM !!!!!!!!!!\n{e}")
-#         if driver:
-#             driver.quit()
-#         return jsonify({"status": "error", "message": "Ocorreu um erro na automação. Verifique o terminal."}), 500
-
-#     return ('', 204)
-
 @bp.route('/certidao/abrir_site/<int:certidao_id>')
 def abrir_site_certidao(certidao_id):
     certidao = Certidao.query.get_or_404(certidao_id)
     tipo_certidao_chave = certidao.tipo.name
-    info_site = SITES_CERTIDOES.get(tipo_certidao_chave, {})
+    
+    info_site = {} 
 
-    if not info_site or info_site.get('url') == '#':
-        flash(f'Automação para a certidão {certidao.tipo.value} ainda não implementada.', 'warning')
-        return redirect(url_for('main.dashboard'))
+    if tipo_certidao_chave != 'MUNICIPAL':
+        info_site = SITES_CERTIDOES.get(tipo_certidao_chave, {})
+    else:
+        cidade_empresa = certidao.empresa.cidade
+        print(f"Buscando regras de automação para a cidade: {cidade_empresa}")
+        
+        regra_municipio = Municipio.query.filter_by(nome=cidade_empresa).first()
+        
+        if regra_municipio:
+            print("Regra encontrada no banco de dados!")
+            info_site = {
+                'url': regra_municipio.url_certidao,
+                'cnpj_field_id': regra_municipio.cnpj_field_id,
+                'by': regra_municipio.by,
+                'pre_fill_click_id': regra_municipio.pre_fill_click_id,
+                'pre_fill_click_by': regra_municipio.pre_fill_click_by
+            }
+        else:
+            flash(f'Automação para a cidade de "{cidade_empresa}" ainda não foi cadastrada.', 'warning')
+            return redirect(url_for('main.dashboard'))
 
     cnpj_limpo = ''.join(filter(str.isdigit, certidao.empresa.cnpj))
+    inscricao_limpa = certidao.empresa.inscricao_mobiliaria or ''
+
     driver = None 
     try:
         print("--- INICIANDO AUTOMAÇÃO ---")
@@ -201,36 +157,41 @@ def abrir_site_certidao(certidao_id):
         
         driver = webdriver.Chrome(service=ChromeService(ChromeDriverManager().install()), options=chrome_options)
         
-        print(f"1. Acessando a URL: {info_site['url']}")
-        driver.get(info_site['url'])
+        print(f"1. Acessando a URL: {info_site.get('url')}")
+        driver.get(info_site.get('url'))
 
         wait = WebDriverWait(driver, 20)
-
+        
         if info_site.get('pre_fill_click_id'):
-            print("Procurando pelo botão de clique prévio...")
-            click_by_map = {'id': By.ID, 'css_selector': By.CSS_SELECTOR}
+            print("Procurando pelo elemento de clique prévio...")
+            click_by_map = {'id': By.ID, 'css_selector': By.CSS_SELECTOR, 'xpath': By.XPATH}
             click_by = click_by_map.get(info_site['pre_fill_click_by'])
             if click_by:
-                botao_inicial = wait.until(EC.element_to_be_clickable((click_by, info_site['pre_fill_click_id'])))
-                botao_inicial.click()
-                print("SUCESSO! Botão clicado.")
+                elemento_inicial = wait.until(EC.element_to_be_clickable((click_by, info_site['pre_fill_click_id'])))
+                elemento_inicial.click()
+                print("SUCESSO! Elemento clicado.")
                 time.sleep(2)
 
         if info_site.get('cnpj_field_id') and info_site.get('by'):
-            print("Procurando pelo campo do CNPJ...")
-            # --- ADICIONANDO 'css_selector' AO MAPA ---
-            field_by_map = {'id': By.ID, 'name': By.NAME, 'css_selector': By.CSS_SELECTOR}
+            print("Procurando pelo primeiro campo de preenchimento...")
+            field_by_map = {'id': By.ID, 'name': By.NAME, 'css_selector': By.CSS_SELECTOR, 'xpath': By.XPATH}
             field_by = field_by_map.get(info_site.get('by'))
             if field_by:
-                print("Aguardando o campo ficar totalmente interativo...")
-                campo_cnpj = wait.until(EC.element_to_be_clickable((field_by, info_site['cnpj_field_id'])))
-                
-                # A ação humana que funciona
-                campo_cnpj.click()
-                campo_cnpj.send_keys(cnpj_limpo)
+                campo_principal = wait.until(EC.element_to_be_clickable((field_by, info_site['cnpj_field_id'])))
+                campo_principal.click()
+                campo_principal.send_keys(cnpj_limpo)
+                print("SUCESSO! Primeiro campo preenchido (CNPJ).")
 
-                print("SUCESSO! CNPJ preenchido.")
-        
+        if tipo_certidao_chave == 'MUNICIPAL' and certidao.empresa.cidade == 'Imbe':
+            print("Caso especial 'Imbe' detectado. Procurando pelo campo de Inscrição Mobiliária...")
+            try:
+                campo_inscricao = wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, "input[id='form:inscricaoDI']")))
+                campo_inscricao.click()
+                campo_inscricao.send_keys(inscricao_limpa)
+                print("SUCESSO! Segundo campo preenchido (Inscrição Mobiliária).")
+            except Exception as e:
+                print(f"AVISO: Não foi possível preencher o campo de inscrição para Imbé. Erro: {e}")
+
         print("--- AUTOMAÇÃO CONCLUÍDA, AGUARDANDO USUÁRIO ---")
         while True:
             try:

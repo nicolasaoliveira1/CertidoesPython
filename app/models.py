@@ -50,3 +50,20 @@ class Certidao(db.Model):
             return 'amarelo'
         else:
             return 'verde'
+        
+class Municipio(db.Model):  
+    id = db.Column(db.Integer, primary_key=True)
+    nome = db.Column(db.String(100), unique=True, nullable=False)
+    url_certidao = db.Column(db.String(300), nullable=False)
+    
+    cnpj_field_id = db.Column(db.String(100), nullable=True)
+    by = db.Column(db.String(20), nullable=True)
+    
+    pre_fill_click_id = db.Column(db.String(100), nullable=True)
+    pre_fill_click_by = db.Column(db.String(20), nullable=True)
+    
+    shadow_host_selector = db.Column(db.String(100), nullable=True)
+    inner_input_selector = db.Column(db.String(100), nullable=True)
+    
+    def __repr__(self):
+        return f'<Municipio {self.nome}>'
