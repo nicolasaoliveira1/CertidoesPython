@@ -59,6 +59,9 @@ class Municipio(db.Model):
     cnpj_field_id = db.Column(db.String(100), nullable=True)
     by = db.Column(db.String(20), nullable=True)
     
+    inscricao_field_id = db.Column(db.String(100), nullable=True)
+    inscricao_field_by = db.Column(db.String(20), nullable=True)
+    
     pre_fill_click_id = db.Column(db.String(100), nullable=True)
     pre_fill_click_by = db.Column(db.String(20), nullable=True)
     

@@ -139,7 +139,9 @@ def abrir_site_certidao(certidao_id):
                 'cnpj_field_id': regra_municipio.cnpj_field_id,
                 'by': regra_municipio.by,
                 'pre_fill_click_id': regra_municipio.pre_fill_click_id,
-                'pre_fill_click_by': regra_municipio.pre_fill_click_by
+                'pre_fill_click_by': regra_municipio.pre_fill_click_by,
+                'inscricao_field_id': regra_municipio.inscricao_field_id,
+                'inscricao_field_by': regra_municipio.inscricao_field_by
             }
         else:
             flash(f'Automação para a cidade de "{cidade_empresa}" ainda não foi cadastrada.', 'warning')
@@ -172,26 +174,29 @@ def abrir_site_certidao(certidao_id):
                 print("SUCESSO! Elemento clicado.")
                 time.sleep(2)
 
-        if info_site.get('cnpj_field_id') and info_site.get('by'):
+        if info_site.get('cnpj_field_id'):
             print("Procurando pelo primeiro campo de preenchimento...")
             field_by_map = {'id': By.ID, 'name': By.NAME, 'css_selector': By.CSS_SELECTOR, 'xpath': By.XPATH}
             field_by = field_by_map.get(info_site.get('by'))
             if field_by:
-                campo_principal = wait.until(EC.element_to_be_clickable((field_by, info_site['cnpj_field_id'])))
-                campo_principal.click()
-                campo_principal.send_keys(cnpj_limpo)
-                print("SUCESSO! Primeiro campo preenchido (CNPJ).")
+                campo1 = wait.until(EC.element_to_be_clickable((field_by, info_site['cnpj_field_id'])))
+                campo1.click()
+                if info_site.get('cnpj_field_id') == 'inscricao':
+                     campo1.send_keys(inscricao_limpa)
+                else:
+                     campo1.send_keys(cnpj_limpo)
+                print("SUCESSO! Primeiro campo preenchido.")
 
-        if tipo_certidao_chave == 'MUNICIPAL' and certidao.empresa.cidade == 'Imbe':
-            print("Caso especial 'Imbe' detectado. Procurando pelo campo de Inscrição Mobiliária...")
-            try:
-                campo_inscricao = wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, "input[id='form:inscricaoDI']")))
-                campo_inscricao.click()
-                campo_inscricao.send_keys(inscricao_limpa)
-                print("SUCESSO! Segundo campo preenchido (Inscrição Mobiliária).")
-            except Exception as e:
-                print(f"AVISO: Não foi possível preencher o campo de inscrição para Imbé. Erro: {e}")
-
+        if info_site.get('inscricao_field_id'):
+            print("Procurando pelo segundo campo de preenchimento...")
+            field_by_map = {'id': By.ID, 'name': By.NAME, 'css_selector': By.CSS_SELECTOR, 'xpath': By.XPATH}
+            field_by = field_by_map.get(info_site.get('inscricao_field_by'))
+            if field_by:
+                campo2 = wait.until(EC.element_to_be_clickable((field_by, info_site['inscricao_field_id'])))
+                campo2.click()
+                campo2.send_keys(inscricao_limpa)
+                print("SUCESSO! Segundo campo preenchido.")
+        
         print("--- AUTOMAÇÃO CONCLUÍDA, AGUARDANDO USUÁRIO ---")
         while True:
             try:
