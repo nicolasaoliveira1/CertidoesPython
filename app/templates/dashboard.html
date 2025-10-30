@@ -2,7 +2,6 @@
 
 {% block content %}
 
-<h1 class="mb-4">Controle de Certidões Fiscais</h1>
 
 {% with messages = get_flashed_messages(with_categories=true) %}
   {% if messages %}
@@ -128,19 +127,19 @@
                     {{ certidao.data_validade.strftime('%d/%m/%Y') if certidao.data_validade else 'Não definida' }}
                 {% endif %}
             </td>
-            <td class="text-center px-2">
+            <td class="text-center px-5 d-flex justify-content-around">
                 <a href="{{ url_for('main.abrir_site_certidao', certidao_id=certidao.id) }}" 
-                    class="btn btn-sm btn-info btn-abrir-site">
+                    class="btn btn-sm btn-info btn-abrir-site me-2">
                     Abrir Site
                 </a>
-                <button class="btn btn-sm btn-warning"
+                <button class="btn btn-sm btn-warning me-2"
                         data-bs-toggle="modal"
                         data-bs-target="#editModal"
                         data-certidao-id="{{ certidao.id }}"
                         data-certidao-info="{{ certidao.tipo.value }} - {{ certidao.empresa.nome }}">
                     Editar
                 </button>
-                <button class="btn btn-sm btn-primary">Baixar</button>
+                <button class="btn btn-sm btn-primary me-2">Baixar</button>
             </td>
         </tr>
         {% endfor %}
