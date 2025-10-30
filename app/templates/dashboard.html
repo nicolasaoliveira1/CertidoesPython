@@ -109,8 +109,8 @@
         {% for certidao in empresa.certidoes.all() %}
         <tr class="status-{{ certidao.status }}" data-nome-empresa="{{ empresa.nome }}">
             {% if loop.first %}
-                <td rowspan="{{ empresa.certidoes.count() }}" class="px-2">{{ empresa.nome }}</td>
-                <td rowspan="{{ empresa.certidoes.count() }}" class="px-2">
+                <td rowspan="{{ empresa.certidoes.count() }}" class="px-2 fs-5 align-middle text-center fw-semibold">{{ empresa.nome }}</td>
+                <td rowspan="{{ empresa.certidoes.count() }}" class="px-2 fs-5 align-middle text-center">
                     {{ empresa.cnpj }}
                     {% if empresa.inscricao_mobiliaria %}
                         <br>
