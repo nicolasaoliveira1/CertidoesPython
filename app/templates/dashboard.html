@@ -172,8 +172,11 @@
                             {% endif %}
                         </td>
                         <td class="text-center px-5 d-flex justify-content-around">
-                            <a href="{{ url_for('main.abrir_site_certidao', certidao_id=certidao.id) }}" 
-                                class="btn btn-sm btn-info btn-abrir-site me-2">
+                            <a href="#" 
+                                class="btn btn-sm btn-info btn-abrir-site me-2"
+                                data-href="{{ url_for('main.abrir_site_certidao', certidao_id=certidao.id) }}"
+                                data-tipo="{{ certidao.tipo.name }}"
+                                data-cnpj="{{ certidao.empresa.cnpj | replace('.', '') | replace('/', '') | replace('-', '') }}">
                                 Abrir Site
                             </a>
                             <button class="btn btn-sm btn-warning me-2"
@@ -224,6 +227,22 @@
         </form>
         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
         <button type="submit" form="editForm" class="btn btn-primary">Salvar Alterações</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal fade" id="federalModal" tabindex="-1" aria-labelledby="federalModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h1 class="modal-title fs-5" id="federalModalLabel">Aviso</h1>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body" id="federalModalBody">
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-primary" data-bs-dismiss="modal">OK</button>
       </div>
     </div>
   </div>
@@ -309,8 +328,43 @@ document.addEventListener('DOMContentLoaded', function() {
             todasCheckbox.checked = true;
         }
     });
+
+    const federalUrl = "https://servicos.receitafederal.gov.br/servico/certidoes/#/home/cnpj";
+    const btnsAbrirSite = document.querySelectorAll('.btn-abrir-site');
+    
+    const federalModalElement = document.getElementById('federalModal');
+    const federalModalBody = document.getElementById('federalModalBody');
+    const federalModal = new bootstrap.Modal(federalModalElement);
+
+    btnsAbrirSite.forEach(function(btn) {
+        btn.addEventListener('click', function(event) {
+            event.preventDefault(); 
+            
+            const tipo = btn.dataset.tipo;
+            
+            if (tipo === 'FEDERAL') {
+                const cnpj = btn.dataset.cnpj;
+                
+                federalModalElement.addEventListener('hidden.bs.modal', function () {
+                    window.open(federalUrl, '_blank');
+                }, { once: true });
+
+                navigator.clipboard.writeText(cnpj).then(function() {
+                    federalModalBody.textContent = "O CNPJ foi copiado. Pressione OK para abrir o site da Receita.\n\nCole-o (Ctrl+V) no campo.";
+                    federalModal.show();
+                
+                }).catch(function(err) {
+                    console.error('Falha ao copiar CNPJ: ', err);
+                    federalModalBody.textContent = "Falha ao copiar o CNPJ. Pressione OK para abrir o site da Receita.";
+                    federalModal.show();
+                });
+            } else {
+                const pythonUrl = btn.dataset.href;
+                fetch(pythonUrl);
+            }
+        });
+    });
 });
 </script>
 {% endblock %}
-
 {% endblock %}

@@ -13,7 +13,6 @@ from app.models import Empresa, Certidao, TipoCertidao, StatusEspecial, Municipi
 from datetime import date, datetime, timedelta
 from sqlalchemy import or_
 import time
-#esqueleto do routes para rodar a criação do banco, rotas serão definidas aqui posteriormente
 
 bp = Blueprint('main', __name__)
 
@@ -137,6 +136,9 @@ def marcar_pendente(certidao_id):
 def abrir_site_certidao(certidao_id):
     certidao = Certidao.query.get_or_404(certidao_id)
     tipo_certidao_chave = certidao.tipo.name
+
+    if tipo_certidao_chave == 'FEDERAL':
+        return redirect("https://servicos.receitafederal.gov.br/servico/certidoes/#/home/cnpj")
     
     info_site = {} 
 
@@ -162,13 +164,14 @@ def abrir_site_certidao(certidao_id):
         else:
             flash(f'Automação para a cidade de "{cidade_empresa}" ainda não foi cadastrada.', 'warning')
             return redirect(url_for('main.dashboard'))
-
+    
     cnpj_limpo = ''.join(filter(str.isdigit, certidao.empresa.cnpj))
     inscricao_limpa = certidao.empresa.inscricao_mobiliaria or ''
 
     driver = None 
     try:
         print("--- INICIANDO AUTOMAÇÃO ---")
+        
         chrome_options = Options()
         chrome_options.add_argument("--incognito")
         chrome_options.add_argument("--start-maximized")
@@ -197,10 +200,11 @@ def abrir_site_certidao(certidao_id):
             if field_by:
                 campo1 = wait.until(EC.element_to_be_clickable((field_by, info_site['cnpj_field_id'])))
                 campo1.click()
-                if info_site.get('cnpj_field_id') == 'inscricao':
-                     campo1.send_keys(inscricao_limpa)
-                else:
-                     campo1.send_keys(cnpj_limpo)
+                
+                dado_a_preencher_campo1 = inscricao_limpa if info_site.get('cnpj_field_id') == 'inscricao' else cnpj_limpo
+                
+                campo1.send_keys(dado_a_preencher_campo1)
+                
                 print("SUCESSO! Primeiro campo preenchido.")
 
         if info_site.get('inscricao_field_id'):
@@ -210,7 +214,9 @@ def abrir_site_certidao(certidao_id):
             if field_by:
                 campo2 = wait.until(EC.element_to_be_clickable((field_by, info_site['inscricao_field_id'])))
                 campo2.click()
+                
                 campo2.send_keys(inscricao_limpa)
+
                 print("SUCESSO! Segundo campo preenchido.")
         
         print("--- AUTOMAÇÃO CONCLUÍDA, AGUARDANDO USUÁRIO ---")
