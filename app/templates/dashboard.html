@@ -104,53 +104,97 @@
                 <th class="text-center px-2">Ações</th>
             </tr>
         </thead>
-        <tbody>
+<tbody>
     {% for empresa in empresas %}
-        {% for certidao in empresa.certidoes.all() %}
-        <tr class="status-{{ certidao.status }}" data-nome-empresa="{{ empresa.nome }}">
-            {% if loop.first %}
-                <td rowspan="{{ empresa.certidoes.count() }}" class="px-2 fs-5 align-middle text-center fw-semibold">{{ empresa.nome }}</td>
-                <td rowspan="{{ empresa.certidoes.count() }}" class="px-2 fs-5 align-middle text-center">
-                    {{ empresa.cnpj }}
-                    {% if empresa.inscricao_mobiliaria %}
-                        <br>
-                        <small class="text-muted">IM: {{ empresa.inscricao_mobiliaria }}</small>
-                    {% endif %}
-                </td>
+    
+        {% set certidoes_filtradas = [] %}
+        
+        {% for c in empresa.certidoes.all() %}
+
+            {% set status_calculado = '' %}
+            
+            {% if c.status_especial and c.status_especial.value == 'Pendente' %}
+                {% set status_calculado = 'pendentes' %}
+            {% elif not c.data_validade %}
+                {% set status_calculado = 'pendentes' %}
+            {% elif c.data_validade < hoje %}
+                {% set status_calculado = 'vencidas' %}
+            {% elif (c.data_validade - hoje).days <= 7 %}
+                {% set status_calculado = 'a_vencer' %}
+            {% else %}
+                {% set status_calculado = 'validas' %}
+            {% endif %}
+
+            {% if status_filtro == 'todas' or status_filtro == status_calculado %}
+                
+                {% set _ = certidoes_filtradas.append(c) %}
             {% endif %}
             
-            <td class="date-cell px-2">{{ certidao.tipo.value }}</td>
-            <td class="date-cell px-2">
-                {% if certidao.status_especial and certidao.status_especial.value == 'Pendente' %}
-                    <span class="fw-semibold">Pendente</span>
-                {% else %}
-                    {{ certidao.data_validade.strftime('%d/%m/%Y') if certidao.data_validade else 'Não definida' }}
-                {% endif %}
-            </td>
-            <td class="text-center px-5 d-flex justify-content-around">
-                <a href="{{ url_for('main.abrir_site_certidao', certidao_id=certidao.id) }}" 
-                    class="btn btn-sm btn-info btn-abrir-site me-2">
-                    Abrir Site
-                </a>
-                <button class="btn btn-sm btn-warning me-2"
-                        data-bs-toggle="modal"
-                        data-bs-target="#editModal"
-                        data-certidao-id="{{ certidao.id }}"
-                        data-certidao-info="{{ certidao.tipo.value }} - {{ certidao.empresa.nome }}">
-                    Editar
-                </button>
-                <button class="btn btn-sm btn-primary me-2">Baixar</button>
-            </td>
-        </tr>
         {% endfor %}
-        {% if not loop.last %}
+        
+        {% set filtered_count = certidoes_filtradas | length %}
+
+        {% for certidao in certidoes_filtradas %}
+            
+            {% if certidao.status_especial and certidao.status_especial.value == 'Pendente' %}
+                {% set status_css = 'vermelho' %}
+            {% elif not certidao.data_validade %}
+                {% set status_css = 'cinza' %}
+            {% elif certidao.data_validade < hoje %}
+                {% set status_css = 'vermelho' %}
+            {% elif (certidao.data_validade - hoje).days <= 7 %}
+                {% set status_css = 'amarelo' %}
+            {% else %}
+                {% set status_css = 'verde' %}
+            {% endif %}
+            
+            <tr class="status-{{ status_css }}" data-nome-empresa="{{ empresa.nome }}">
+                
+                {% if loop.first %}
+                    <td rowspan="{{ filtered_count }}" class="px-2 fs-5 align-middle text-center fw-semibold">{{ empresa.nome }}</td>
+                    <td rowspan="{{ filtered_count }}" class="px-2 fs-5 align-middle text-center">
+                        {{ empresa.cnpj }}
+                        {% if empresa.inscricao_mobiliaria %}
+                            <br>
+                            <small class="text-muted">IM: {{ empresa.inscricao_mobiliaria }}</small>
+                        {% endif %}
+                    </td>
+                {% endif %}
+                
+                <td class="date-cell px-2">{{ certidao.tipo.value }}</td>
+                <td class="date-cell px-2">
+                    {% if certidao.status_especial and certidao.status_especial.value == 'Pendente' %}
+                        <span class="fw-semibold">Pendente</span>
+                    {% else %}
+                        {{ certidao.data_validade.strftime('%d/%m/%Y') if certidao.data_validade else 'Não definida' }}
+                    {% endif %}
+                </td>
+                <td class="text-center px-5 d-flex justify-content-around">
+                    <a href="{{ url_for('main.abrir_site_certidao', certidao_id=certidao.id) }}" 
+                        class="btn btn-sm btn-info btn-abrir-site me-2">
+                        Abrir Site
+                    </a>
+                    <button class="btn btn-sm btn-warning me-2"
+                            data-bs-toggle="modal"
+                            data-bs-target="#editModal"
+                            data-certidao-id="{{ certidao.id }}"
+                            data-certidao-info="{{ certidao.tipo.value }} - {{ certidao.empresa.nome }}">
+                        Editar
+                    </button>
+                    <button class="btn btn-sm btn-primary me-2">Baixar</button>
+                </td>
+            </tr>
+        {% endfor %}
+        
+        {% if not loop.last and (certidoes_filtradas | length > 0) %}
             <tr class="company-group-separator">
                 <td colspan="5"></td>
             </tr>
         {% endif %}
+        
     {% else %}
         <tr>
-            <td colspan="5" class="text-center">Nenhuma empresa cadastrada ainda.</td>
+            <td colspan="5" class="text-center">Nenhuma empresa encontrada para este filtro.</td>
         </tr>
     {% endfor %}
 </tbody>
