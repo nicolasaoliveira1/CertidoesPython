@@ -46,7 +46,7 @@ class Certidao(db.Model):
         diferenca_dias = (self.data_validade - hoje).days
         if diferenca_dias < 0:
             return 'vermelho'
-        elif diferenca_dias <= 10:
+        elif diferenca_dias <= 7:
             return 'amarelo'
         else:
             return 'verde'

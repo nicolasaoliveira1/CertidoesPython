@@ -27,9 +27,9 @@ def dashboard():
     hoje = date.today()
     
     if status_filtro == 'validas':
-        query = query.filter(Certidao.data_validade > (hoje + timedelta(days=15)))
+        query = query.filter(Certidao.data_validade > (hoje + timedelta(days=7)))
     elif status_filtro == 'a_vencer':
-        query = query.filter(Certidao.data_validade.between(hoje, hoje + timedelta(days=15)))
+        query = query.filter(Certidao.data_validade.between(hoje, hoje + timedelta(days=7)))
     elif status_filtro == 'vencidas':
         query = query.filter(
             (Certidao.data_validade < hoje) & (Certidao.status_especial == None)
@@ -39,7 +39,7 @@ def dashboard():
         
     empresas = query.order_by(Empresa.id).all()
     
-    return render_template('dashboard.html', empresas=empresas, status_filtro=status_filtro)
+    return render_template('dashboard.html', empresas=empresas, status_filtro=status_filtro, hoje=hoje)
 
 @bp.route('/empresa/adicionar', methods=['POST'])
 def adicionar_empresa():
