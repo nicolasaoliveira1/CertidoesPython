@@ -55,43 +55,46 @@
     <div class="card-body">
         <div class="row g-3 align-items-end">
 
-            <div class="col-md-6">
-                <label for="filtroEmpresa" class="form-label fw-bold">Buscar Empresa por Nome:</label>
-                <input type="search" class="form-control" id="filtroEmpresa" 
-                       placeholder="Digite o nome da empresa para filtrar...">
-            </div>
-
-            <div class="col-md-6">
-                <form method="GET" action="{{ url_for('main.dashboard') }}">
-                    <label class="form-label fw-bold">Filtrar por Status:</label>
-                    <div class="btn-group w-100" role="group">
-                        <button type="submit" name="status" value="todas" 
-                                class="btn {% if status_filtro == 'todas' %}btn-primary{% else %}btn-outline-primary{% endif %}">
-                            Todas
-                        </button>
-                        <button type="submit" name="status" value="validas" 
-                                class="btn {% if status_filtro == 'validas' %}btn-success{% else %}btn-outline-success{% endif %}">
-                            Válidas
-                        </button>
-                        <button type="submit" name="status" value="a_vencer" 
-                                class="btn {% if status_filtro == 'a_vencer' %}btn-warning{% else %}btn-outline-warning{% endif %}">
-                            A Vencer
-                        </button>
-                        <button type="submit" name="status" value="vencidas" 
-                                class="btn {% if status_filtro == 'vencidas' %}btn-danger{% else %}btn-outline-danger{% endif %}">
-                            Vencidas
-                        </button>
-                        <button type="submit" name="status" value="pendentes" 
-                                class="btn {% if status_filtro == 'pendentes' %}btn-secondary{% else %}btn-outline-secondary{% endif %}">
-                            Pendentes
-                        </button>
-                    </div>
-                </form>
-            </div>
-
-        </div>
+    <div class="col-md-6">
+        <label for="filtroEmpresa" class="form-label fw-bold">Buscar Empresa por Nome:</label>
+        <input type="search" class="form-control" id="filtroEmpresa" 
+               placeholder="Digite o nome da empresa para filtrar...">
     </div>
-</div>
+
+    <div class="col-md-6">
+        <label class="form-label fw-bold">Filtrar por Status:</label>
+        
+        <form action="{{ url_for('main.dashboard') }}" method="GET" class="mb-0" id="filtro-form">
+            <div class="d-flex">
+                
+                <div class="btn-group d-flex flex-grow-1 me-2" role="group">
+                    <input type="checkbox" class="btn-check" id="status-todas" name="status" value="todas" autocomplete="off" 
+                           {% if 'todas' in status_filtros %}checked{% endif %}>
+                    <label class="btn btn-outline-secondary flex-grow-1" for="status-todas">Todas</label>
+
+                    <input type="checkbox" class="btn-check" id="status-validas" name="status" value="validas" autocomplete="off"
+                           {% if 'validas' in status_filtros %}checked{% endif %}>
+                    <label class="btn btn-outline-success flex-grow-1" for="status-validas">Válidas</label>
+
+                    <input type="checkbox" class="btn-check" id="status-a-vencer" name="status" value="a_vencer" autocomplete="off"
+                           {% if 'a_vencer' in status_filtros %}checked{% endif %}>
+                    <label class="btn btn-outline-warning flex-grow-1" for="status-a-vencer">A Vencer</label>
+
+                    <input type="checkbox" class="btn-check" id="status-vencidas" name="status" value="vencidas" autocomplete="off"
+                           {% if 'vencidas' in status_filtros %}checked{% endif %}>
+                    <label class="btn btn-outline-danger flex-grow-1" for="status-vencidas">Vencidas</label>
+
+                    <input type="checkbox" class="btn-check" id="status-pendentes" name="status" value="pendentes" autocomplete="off"
+                           {% if 'pendentes' in status_filtros %}checked{% endif %}>
+                    <label class="btn btn-outline-info flex-grow-1" for="status-pendentes">Pendentes</label>
+                </div>
+
+                <button type="submit" class="btn btn-primary d-flex px-5 justify-content-center">Filtrar</button>
+            </div>
+        </form>
+    </div>
+
+
 
 <div class="table-responsive">
     <table class="table table-bordered align-middle table-fixed-layout">
@@ -104,101 +107,99 @@
                 <th class="text-center px-2">Ações</th>
             </tr>
         </thead>
-<tbody>
-    {% for empresa in empresas %}
-    
-        {% set certidoes_filtradas = [] %}
-        
-        {% for c in empresa.certidoes.all() %}
-
-            {% set status_calculado = '' %}
+        <tbody>
+            {% for empresa in empresas %}
             
-            {% if c.status_especial and c.status_especial.value == 'Pendente' %}
-                {% set status_calculado = 'pendentes' %}
-            {% elif not c.data_validade %}
-                {% set status_calculado = 'pendentes' %}
-            {% elif c.data_validade < hoje %}
-                {% set status_calculado = 'vencidas' %}
-            {% elif (c.data_validade - hoje).days <= 7 %}
-                {% set status_calculado = 'a_vencer' %}
-            {% else %}
-                {% set status_calculado = 'validas' %}
-            {% endif %}
-
-            {% if status_filtro == 'todas' or status_filtro == status_calculado %}
+                {% set certidoes_filtradas = [] %}
                 
-                {% set _ = certidoes_filtradas.append(c) %}
-            {% endif %}
-            
-        {% endfor %}
+                {% for c in empresa.certidoes.all() %}
         
-        {% set filtered_count = certidoes_filtradas | length %}
-
-        {% for certidao in certidoes_filtradas %}
-            
-            {% if certidao.status_especial and certidao.status_especial.value == 'Pendente' %}
-                {% set status_css = 'vermelho' %}
-            {% elif not certidao.data_validade %}
-                {% set status_css = 'cinza' %}
-            {% elif certidao.data_validade < hoje %}
-                {% set status_css = 'vermelho' %}
-            {% elif (certidao.data_validade - hoje).days <= 7 %}
-                {% set status_css = 'amarelo' %}
-            {% else %}
-                {% set status_css = 'verde' %}
-            {% endif %}
-            
-            <tr class="status-{{ status_css }}" data-nome-empresa="{{ empresa.nome }}">
+                    {% set status_calculado = '' %}
+                    
+                    {% if c.status_especial and c.status_especial.value == 'Pendente' %}
+                        {% set status_calculado = 'pendentes' %}
+                    {% elif not c.data_validade %}
+                        {% set status_calculado = 'pendentes' %}
+                    {% elif c.data_validade < hoje %}
+                        {% set status_calculado = 'vencidas' %}
+                    {% elif (c.data_validade - hoje).days <= 7 %}
+                        {% set status_calculado = 'a_vencer' %}
+                    {% else %}
+                        {% set status_calculado = 'validas' %}
+                    {% endif %}
+        
+                    {% if 'todas' in status_filtros or status_calculado in status_filtros %}
+                        {% set _ = certidoes_filtradas.append(c) %}
+                    {% endif %}
+                    
+                {% endfor %}
                 
-                {% if loop.first %}
-                    <td rowspan="{{ filtered_count }}" class="px-2 fs-5 align-middle text-center fw-semibold">{{ empresa.nome }}</td>
-                    <td rowspan="{{ filtered_count }}" class="px-2 fs-5 align-middle text-center">
-                        {{ empresa.cnpj }}
-                        {% if empresa.inscricao_mobiliaria %}
-                            <br>
-                            <small class="text-muted">IM: {{ empresa.inscricao_mobiliaria }}</small>
+                {% set filtered_count = certidoes_filtradas | length %}
+        
+                {% for certidao in certidoes_filtradas %}
+                    
+                    {% if certidao.status_especial and certidao.status_especial.value == 'Pendente' %}
+                        {% set status_css = 'vermelho' %}
+                    {% elif not certidao.data_validade %}
+                        {% set status_css = 'cinza' %}
+                    {% elif certidao.data_validade < hoje %}
+                        {% set status_css = 'vermelho' %}
+                    {% elif (certidao.data_validade - hoje).days <= 7 %}
+                        {% set status_css = 'amarelo' %}
+                    {% else %}
+                        {% set status_css = 'verde' %}
+                    {% endif %}
+                    
+                    <tr class="status-{{ status_css }}" data-nome-empresa="{{ empresa.nome }}">
+                        
+                        {% if loop.first %}
+                            <td rowspan="{{ filtered_count }}" class="px-2 fs-5 align-middle text-center fw-semibold">{{ empresa.nome }}</td>
+                            <td rowspan="{{ filtered_count }}" class="px-2 fs-5 align-middle text-center">
+                                {{ empresa.cnpj }}
+                                {% if empresa.inscricao_mobiliaria %}
+                                    <br>
+                                    <small class="text-muted">IM: {{ empresa.inscricao_mobiliaria }}</small>
+                                {% endif %}
+                            </td>
                         {% endif %}
-                    </td>
+                        
+                        <td class="date-cell px-2">{{ certidao.tipo.value }}</td>
+                        <td class="date-cell px-2">
+                            {% if certidao.status_especial and certidao.status_especial.value == 'Pendente' %}
+                                <span class="fw-semibold">Pendente</span>
+                            {% else %}
+                                {{ certidao.data_validade.strftime('%d/%m/%Y') if certidao.data_validade else 'Não definida' }}
+                            {% endif %}
+                        </td>
+                        <td class="text-center px-5 d-flex justify-content-around">
+                            <a href="{{ url_for('main.abrir_site_certidao', certidao_id=certidao.id) }}" 
+                                class="btn btn-sm btn-info btn-abrir-site me-2">
+                                Abrir Site
+                            </a>
+                            <button class="btn btn-sm btn-warning me-2"
+                                    data-bs-toggle="modal"
+                                    data-bs-target="#editModal"
+                                    data-certidao-id="{{ certidao.id }}"
+                                    data-certidao-info="{{ certidao.tipo.value }} - {{ certidao.empresa.nome }}">
+                                Editar
+                            </button>
+                            <button class="btn btn-sm btn-primary me-2">Baixar</button>
+                        </td>
+                    </tr>
+                {% endfor %}
+                
+                {% if not loop.last and (certidoes_filtradas | length > 0) %}
+                    <tr class="company-group-separator">
+                        <td colspan="5"></td>
+                    </tr>
                 {% endif %}
                 
-                <td class="date-cell px-2">{{ certidao.tipo.value }}</td>
-                <td class="date-cell px-2">
-                    {% if certidao.status_especial and certidao.status_especial.value == 'Pendente' %}
-                        <span class="fw-semibold">Pendente</span>
-                    {% else %}
-                        {{ certidao.data_validade.strftime('%d/%m/%Y') if certidao.data_validade else 'Não definida' }}
-                    {% endif %}
-                </td>
-                <td class="text-center px-5 d-flex justify-content-around">
-                    <a href="{{ url_for('main.abrir_site_certidao', certidao_id=certidao.id) }}" 
-                        class="btn btn-sm btn-info btn-abrir-site me-2">
-                        Abrir Site
-                    </a>
-                    <button class="btn btn-sm btn-warning me-2"
-                            data-bs-toggle="modal"
-                            data-bs-target="#editModal"
-                            data-certidao-id="{{ certidao.id }}"
-                            data-certidao-info="{{ certidao.tipo.value }} - {{ certidao.empresa.nome }}">
-                        Editar
-                    </button>
-                    <button class="btn btn-sm btn-primary me-2">Baixar</button>
-                </td>
-            </tr>
-        {% endfor %}
-        
-        {% if not loop.last and (certidoes_filtradas | length > 0) %}
-            <tr class="company-group-separator">
-                <td colspan="5"></td>
-            </tr>
-        {% endif %}
-        
-    {% else %}
-        <tr>
-            <td colspan="5" class="text-center">Nenhuma empresa encontrada para este filtro.</td>
-        </tr>
-    {% endfor %}
-</tbody>
-
+            {% else %}
+                <tr>
+                    <td colspan="5" class="text-center">Nenhuma empresa encontrada para este filtro.</td>
+                </tr>
+            {% endfor %}
+        </tbody>
     </table>
 </div>
 
@@ -227,5 +228,89 @@
     </div>
   </div>
 </div>
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    
+    const filtroInput = document.getElementById('filtroEmpresa');
+    if (filtroInput) {
+        const tabelaBody = document.querySelector('.table tbody');
+        
+        filtroInput.addEventListener('keyup', () => {
+            const termoBusca = filtroInput.value.toLowerCase();
+            const todasAsLinhas = tabelaBody.getElementsByTagName('tr');
+
+            for (let linha of todasAsLinhas) {
+                if (linha.dataset.nomeEmpresa) {
+                    const nomeEmpresa = linha.dataset.nomeEmpresa.toLowerCase();
+                    if (nomeEmpresa.includes(termoBusca)) {
+                        linha.style.display = '';
+                    } else {
+                        linha.style.display = 'none';
+                    }
+                }
+            }
+
+            for (let linha of todasAsLinhas) {
+                if (linha.classList.contains('company-group-separator')) {
+                    const linhaAnterior = linha.previousElementSibling;
+                
+                    if (linhaAnterior && linhaAnterior.style.display !== 'none') {
+                        linha.style.display = '';
+                    } else {
+                        linha.style.display = 'none';
+                    }
+                }
+            }
+        });
+    }
+
+    const todasCheckbox = document.getElementById('status-todas');
+    const otherCheckboxes = [
+        document.getElementById('status-validas'),
+        document.getElementById('status-a-vencer'),
+        document.getElementById('status-vencidas'),
+        document.getElementById('status-pendentes')
+    ];
+
+    todasCheckbox.addEventListener('change', function() {
+        if (todasCheckbox.checked) {
+            otherCheckboxes.forEach(function(checkbox) {
+                if (checkbox) { checkbox.checked = false; }
+            });
+        }
+    });
+
+    otherCheckboxes.forEach(function(checkbox) {
+        if (checkbox) {
+            checkbox.addEventListener('change', function() {
+                if (checkbox.checked) {
+                    todasCheckbox.checked = false;
+                }
+            });
+        }
+    });
+
+    const form = document.getElementById('filtro-form');
+    form.addEventListener('submit', function(event) {
+        let oneChecked = false;
+        if (todasCheckbox.checked) {
+            oneChecked = true;
+        } else {
+            otherCheckboxes.forEach(function(checkbox) {
+                if (checkbox && checkbox.checked) {
+                    oneChecked = true;
+                }
+            });
+        }
+        
+        if (!oneChecked) {
+            todasCheckbox.checked = true;
+        }
+    });
+});
+</script>
+{% endblock %}
 
 {% endblock %}

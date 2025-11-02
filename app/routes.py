@@ -11,6 +11,7 @@ from flask import render_template, Blueprint, request, redirect, url_for, flash,
 from app import db
 from app.models import Empresa, Certidao, TipoCertidao, StatusEspecial, Municipio
 from datetime import date, datetime, timedelta
+from sqlalchemy import or_
 import time
 #esqueleto do routes para rodar a criação do banco, rotas serão definidas aqui posteriormente
 
@@ -18,28 +19,43 @@ bp = Blueprint('main', __name__)
 
 @bp.route('/')
 def dashboard():
-    status_filtro = request.args.get('status', 'todas', type=str)
+    status_filtros = request.args.getlist('status')
     query = db.session.query(Empresa).distinct()
-
-    if status_filtro != 'todas':
-        query = query.join(Certidao)
 
     hoje = date.today()
     
-    if status_filtro == 'validas':
-        query = query.filter(Certidao.data_validade > (hoje + timedelta(days=7)))
-    elif status_filtro == 'a_vencer':
-        query = query.filter(Certidao.data_validade.between(hoje, hoje + timedelta(days=7)))
-    elif status_filtro == 'vencidas':
-        query = query.filter(
-            (Certidao.data_validade < hoje) & (Certidao.status_especial == None)
-        )
-    elif status_filtro == 'pendentes':
-        query = query.filter(Certidao.status_especial == StatusEspecial.PENDENTE)
+    if not status_filtros:
+        status_filtros = ['todas']
+    
+    if 'todas' in status_filtros or not status_filtros:
+        status_filtros = ['todas']
+    else:
+        query = query.join(Certidao)
         
+        conditions = []
+        
+        if 'validas' in status_filtros:
+            conditions.append(Certidao.data_validade > (hoje + timedelta(days=7)))
+        
+        if 'a_vencer' in status_filtros:
+            conditions.append(Certidao.data_validade.between(hoje, hoje + timedelta(days=7)))
+        
+        if 'vencidas' in status_filtros:
+            conditions.append(
+                (Certidao.data_validade < hoje) & (Certidao.status_especial == None)
+            )
+        
+        if 'pendentes' in status_filtros:
+            conditions.append(Certidao.status_especial == StatusEspecial.PENDENTE)
+        
+        if conditions:
+            query = query.filter(or_(*conditions))
+        else:
+            query = query.filter(Empresa.id == -1) 
+
     empresas = query.order_by(Empresa.id).all()
     
-    return render_template('dashboard.html', empresas=empresas, status_filtro=status_filtro, hoje=hoje)
+    return render_template('dashboard.html', empresas=empresas, status_filtros=status_filtros, hoje=hoje)
 
 @bp.route('/empresa/adicionar', methods=['POST'])
 def adicionar_empresa():
