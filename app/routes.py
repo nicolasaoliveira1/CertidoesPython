@@ -9,6 +9,7 @@ from selenium.webdriver.chrome.options import Options
 from app.automation import SITES_CERTIDOES
 from flask import render_template, Blueprint, request, redirect, url_for, flash, jsonify
 from app import db
+from app import file_manager
 from app.models import Empresa, Certidao, TipoCertidao, StatusEspecial, Municipio
 from datetime import date, datetime, timedelta
 from sqlalchemy import or_
@@ -140,7 +141,9 @@ def marcar_pendente(certidao_id):
         flash(f'Erro ao marcar como pendente: {e}', 'danger')
         
     return redirect(url_for('main.dashboard'))
-
+                                       
+## baixar certidao com automacao salvamento ||||
+##                                          VVVV
 @bp.route('/certidao/baixar/<int:certidao_id>')
 def baixar_certidao(certidao_id):
     certidao = Certidao.query.get_or_404(certidao_id)
@@ -150,7 +153,6 @@ def baixar_certidao(certidao_id):
         return redirect("https://servicos.receitafederal.gov.br/servico/certidoes/#/home/cnpj")
     
     info_site = {} 
-
     if tipo_certidao_chave != 'MUNICIPAL':
         info_site = SITES_CERTIDOES.get(tipo_certidao_chave, {})
     else:
@@ -167,7 +169,6 @@ def baixar_certidao(certidao_id):
                 'inscricao_field_by': regra_municipio.inscricao_field_by
             }
         else:
-            # Retornamos um JSON de erro para o JS tratar
             return jsonify({'status': 'error', 'message': 'Regra municipal não encontrada'})
     
     cnpj_limpo = ''.join(filter(str.isdigit, certidao.empresa.cnpj))
@@ -175,6 +176,9 @@ def baixar_certidao(certidao_id):
 
     driver = None 
     data_encontrada = None
+    arquivo_salvo_msg = None
+    
+    tempo_inicio = time.time()
 
     try:
         print(f"--- INICIANDO AUTOMAÇÃO ({tipo_certidao_chave}) ---")
@@ -185,129 +189,117 @@ def baixar_certidao(certidao_id):
         
         driver = webdriver.Chrome(service=ChromeService(ChromeDriverManager().install()), options=chrome_options)
         
-        print(f"1. Acessando a URL: {info_site.get('url')}")
         driver.get(info_site.get('url'))
-
         wait = WebDriverWait(driver, 20)
         
-        # --- Preenchimento Padrão ---
         if info_site.get('pre_fill_click_id'):
             click_by_map = {'id': By.ID, 'css_selector': By.CSS_SELECTOR, 'xpath': By.XPATH}
             click_by = click_by_map.get(info_site['pre_fill_click_by'])
             if click_by:
-                elemento_inicial = wait.until(EC.element_to_be_clickable((click_by, info_site['pre_fill_click_id'])))
-                elemento_inicial.click()
-                time.sleep(2)
+                try:
+                    elemento_inicial = wait.until(EC.element_to_be_clickable((click_by, info_site['pre_fill_click_id'])))
+                    elemento_inicial.click()
+                    time.sleep(2)
+                except: pass
 
         if info_site.get('cnpj_field_id'):
             field_by_map = {'id': By.ID, 'name': By.NAME, 'css_selector': By.CSS_SELECTOR, 'xpath': By.XPATH}
             field_by = field_by_map.get(info_site.get('by'))
             if field_by:
-                campo1 = wait.until(EC.element_to_be_clickable((field_by, info_site['cnpj_field_id'])))
-                campo1.click()
-                dado_a_preencher = inscricao_limpa if info_site.get('cnpj_field_id') == 'inscricao' else cnpj_limpo
-                campo1.send_keys(dado_a_preencher)
+                try:
+                    campo1 = wait.until(EC.element_to_be_clickable((field_by, info_site['cnpj_field_id'])))
+                    campo1.click()
+                    dado_a_preencher = inscricao_limpa if info_site.get('cnpj_field_id') == 'inscricao' else cnpj_limpo
+                    campo1.send_keys(dado_a_preencher)
+                except: pass
 
         if info_site.get('inscricao_field_id'):
             field_by_map = {'id': By.ID, 'name': By.NAME, 'css_selector': By.CSS_SELECTOR, 'xpath': By.XPATH}
             field_by = field_by_map.get(info_site.get('inscricao_field_by'))
             if field_by:
-                campo2 = wait.until(EC.element_to_be_clickable((field_by, info_site['inscricao_field_id'])))
-                campo2.click()
-                campo2.send_keys(inscricao_limpa)
+                try:
+                    campo2 = wait.until(EC.element_to_be_clickable((field_by, info_site['inscricao_field_id'])))
+                    campo2.click()
+                    campo2.send_keys(inscricao_limpa)
+                except: pass
 
 
-        # ==================================================================
-        # LÓGICA DE DATAS (FGTS, TRABALHISTA, ESTADUAL, MUNICIPAL)
-        #
-        #
-        if tipo_certidao_chave == 'FGTS':
-            print("--- FGTS: Monitorando tela para captura de data... ---")
-            wait_long = WebDriverWait(driver, 120)
-            try:
-                elemento_validade = wait_long.until(
-                    EC.presence_of_element_located((By.XPATH, "//p[contains(., 'Validade:')]"))
-                )
-                texto_completo = elemento_validade.text 
-                
-                if " a " in texto_completo:
-                    # Pega tudo depois do " a " e corta
-                    resto_do_texto = texto_completo.split(" a ")[-1].strip()
-                    parte_data = resto_do_texto[:10]
-                    
-                    data_encontrada = datetime.strptime(parte_data, '%d/%m/%Y').date()
-                    print(f"DATA FGTS ENCONTRADA: {data_encontrada}")
-                    
-                    driver.execute_script("alert('Data capturada! Pode fechar a janela.');")
-            except TimeoutException:
-                print("FGTS: Tempo esgotado sem encontrar a data.")
-
-        elif tipo_certidao_chave == 'TRABALHISTA':
-            print("--- TRABALHISTA: Calculando validade (Hoje + 180 dias)... ---")
-            data_encontrada = date.today() + timedelta(days=180)
-
-        elif tipo_certidao_chave == 'ESTADUAL':
-            print("--- ESTADUAL (RS): Calculando validade (Hoje + 59 dias)... ---")
-            data_encontrada = date.today() + timedelta(days=59)
-
-        elif tipo_certidao_chave == 'MUNICIPAL':
-            cidade = certidao.empresa.cidade.strip().upper() # Padroniza para Maiúsculas
-            print(f"--- MUNICIPAL ({cidade}): Verificando regra de validade... ---")
-            
-            if cidade in ['IMBÉ', 'IMBE']:
-                print("Regra Imbé: Hoje + 90 dias")
-                data_encontrada = date.today() + timedelta(days=90)
-            
-            elif cidade in ['TRAMANDAÍ', 'TRAMANDAI', 'TRAMANDAI/RS']:
-                print("Regra Tramandaí: Hoje + 30 dias")
-                data_encontrada = date.today() + timedelta(days=30)
-            
-            else:
-                print(f"AVISO: Nenhuma regra de validade definida para o município: {cidade}")
-
-        # ==================================================================
-
-        print("--- AGUARDANDO USUÁRIO FECHAR A JANELA ---")
+        print("--- AGUARDANDO DOWNLOAD OU FECHAMENTO ---")
+        
+        download_detectado = False
+        
         while True:
             try:
                 driver.window_handles
-                time.sleep(1)
             except:
-                break
+                print("Janela fechada pelo usuário.")
+                break 
+            
+            if tipo_certidao_chave == 'FGTS' and not data_encontrada:
+                try:
+                    elemento = driver.find_element(By.XPATH, "//p[contains(., 'Validade:')]")
+                    texto = elemento.text
+                    if " a " in texto:
+                        parte_data = texto.split(" a ")[-1].strip()[:10]
+                        data_encontrada = datetime.strptime(parte_data, '%d/%m/%Y').date()
+                        driver.execute_script("alert('Data lida! Agora faça o download do PDF.');")
+                except:
+                    pass 
+            
+            if not download_detectado:
+                novo_arquivo = file_manager.verificar_novo_arquivo(tempo_inicio)
                 
+                if novo_arquivo:
+                    print(f"Novo arquivo detectado: {novo_arquivo}")
+                    download_detectado = True
+                    
+                    sucesso, msg = file_manager.mover_e_renomear(
+                        novo_arquivo, 
+                        certidao.empresa.nome, 
+                        certidao.tipo.value
+                    )
+                    
+                    if sucesso:
+                        arquivo_salvo_msg = f"Arquivo salvo em: {msg}"
+                        print(arquivo_salvo_msg)
+                        try:
+                            driver.execute_script(f"alert('PDF salvo no servidor com sucesso!');")
+                        except: pass
+                    else:
+                        print(f"Erro ao salvar: {msg}")
+
+            time.sleep(1)
+
     except Exception as e:
         print(f"!!!!!!!!!! ERRO NO SELENIUM !!!!!!!!!!\n{e}")
         if driver:
-            driver.quit()
+            try: driver.quit()
+            except: pass
         return jsonify({"status": "error", "message": "Ocorreu um erro na automação."}), 500
 
-    # --- RETORNO FRONTEND ---
-    if data_encontrada:
-        return jsonify({
-            'status': 'success',
-            'certidao_id': certidao_id,
-            'nova_data': data_encontrada.strftime('%Y-%m-%d'), # Formato para o banco
-            'data_formatada': data_encontrada.strftime('%d/%m/%Y'), # Formato para exibir no modal
-            'tipo_certidao': certidao.tipo.value # Exibir tipo validade no modal
-        })
-    else:
-        return jsonify({'status': 'success_no_date'})
+    if not data_encontrada:
+        if tipo_certidao_chave == 'TRABALHISTA':
+            data_encontrada = date.today() + timedelta(days=180)
+        elif tipo_certidao_chave == 'ESTADUAL':
+            data_encontrada = date.today() + timedelta(days=59)
+        elif tipo_certidao_chave == 'MUNICIPAL':
+            cidade = certidao.empresa.cidade.strip().upper()
+            if cidade in ['IMBÉ', 'IMBE']:
+                data_encontrada = date.today() + timedelta(days=90)
+            elif cidade in ['TRAMANDAÍ', 'TRAMANDAI', 'TRAMANDAI/RS']:
+                data_encontrada = date.today() + timedelta(days=30)
 
-@bp.route('/certidao/salvar_data_confirmada', methods=['POST'])
-def salvar_data_confirmada():
-    dados = request.get_json()
-    certidao_id = dados.get('certidao_id')
-    nova_validade_str = dados.get('nova_validade')
-
-    try:
-        certidao = Certidao.query.get(certidao_id)
-        nova_data = datetime.strptime(nova_validade_str, '%Y-%m-%d').date()
-        
-        certidao.data_validade = nova_data
-        certidao.status_especial = None
-        db.session.commit()
-        
-        return jsonify({'status': 'success'})
-    except Exception as e:
-        return jsonify({'status': 'error', 'message': str(e)}), 500
+    response_data = {'status': 'success'}
     
+    if data_encontrada:
+        response_data['certidao_id'] = certidao_id
+        response_data['nova_data'] = data_encontrada.strftime('%Y-%m-%d')
+        response_data['data_formatada'] = data_encontrada.strftime('%d/%m/%Y')
+        response_data['tipo_certidao'] = certidao.tipo.value
+    else:
+        response_data['status'] = 'success_no_date'
+        
+    if arquivo_salvo_msg:
+        response_data['mensagem_arquivo'] = arquivo_salvo_msg
+        
+    return jsonify(response_data)
