@@ -149,11 +149,20 @@
                     {% else %}
                         {% set status_css = 'verde' %}
                     {% endif %}
+
+                    {% set data_url_final = '#' %}
+                    {% if certidao.tipo.name == 'MUNICIPAL' %}
+                        {% set data_url_final = urls_municipais.get(certidao.empresa.cidade, '#') %}
+                    {% else %}
+                        {% set data_url_final = sites_urls.get(certidao.tipo.name, {}).get('url', '#') %}
+                    {% endif %}
                     
                     <tr class="status-{{ status_css }}" data-nome-empresa="{{ empresa.nome }}">
                         
                         {% if loop.first %}
-                            <td rowspan="{{ filtered_count }}" class="px-2 fs-5 align-middle text-center fw-semibold">{{ empresa.nome }}</td>
+                            <td rowspan="{{ filtered_count }}" class="px-2 fs-5 align-middle text-center fw-semibold">{{ empresa.nome }}
+                                <small class="text-muted">- {{ empresa.cidade }}</small>
+                            </td>
                             <td rowspan="{{ filtered_count }}" class="px-2 fs-5 align-middle text-center">
                                 {{ empresa.cnpj }}
                                 {% if empresa.inscricao_mobiliaria %}
@@ -173,9 +182,11 @@
                         <td class="text-center px-5 d-flex justify-content-around">
                             <a href="#" 
                                 class="btn btn-sm btn-info btn-abrir-site me-2"
-                                data-href="{{ url_for('main.abrir_site_certidao', certidao_id=certidao.id) }}"
+                                data-id="{{ certidao.id }}"
                                 data-tipo="{{ certidao.tipo.name }}"
-                                data-cnpj="{{ certidao.empresa.cnpj | replace('.', '') | replace('/', '') | replace('-', '') }}">
+                                data-url="{{ data_url_final }}"
+                                data-cnpj="{{ certidao.empresa.cnpj | replace('.', '') | replace('/', '') | replace('-', '') }}"
+                                data-inscricao="{{ certidao.empresa.inscricao_mobiliaria | default('') }}">
                                 Abrir Site
                             </a>
                             <button class="btn btn-sm btn-warning me-2"
@@ -185,7 +196,10 @@
                                     data-certidao-info="{{ certidao.tipo.value }} - {{ certidao.empresa.nome }}">
                                 Editar
                             </button>
-                            <button class="btn btn-sm btn-primary me-2">Baixar</button>
+                            <button class="btn btn-sm btn-primary me-2 btn-baixar-certidao"
+                                    data-href="{{ url_for('main.baixar_certidao', certidao_id=certidao.id) }}">
+                                Baixar
+                            </button>
                         </td>
                     </tr>
                 {% endfor %}
@@ -247,6 +261,26 @@
   </div>
 </div>
 
+<div class="modal fade" id="confirmarDataModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Confirmar Atualização</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <p>O sistema encontrou/calculou uma nova validade para a certidão <strong id="displayTipoCertidao" class="text-uppercase">---</strong>:</p>
+        <h2 class="text-center text-primary" id="displayDataEncontrada">--/--/----</h2>
+        <p class="text-muted text-center mt-2">Deseja salvar esta data no banco de dados?</p>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" class="btn btn-success" id="btnConfirmarSalvar">Confirmar e Salvar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 {% block scripts %}
 <script>
 document.addEventListener('DOMContentLoaded', function() {
@@ -254,31 +288,19 @@ document.addEventListener('DOMContentLoaded', function() {
     const filtroInput = document.getElementById('filtroEmpresa');
     if (filtroInput) {
         const tabelaBody = document.querySelector('.table tbody');
-        
         filtroInput.addEventListener('keyup', () => {
             const termoBusca = filtroInput.value.toLowerCase();
             const todasAsLinhas = tabelaBody.getElementsByTagName('tr');
-
             for (let linha of todasAsLinhas) {
                 if (linha.dataset.nomeEmpresa) {
                     const nomeEmpresa = linha.dataset.nomeEmpresa.toLowerCase();
-                    if (nomeEmpresa.includes(termoBusca)) {
-                        linha.style.display = '';
-                    } else {
-                        linha.style.display = 'none';
-                    }
+                    linha.style.display = nomeEmpresa.includes(termoBusca) ? '' : 'none';
                 }
             }
-
             for (let linha of todasAsLinhas) {
                 if (linha.classList.contains('company-group-separator')) {
                     const linhaAnterior = linha.previousElementSibling;
-                
-                    if (linhaAnterior && linhaAnterior.style.display !== 'none') {
-                        linha.style.display = '';
-                    } else {
-                        linha.style.display = 'none';
-                    }
+                    linha.style.display = (linhaAnterior && linhaAnterior.style.display !== 'none') ? '' : 'none';
                 }
             }
         });
@@ -292,77 +314,175 @@ document.addEventListener('DOMContentLoaded', function() {
         document.getElementById('status-pendentes')
     ];
 
-    todasCheckbox.addEventListener('change', function() {
-        if (todasCheckbox.checked) {
-            otherCheckboxes.forEach(function(checkbox) {
-                if (checkbox) { checkbox.checked = false; }
-            });
-        }
-    });
+    if (todasCheckbox) {
+        todasCheckbox.addEventListener('change', function() {
+            if (todasCheckbox.checked) {
+                otherCheckboxes.forEach(cb => { if (cb) cb.checked = false; });
+            }
+        });
+    }
 
-    otherCheckboxes.forEach(function(checkbox) {
-        if (checkbox) {
-            checkbox.addEventListener('change', function() {
-                if (checkbox.checked) {
-                    todasCheckbox.checked = false;
-                }
+    otherCheckboxes.forEach(cb => {
+        if (cb) {
+            cb.addEventListener('change', function() {
+                if (cb.checked && todasCheckbox) todasCheckbox.checked = false;
             });
         }
     });
 
     const form = document.getElementById('filtro-form');
-    form.addEventListener('submit', function(event) {
-        let oneChecked = false;
-        if (todasCheckbox.checked) {
-            oneChecked = true;
-        } else {
-            otherCheckboxes.forEach(function(checkbox) {
-                if (checkbox && checkbox.checked) {
-                    oneChecked = true;
-                }
-            });
-        }
-        
-        if (!oneChecked) {
-            todasCheckbox.checked = true;
-        }
-    });
+    if (form) {
+        form.addEventListener('submit', function() {
+            let oneChecked = false;
+            if (todasCheckbox && todasCheckbox.checked) oneChecked = true;
+            else otherCheckboxes.forEach(cb => { if (cb && cb.checked) oneChecked = true; });
+            
+            if (!oneChecked && todasCheckbox) todasCheckbox.checked = true;
+        });
+    }
 
-    const federalUrl = "https://servicos.receitafederal.gov.br/servico/certidoes/#/home/cnpj";
-    const btnsAbrirSite = document.querySelectorAll('.btn-abrir-site');
-    
     const federalModalElement = document.getElementById('federalModal');
     const federalModalBody = document.getElementById('federalModalBody');
     const federalModal = new bootstrap.Modal(federalModalElement);
 
+    const confirmModalElement = document.getElementById('confirmarDataModal');
+    let confirmModal = null;
+    if (confirmModalElement) confirmModal = new bootstrap.Modal(confirmModalElement);
+    
+    const displayData = document.getElementById('displayDataEncontrada');
+    const displayTipo = document.getElementById('displayTipoCertidao');
+    const btnSalvar = document.getElementById('btnConfirmarSalvar');
+    
+    let dadosParaSalvar = {}; 
+
+    const btnsAbrirSite = document.querySelectorAll('.btn-abrir-site');
     btnsAbrirSite.forEach(function(btn) {
         btn.addEventListener('click', function(event) {
             event.preventDefault(); 
             
+            const url = btn.dataset.url;
+            const cnpj = btn.dataset.cnpj;
             const tipo = btn.dataset.tipo;
+            const certidaoId = btn.dataset.id; 
             
-            if (tipo === 'FEDERAL') {
-                const cnpj = btn.dataset.cnpj;
-                
-                federalModalElement.addEventListener('hidden.bs.modal', function () {
-                    window.open(federalUrl, '_blank');
-                }, { once: true });
-
-                navigator.clipboard.writeText(cnpj).then(function() {
-                    federalModalBody.textContent = "O CNPJ foi copiado. Pressione OK para abrir o site da Receita.\n\nCole-o (Ctrl+V) no campo.";
-                    federalModal.show();
-                
-                }).catch(function(err) {
-                    console.error('Falha ao copiar CNPJ: ', err);
-                    federalModalBody.textContent = "Falha ao copiar o CNPJ. Pressione OK para abrir o site da Receita.";
-                    federalModal.show();
-                });
-            } else {
-                const pythonUrl = btn.dataset.href;
-                fetch(pythonUrl);
+            let dataToCopy = cnpj;
+            let copyMessage = "O CNPJ foi copiado.";
+            
+            if (url === '#') {
+                alert('URL não cadastrada.');
+                return;
             }
+
+            federalModalElement.addEventListener('hidden.bs.modal', function () {
+                const novaAba = window.open(url, '_blank');
+
+                if (tipo === 'FEDERAL' && novaAba) {
+                    const timer = setInterval(function() {
+                        if (novaAba.closed) {
+                            clearInterval(timer);
+                            
+                            const hoje = new Date();
+                            const validade = new Date(hoje);
+                            validade.setDate(hoje.getDate() + 180);
+                            
+                            const dia = String(validade.getDate()).padStart(2, '0');
+                            const mes = String(validade.getMonth() + 1).padStart(2, '0');
+                            const ano = validade.getFullYear();
+                            const dataFormatada = `${dia}/${mes}/${ano}`;
+                            const dataBanco = validade.toISOString().split('T')[0];
+
+                            if (displayData) displayData.textContent = dataFormatada;
+                            if (displayTipo) displayTipo.textContent = "FEDERAL"; 
+                            
+                            dadosParaSalvar = {
+                                certidao_id: certidaoId,
+                                nova_validade: dataBanco
+                            };
+                            
+                            if (confirmModal) confirmModal.show();
+                        }
+                    }, 1000);
+                }
+
+            }, { once: true });
+
+            navigator.clipboard.writeText(dataToCopy).then(function() {
+                federalModalBody.textContent = copyMessage + "\n\nPressione OK para abrir o site. Cole o dado (Ctrl+V) no campo.";
+                federalModal.show();
+            }).catch(function(err) {
+                console.error('Erro copiar:', err);
+                federalModalBody.textContent = "Pressione OK para abrir o site.";
+                federalModal.show();
+            });
         });
     });
+
+
+    const btnsBaixar = document.querySelectorAll('.btn-baixar-certidao');
+    btnsBaixar.forEach(function(btn) {
+        btn.addEventListener('click', function(event) {
+            event.preventDefault();
+            const pythonUrl = btn.dataset.href;
+            
+            btn.textContent = "Rodando...";
+            btn.disabled = true;
+
+            fetch(pythonUrl)
+                .then(response => response.json())
+                .then(data => {
+                    btn.textContent = "Baixar";
+                    btn.disabled = false;
+
+                    if (data.status === 'success' && data.nova_data) {
+                        if (displayData) displayData.textContent = data.data_formatada;
+                        
+                        if (displayTipo) displayTipo.textContent = data.tipo_certidao; 
+                        
+                        dadosParaSalvar = {
+                            certidao_id: data.certidao_id,
+                            nova_validade: data.nova_data
+                        };
+                        
+                        if (confirmModal) confirmModal.show();
+                    } else if (data.status === 'success_no_date') {
+
+                    } else {
+                        alert('Erro/Aviso: ' + (data.message || 'Erro desconhecido'));
+                    }
+                })
+                .catch(error => {
+                    console.error('Erro:', error);
+                    btn.textContent = "Erro";
+                    btn.disabled = false;
+                    alert("Erro de comunicação.");
+                });
+        });
+    });
+
+    if (btnSalvar) {
+        btnSalvar.addEventListener('click', function() {
+            if (dadosParaSalvar.certidao_id) {
+                fetch('/certidao/salvar_data_confirmada', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(dadosParaSalvar)
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        if (confirmModal) confirmModal.hide();
+                        location.reload(); 
+                    } else {
+                        alert('Erro ao salvar: ' + data.message);
+                    }
+                })
+                .catch(error => {
+                    console.error('Erro:', error);
+                    alert('Erro de comunicação.');
+                });
+            }
+        });
+    }
 });
 </script>
 {% endblock %}
