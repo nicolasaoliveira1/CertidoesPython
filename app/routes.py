@@ -13,7 +13,7 @@ from app import file_manager
 from app.models import Empresa, Certidao, TipoCertidao, StatusEspecial, Municipio
 from datetime import date, datetime, timedelta
 from sqlalchemy import or_
-import time
+from datetime import date, datetime, timedelta
 
 bp = Blueprint('main', __name__)
 
@@ -303,3 +303,22 @@ def baixar_certidao(certidao_id):
         response_data['mensagem_arquivo'] = arquivo_salvo_msg
         
     return jsonify(response_data)
+
+@bp.route('/certidao/salvar_data_confirmada', methods=['POST'])
+def salvar_data_confirmada():
+    dados = request.get_json()
+    certidao_id = dados.get('certidao_id')
+    nova_validade_str = dados.get('nova_validade')
+
+    try:
+        certidao = Certidao.query.get(certidao_id)
+        nova_data = datetime.strptime(nova_validade_str, '%Y-%m-%d').date()
+        
+        certidao.data_validade = nova_data
+        certidao.status_especial = None
+        db.session.commit()
+        
+        return jsonify({'status': 'success'})
+    except Exception as e:
+        print(f"Erro ao salvar data confirmada: {e}")
+        return jsonify({'status': 'error', 'message': str(e)}), 500
