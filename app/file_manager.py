@@ -2,9 +2,8 @@ import os
 import shutil
 import time
 import glob
-from thefuzz import process
+from thefuzz import process, fuzz
 
-# CONFIGURAÇÕES
 CAMINHO_REDE = r"Z:\PASTAS EMPRESAS"
 VARIACOES_DOCS = [
     "DOCUMENTOS EMPRESA", "DOCS. EMPRESA", "DOC. EMPRESA", 
@@ -38,7 +37,7 @@ def encontrar_caminho_final(caminho_empresa):
     """
     Dentro da pasta da empresa, procura onde salvar as certidões.
     """
-    pasta_destino = caminho_empresa
+    pasta_destino = caminho_empresa 
     
     for variacao in VARIACOES_DOCS:
         teste_path = os.path.join(caminho_empresa, variacao)
@@ -50,16 +49,42 @@ def encontrar_caminho_final(caminho_empresa):
     if not os.path.exists(pasta_certidoes):
         try:
             os.makedirs(pasta_certidoes)
-            print(f"Pasta CERTIDOES criada em: {pasta_certidoes}")
         except OSError:
-            print("Erro ao criar pasta CERTIDOES, usando raiz.")
             return pasta_destino
 
     return pasta_certidoes
 
+def limpar_versoes_antigas(pasta_destino, novo_nome_padrao, tipo_certidao):
+    """
+    Remove arquivos antigos que sejam do mesmo tipo, mas com nomes fora do padrão.
+    Ex: Remove 'TRABALHISTA.pdf' se formos salvar 'CERTIDAO TRABALHISTA.pdf'.
+    """
+    try:
+        arquivos_existentes = os.listdir(pasta_destino)
+        palavra_chave = tipo_certidao.upper()
+        
+        for arquivo in arquivos_existentes:
+            caminho_completo = os.path.join(pasta_destino, arquivo)
+            
+            if not os.path.isfile(caminho_completo):
+                continue
+                
+            if arquivo.upper() == novo_nome_padrao.upper():
+                continue
+
+            if arquivo.lower().endswith('.pdf'):
+                semelhanca = fuzz.partial_ratio(palavra_chave, arquivo.upper())
+                
+                if semelhanca > 85:
+                    print(f"Removendo arquivo antigo/fora do padrão: {arquivo}")
+                    os.remove(caminho_completo)
+                    
+    except Exception as e:
+        print(f"Erro ao tentar limpar versões antigas: {e}")
+
 def verificar_novo_arquivo(tempo_inicio):
     """
-    Verifica se apareceu um arquivo novo na pasta Downloads do usuário.
+    Verifica se apareceu um arquivo novo na pasta Downloads.
     """
     pasta_downloads = os.path.join(os.path.expanduser("~"), "Downloads")
     padrao_busca = os.path.join(pasta_downloads, "*")
@@ -81,7 +106,7 @@ def verificar_novo_arquivo(tempo_inicio):
 
 def mover_e_renomear(caminho_arquivo_origem, nome_empresa, tipo_certidao):
     """
-    Move o arquivo baixado para o servidor com o nome correto.
+    Move o arquivo, renomeia e limpa duplicatas antigas.
     """
     caminho_empresa = encontrar_pasta_empresa(nome_empresa)
     
@@ -92,13 +117,19 @@ def mover_e_renomear(caminho_arquivo_origem, nome_empresa, tipo_certidao):
     
     extensao = os.path.splitext(caminho_arquivo_origem)[1]
     novo_nome = f"CERTIDAO {tipo_certidao.upper()}{extensao}"
+
+    limpar_versoes_antigas(destino_final, novo_nome, tipo_certidao)
+
     
     caminho_destino_completo = os.path.join(destino_final, novo_nome)
     
     try:
         shutil.move(caminho_arquivo_origem, caminho_destino_completo)
-        print(f"Arquivo movido com sucesso para: {caminho_destino_completo}")
         return True, caminho_destino_completo
     except Exception as e:
-        print(f"Erro ao mover arquivo: {e}")
-        return False, str(e)
+        try:
+            shutil.copy2(caminho_arquivo_origem, caminho_destino_completo)
+            os.remove(caminho_arquivo_origem)
+            return True, caminho_destino_completo
+        except Exception as e2:
+            return False, str(e2)
