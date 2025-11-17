@@ -13,6 +13,7 @@ from app import file_manager
 from app.models import Empresa, Certidao, TipoCertidao, StatusEspecial, Municipio
 from datetime import date, datetime, timedelta
 from sqlalchemy import or_
+import time
 from datetime import date, datetime, timedelta
 
 bp = Blueprint('main', __name__)
