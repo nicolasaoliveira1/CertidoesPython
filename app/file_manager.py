@@ -19,8 +19,12 @@ def encontrar_pasta_empresa(nome_banco):
         return None
 
     try:
-        todas_pastas = os.listdir(CAMINHO_REDE)
+        todas_pastas_brutas = os.listdir(CAMINHO_REDE)
         
+        todas_pastas = [
+            pasta for pasta in todas_pastas_brutas 
+            if "FILIAL" not in pasta.upper()
+        ]
 
         resultado = process.extractOne(nome_banco, todas_pastas, score_cutoff=95)
         
