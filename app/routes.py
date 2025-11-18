@@ -354,11 +354,25 @@ def salvar_data_confirmada():
         
         certidao.data_validade = nova_data
         certidao.status_especial = None
+        
+        hoje = date.today()
+        diferenca = (nova_data - hoje).days
+        
+        nova_classe = 'status-verde'
+        if diferenca < 0:
+            nova_classe = 'status-vermelho'
+        elif diferenca <= 7:
+            nova_classe = 'status-amarelo'
+
         db.session.commit()
         
-        return jsonify({'status': 'success'})
+        return jsonify({
+            'status': 'success',
+            'message': 'Data confirmada e atualizada com sucesso!',
+            'nova_data_formatada': nova_data.strftime('%d/%m/%Y'),
+            'nova_classe': nova_classe
+        })
     except Exception as e:
-        print(f"Erro ao salvar data confirmada: {e}")
         return jsonify({'status': 'error', 'message': str(e)}), 500
     
 @bp.route('/certidao/monitorar_download_federal/<int:certidao_id>')
@@ -406,6 +420,43 @@ def marcar_pendente_json(certidao_id):
         
         db.session.commit()
         return jsonify({'status': 'success'})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+    
+@bp.route('/certidao/atualizar_json/<int:certidao_id>', methods=['POST'])
+def atualizar_validade_json(certidao_id):
+    data = request.get_json()
+    nova_data_str = data.get('nova_validade')
+    
+    try:
+        certidao = Certidao.query.get_or_404(certidao_id)
+        
+        if nova_data_str:
+            nova_data = datetime.strptime(nova_data_str, '%Y-%m-%d').date()
+            certidao.data_validade = nova_data
+            certidao.status_especial = None
+            
+            hoje = date.today()
+            diferenca = (nova_data - hoje).days
+            
+            nova_classe = 'status-verde'
+            if diferenca < 0:
+                nova_classe = 'status-vermelho'
+            elif diferenca <= 7:
+                nova_classe = 'status-amarelo'
+            
+            db.session.commit()
+            
+            return jsonify({
+                'status': 'success',
+                'message': f'Validade de {certidao.empresa.nome} atualizada com sucesso!',
+                'nova_data_formatada': nova_data.strftime('%d/%m/%Y'),
+                'nova_classe': nova_classe
+            })
+        else:
+            return jsonify({'status': 'error', 'message': 'Data inválida.'})
+            
     except Exception as e:
         db.session.rollback()
         return jsonify({'status': 'error', 'message': str(e)}), 500
