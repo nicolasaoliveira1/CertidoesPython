@@ -10,10 +10,12 @@ from app.automation import SITES_CERTIDOES
 from flask import render_template, Blueprint, request, redirect, url_for, flash, jsonify
 from app import db
 from app import file_manager
+from app.file_manager import criar_chave_interrupcao, remover_chave_interrupcao, obter_caminho_chave_interrupcao
 from app.models import Empresa, Certidao, TipoCertidao, StatusEspecial, Municipio
 from datetime import date, datetime, timedelta
 from sqlalchemy import or_
 import time
+import os
 from datetime import date, datetime, timedelta
 
 bp = Blueprint('main', __name__)
@@ -147,6 +149,7 @@ def marcar_pendente(certidao_id):
 ##                                          VVVV
 @bp.route('/certidao/baixar/<int:certidao_id>')
 def baixar_certidao(certidao_id):
+    file_manager.criar_chave_interrupcao()
     certidao = Certidao.query.get_or_404(certidao_id)
     tipo_certidao_chave = certidao.tipo.name
 
@@ -381,10 +384,25 @@ def monitorar_download_federal(certidao_id):
     
     print(f"--- INICIANDO MONITORAMENTO DE DOWNLOAD (FEDERAL) ---")
     
+    file_manager.remover_chave_interrupcao()
+    
     tempo_limite = 180 
     tempo_inicio = time.time()
+    chave_interrupcao = file_manager.obter_caminho_chave_interrupcao()
+    
+    termos_proibidos = [
+        'consulta regularidade', 
+        'crf',                  
+        'cndt',                 
+        'sitafe'                
+    ]
     
     while (time.time() - tempo_inicio) < tempo_limite:
+        if os.path.exists(chave_interrupcao):
+            print("MONITORAMENTO FEDERAL INTERROMPIDO POR CHAVE EXTERNA.")
+            file_manager.remover_chave_interrupcao()
+            return jsonify({'status': 'interrupted', 'mensagem': 'Monitoramento Federal interrompido por nova requisição.'})
+        
         novo_arquivo = file_manager.verificar_novo_arquivo(tempo_inicio)
         
         if novo_arquivo:
@@ -408,7 +426,8 @@ def monitorar_download_federal(certidao_id):
                 })
         
         time.sleep(1)
-
+        
+    file_manager.remover_chave_interrupcao()
     return jsonify({'status': 'timeout', 'mensagem': 'Tempo esgotado sem download.'})
 
 @bp.route('/certidao/marcar_pendente_json/<int:certidao_id>', methods=['POST'])
