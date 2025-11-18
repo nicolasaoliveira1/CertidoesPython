@@ -2,6 +2,7 @@ import os
 import shutil
 import time
 import glob
+import unicodedata
 from thefuzz import process, fuzz
 
 CAMINHO_REDE = r"Z:\PASTAS EMPRESAS"
@@ -10,10 +11,12 @@ VARIACOES_DOCS = [
     "DOCUMENTOS", "DOCS", "DOCS EMPRESA", "DOC EMPRESA"
 ]
 
+def remover_acentos(texto):
+    if not texto:
+        return ""
+    return unicodedata.normalize('NFKD', texto).encode('ASCII', 'ignore').decode('ASCII')
+
 def encontrar_pasta_empresa(nome_banco):
-    """
-    Procura a pasta da empresa no servidor com ALTO RIGOR, mas FLEXIBILIDADE de formato.
-    """
     if not os.path.exists(CAMINHO_REDE):
         print(f"ERRO: Caminho de rede não encontrado: {CAMINHO_REDE}")
         return None
@@ -25,20 +28,31 @@ def encontrar_pasta_empresa(nome_banco):
             pasta for pasta in todas_pastas_brutas 
             if "FILIAL" not in pasta.upper()
         ]
-
+        
         resultado = process.extractOne(nome_banco, todas_pastas, score_cutoff=95)
         
         if resultado:
             pasta_encontrada = resultado[0]
             print(f"Pasta encontrada (Match Direto): '{pasta_encontrada}'")
             return os.path.join(CAMINHO_REDE, pasta_encontrada)
-
+        
         resultado_token = process.extractOne(nome_banco, todas_pastas, scorer=fuzz.token_set_ratio, score_cutoff=100)
         
         if resultado_token:
             pasta_encontrada = resultado_token[0]
             print(f"Pasta encontrada (Match Inteligente): '{pasta_encontrada}'")
             return os.path.join(CAMINHO_REDE, pasta_encontrada)
+
+        nome_banco_clean = remover_acentos(nome_banco).upper()
+        
+        for pasta in todas_pastas:
+            pasta_clean = remover_acentos(pasta).upper()
+            
+            score = fuzz.token_set_ratio(nome_banco_clean, pasta_clean)
+            
+            if score == 100:
+                print(f"Pasta encontrada (Match Sem Acentos): '{pasta}'")
+                return os.path.join(CAMINHO_REDE, pasta)
 
         for pasta in todas_pastas:
             if pasta.upper() == nome_banco.upper():
@@ -54,9 +68,7 @@ def encontrar_pasta_empresa(nome_banco):
         return None
     
 def encontrar_caminho_final(caminho_empresa):
-    """
-    Dentro da pasta da empresa, procura onde salvar as certidões.
-    """
+    
     pasta_destino = caminho_empresa 
     
     for variacao in VARIACOES_DOCS:
@@ -75,10 +87,6 @@ def encontrar_caminho_final(caminho_empresa):
     return pasta_certidoes
 
 def limpar_versoes_antigas(pasta_destino, novo_nome_padrao, tipo_certidao):
-    """
-    Remove arquivos antigos que sejam do mesmo tipo, mas com nomes fora do padrão.
-    Ex: Remove 'TRABALHISTA.pdf' se formos salvar 'CERTIDAO TRABALHISTA.pdf'.
-    """
     try:
         arquivos_existentes = os.listdir(pasta_destino)
         palavra_chave = tipo_certidao.upper()
@@ -103,9 +111,6 @@ def limpar_versoes_antigas(pasta_destino, novo_nome_padrao, tipo_certidao):
         print(f"Erro ao tentar limpar versões antigas: {e}")
 
 def verificar_novo_arquivo(tempo_inicio):
-    """
-    Verifica se apareceu um arquivo novo na pasta Downloads.
-    """
     pasta_downloads = os.path.join(os.path.expanduser("~"), "Downloads")
     padrao_busca = os.path.join(pasta_downloads, "*")
     
@@ -125,9 +130,6 @@ def verificar_novo_arquivo(tempo_inicio):
     return None
 
 def mover_e_renomear(caminho_arquivo_origem, nome_empresa, tipo_certidao):
-    """
-    Move o arquivo, renomeia e limpa duplicatas antigas.
-    """
     caminho_empresa = encontrar_pasta_empresa(nome_empresa)
     
     if not caminho_empresa:
