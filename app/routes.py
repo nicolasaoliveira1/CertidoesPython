@@ -396,3 +396,16 @@ def monitorar_download_federal(certidao_id):
         time.sleep(1)
 
     return jsonify({'status': 'timeout', 'mensagem': 'Tempo esgotado sem download.'})
+
+@bp.route('/certidao/marcar_pendente_json/<int:certidao_id>', methods=['POST'])
+def marcar_pendente_json(certidao_id):
+    try:
+        certidao = Certidao.query.get_or_404(certidao_id)
+        certidao.status_especial = StatusEspecial.PENDENTE  
+        certidao.data_validade = None
+        
+        db.session.commit()
+        return jsonify({'status': 'success'})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'status': 'error', 'message': str(e)}), 500
