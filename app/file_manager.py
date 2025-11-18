@@ -12,7 +12,7 @@ VARIACOES_DOCS = [
 
 def encontrar_pasta_empresa(nome_banco):
     """
-    Procura a pasta da empresa no servidor usando correspondência aproximada (Fuzzy).
+    Procura a pasta da empresa no servidor com ALTO RIGOR, mas FLEXIBILIDADE de formato.
     """
     if not os.path.exists(CAMINHO_REDE):
         print(f"ERRO: Caminho de rede não encontrado: {CAMINHO_REDE}")
@@ -20,19 +20,35 @@ def encontrar_pasta_empresa(nome_banco):
 
     try:
         todas_pastas = os.listdir(CAMINHO_REDE)
-        resultado = process.extractOne(nome_banco, todas_pastas, score_cutoff=85)
+        
+
+        resultado = process.extractOne(nome_banco, todas_pastas, score_cutoff=95)
         
         if resultado:
             pasta_encontrada = resultado[0]
-            print(f"Pasta encontrada para '{nome_banco}': {pasta_encontrada}")
+            print(f"Pasta encontrada (Match Direto): '{pasta_encontrada}'")
             return os.path.join(CAMINHO_REDE, pasta_encontrada)
-        else:
-            print(f"Nenhuma pasta encontrada para: {nome_banco}")
-            return None
+
+        resultado_token = process.extractOne(nome_banco, todas_pastas, scorer=fuzz.token_set_ratio, score_cutoff=100)
+        
+        if resultado_token:
+            pasta_encontrada = resultado_token[0]
+            print(f"Pasta encontrada (Match Inteligente): '{pasta_encontrada}'")
+            return os.path.join(CAMINHO_REDE, pasta_encontrada)
+
+        for pasta in todas_pastas:
+            if pasta.upper() == nome_banco.upper():
+                print(f"Pasta encontrada (Match Exato): '{pasta}'")
+                return os.path.join(CAMINHO_REDE, pasta)
+
+        print(f"ALERTA DE SEGURANÇA: Nenhuma pasta confiável encontrada para: '{nome_banco}'")
+        print("O arquivo permanecerá na pasta Downloads para evitar erros.")
+        return None
+            
     except Exception as e:
         print(f"Erro ao buscar pasta: {e}")
         return None
-
+    
 def encontrar_caminho_final(caminho_empresa):
     """
     Dentro da pasta da empresa, procura onde salvar as certidões.
