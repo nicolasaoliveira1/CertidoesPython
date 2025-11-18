@@ -227,7 +227,7 @@
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
       <div class="modal-body">
-        <form id="editForm" method="POST">
+        <form id="editForm">
           <div class="mb-3">
             <label for="nova_validade" class="form-label">Selecione a nova data de validade:</label>
             <input type="date" class="form-control" id="nova_validade" name="nova_validade" required>
@@ -236,25 +236,9 @@
       </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-outline-danger me-auto" id="btnPendenteManual">Marcar como Pendente</button>
-        
         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-        <button type="submit" form="editForm" class="btn btn-primary">Salvar Alterações</button>
-      </div>
-    </div>
-  </div>
-</div>
-
-<div class="modal fade" id="federalModal" tabindex="-1" aria-labelledby="federalModalLabel" aria-hidden="true">
-  <div class="modal-dialog">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h1 class="modal-title fs-5" id="federalModalLabel">Aviso</h1>
-        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-      </div>
-      <div class="modal-body" id="federalModalBody">
-      </div>
-      <div class="modal-footer">
-        <button type="button" class="btn btn-primary" data-bs-dismiss="modal">OK</button>
+        
+        <button type="button" class="btn btn-primary" id="btnSalvarManual">Salvar Alterações</button>
       </div>
     </div>
   </div>
@@ -300,11 +284,367 @@
   </div>
 </div>
 
+<div class="toast-container position-fixed bottom-0 end-0 p-3">
+  
+  <div id="liveToast" class="toast align-items-center text-bg-primary border-0" role="alert" aria-live="assertive" aria-atomic="true" 
+       style="min-width: 450px;" 
+       data-bs-delay="6000">
+       
+    <div class="d-flex">
+      <div class="toast-body fs-6 p-3" id="toastMessage">
+        </div>
+      <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+    </div>
+  </div>
+
+</div>
+
+<div class="modal fade" id="infoModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Pronto para emitir</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body" id="infoModalBody">
+        </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-primary" id="btnInfoModalOK">OK, Abrir Site</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 {% block scripts %}
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     
-    const filtroInput = document.getElementById('filtroEmpresa');
+    // --- TOAST (Notificações) ---
+    const toastEl = document.getElementById('liveToast');
+    const toastBody = document.getElementById('toastMessage');
+    
+    function showToast(message, type = 'success') {
+        if (!toastEl) return;
+        toastBody.textContent = message;
+        toastEl.classList.remove('text-bg-primary', 'text-bg-danger', 'text-bg-success');
+        
+        if (type === 'success') toastEl.classList.add('text-bg-success');
+        else if (type === 'error') toastEl.classList.add('text-bg-danger');
+        else toastEl.classList.add('text-bg-primary');
+
+        const toastBootstrap = bootstrap.Toast.getOrCreateInstance(toastEl);
+        toastBootstrap.show();
+    }
+
+    // --- MODAIS GLOBAIS ---
+    const confirmModalElement = document.getElementById('confirmarDataModal');
+    let confirmModal = confirmModalElement ? new bootstrap.Modal(confirmModalElement) : null;
+    
+    const pendenteModalElement = document.getElementById('marcarPendenteModal');
+    let pendenteModal = pendenteModalElement ? new bootstrap.Modal(pendenteModalElement) : null;
+
+    // NOVO MODAL DE INFORMAÇÃO (ABRIR SITE)
+    const infoModalElement = document.getElementById('infoModal');
+    let infoModal = infoModalElement ? new bootstrap.Modal(infoModalElement) : null;
+    const infoModalBody = document.getElementById('infoModalBody');
+    const btnInfoModalOK = document.getElementById('btnInfoModalOK');
+
+    // ELEMENTOS DA TELA
+    const displayData = document.getElementById('displayDataEncontrada');
+    const displayTipo = document.getElementById('displayTipoCertidao');
+    const displayTipoPendente = document.getElementById('displayTipoPendente');
+    const btnSalvar = document.getElementById('btnConfirmarSalvar');
+    const btnConfirmarPendente = document.getElementById('btnConfirmarPendente');
+    
+    // Edição Manual
+    const btnsEditar = document.querySelectorAll('.btn-warning');
+    const btnPendenteManual = document.getElementById('btnPendenteManual');
+    const btnSalvarManual = document.getElementById('btnSalvarManual');
+    const editFormInput = document.getElementById('nova_validade');
+
+    // VARIÁVEIS DE ESTADO
+    let dadosParaSalvar = {}; 
+    let linhaAtualTabela = null; 
+    let certidaoIdPendente = null; 
+    let certidaoIdManual = null;
+
+    // Variáveis temporárias para o fluxo "Abrir Site"
+    let urlParaAbrir = null;
+    let tipoParaAbrir = null;
+    let idParaMonitorar = null;
+
+
+    // =================================================================
+    // 1. BOTÃO "ABRIR SITE" (MODAL + CÓPIA + MONITORAMENTO)
+    // =================================================================
+    const btnsAbrirSite = document.querySelectorAll('.btn-abrir-site');
+    btnsAbrirSite.forEach(function(btn) {
+        btn.addEventListener('click', function(event) {
+            event.preventDefault(); 
+            
+            linhaAtualTabela = btn.closest('tr');
+
+            // Guarda os dados nas variáveis globais para usar no botão OK
+            urlParaAbrir = btn.dataset.url;
+            tipoParaAbrir = btn.dataset.tipo;
+            idParaMonitorar = btn.dataset.id;
+            
+            const cnpj = btn.dataset.cnpj;
+            
+            if (urlParaAbrir === '#') {
+                showToast('URL não cadastrada.', 'error');
+                return;
+            }
+
+            // Copia o CNPJ primeiro
+            navigator.clipboard.writeText(cnpj).then(function() {
+                // Sucesso na cópia -> Abre o Modal avisando
+                infoModalBody.innerHTML = `
+                    <p class="mb-2">O CNPJ <strong>${cnpj}</strong> foi copiado para sua área de transferência.</p>
+                    <p class="text-muted small">Pressione <strong>OK</strong> para abrir o site e depois cole (Ctrl+V) no campo correspondente.</p>
+                `;
+                if (infoModal) infoModal.show();
+
+            }).catch(function(err) {
+                console.error('Erro copiar:', err);
+                // Falha na cópia -> Abre o Modal avisando do erro
+                infoModalBody.innerHTML = `
+                    <p class="text-danger mb-2">Não foi possível copiar o CNPJ automaticamente.</p>
+                    <p>Por favor, copie manualmente e pressione <strong>OK</strong> para abrir o site.</p>
+                `;
+                if (infoModal) infoModal.show();
+            });
+        });
+    });
+
+    // AÇÃO DO BOTÃO "OK" DO MODAL DE INFORMAÇÃO
+    if (btnInfoModalOK) {
+        btnInfoModalOK.addEventListener('click', function() {
+            if (infoModal) infoModal.hide();
+            
+            if (urlParaAbrir) {
+                const novaAba = window.open(urlParaAbrir, '_blank');
+
+                // Lógica Especial da Federal (Monitoramento)
+                if (tipoParaAbrir === 'FEDERAL') {
+                    // 1. Monitora Download
+                    fetch(`/certidao/monitorar_download_federal/${idParaMonitorar}`)
+                        .then(response => response.json())
+                        .then(data => { if (data.status === 'success') console.log("Federal salva!"); });
+
+                    // 2. Monitora Fechamento da Aba
+                    if (novaAba) {
+                        const timer = setInterval(function() {
+                            if (novaAba.closed) {
+                                clearInterval(timer);
+                                
+                                const hoje = new Date();
+                                const validade = new Date(hoje);
+                                validade.setDate(hoje.getDate() + 180);
+                                
+                                const dataBanco = validade.toISOString().split('T')[0];
+                                const dataFormatada = `${validade.getDate().toString().padStart(2, '0')}/${(validade.getMonth() + 1).toString().padStart(2, '0')}/${validade.getFullYear()}`;
+
+                                if (displayData) displayData.textContent = dataFormatada;
+                                if (displayTipo) displayTipo.textContent = "FEDERAL";
+                                
+                                dadosParaSalvar = { certidao_id: idParaMonitorar, nova_validade: dataBanco };
+                                if (confirmModal) confirmModal.show();
+                            }
+                        }, 1000);
+                    }
+                }
+            }
+        });
+    }
+
+
+    // =================================================================
+    // 2. BOTÃO "BAIXAR" (AUTOMAÇÃO)
+    // =================================================================
+    const btnsBaixar = document.querySelectorAll('.btn-baixar-certidao');
+    btnsBaixar.forEach(function(btn) {
+        btn.addEventListener('click', function(event) {
+            event.preventDefault();
+            linhaAtualTabela = btn.closest('tr');
+
+            if (btn.dataset.tipo === 'FEDERAL') {
+                showToast("Para Federal, use o botão 'Abrir Site'.", "primary");
+                return;
+            }
+            const pythonUrl = btn.dataset.href;
+            btn.textContent = "Rodando...";
+            btn.disabled = true;
+
+            fetch(pythonUrl)
+                .then(response => response.json())
+                .then(data => {
+                    btn.textContent = "Baixar";
+                    btn.disabled = false;
+
+                    if (data.status === 'success_file_saved') {
+                        if (displayData) displayData.textContent = data.data_formatada;
+                        if (displayTipo) displayTipo.textContent = data.tipo_certidao;
+                        dadosParaSalvar = { certidao_id: data.certidao_id, nova_validade: data.nova_data };
+                        if (confirmModal) confirmModal.show();
+                    
+                    } else if (data.status === 'window_closed_no_file') {
+                        if (displayTipoPendente) displayTipoPendente.textContent = data.tipo_certidao;
+                        certidaoIdPendente = data.certidao_id;
+                        if (pendenteModal) pendenteModal.show();
+
+                    } else if (data.status === 'success_file_saved_no_date') {
+                        showToast("Arquivo salvo! Sem regra de data.", "primary");
+                        setTimeout(() => location.reload(), 2000);
+                    } else {
+                        showToast('Aviso: ' + (data.message || 'Erro desconhecido'), 'error');
+                    }
+                })
+                .catch(error => {
+                    console.error('Erro:', error);
+                    btn.textContent = "Erro";
+                    btn.disabled = false;
+                    showToast("Erro de comunicação.", "error");
+                });
+        });
+    });
+
+    // =================================================================
+    // 3. AÇÕES DE SALVAR E PENDENTE (AJAX)
+    // =================================================================
+
+    // Salvar Data (Modal Verde)
+    if (btnSalvar) {
+        btnSalvar.addEventListener('click', function() {
+            if (dadosParaSalvar.certidao_id) {
+                fetch('/certidao/salvar_data_confirmada', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(dadosParaSalvar)
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        if (confirmModal) confirmModal.hide();
+
+                        if (linhaAtualTabela) {
+                            linhaAtualTabela.className = data.nova_classe;
+                            const dateCells = linhaAtualTabela.querySelectorAll('.date-cell');
+                            if (dateCells.length >= 2) dateCells[1].textContent = data.nova_data_formatada;
+                        }
+                        showToast(data.message, "success");
+                    } else {
+                        showToast('Erro ao salvar: ' + data.message, "error");
+                    }
+                })
+                .catch(error => { console.error(error); showToast('Erro de comunicação.', "error"); });
+            }
+        });
+    }
+
+    // Marcar Pendente (Modal Vermelho)
+    if (btnConfirmarPendente) {
+        btnConfirmarPendente.addEventListener('click', function() {
+            if (certidaoIdPendente) {
+                fetch(`/certidao/marcar_pendente_json/${certidaoIdPendente}`, { method: 'POST' })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        if (pendenteModal) pendenteModal.hide();
+                        if (linhaAtualTabela) {
+                            linhaAtualTabela.className = 'status-vermelho';
+                            const dateCells = linhaAtualTabela.querySelectorAll('.date-cell');
+                            if (dateCells.length >= 2) dateCells[1].innerHTML = '<span class="fw-semibold">Pendente</span>';
+                        }
+                        showToast("Certidão marcada como Pendente.", "success");
+                    } else {
+                        showToast('Erro: ' + data.message, "error");
+                    }
+                })
+                .catch(error => { console.error(error); showToast('Erro de comunicação.', "error"); });
+            }
+        });
+    }
+
+    // =================================================================
+    // 4. EDIÇÃO MANUAL (BOTÃO AMARELO)
+    // =================================================================
+    btnsEditar.forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            linhaAtualTabela = btn.closest('tr');
+            certidaoIdManual = btn.dataset.certidaoId;
+            if(editFormInput) editFormInput.value = "";
+        });
+    });
+
+    // Salvar Edição Manual
+    if (btnSalvarManual) {
+        btnSalvarManual.addEventListener('click', function() {
+            const novaData = editFormInput.value;
+            if (!novaData) {
+                showToast("Por favor, selecione uma data.", "error");
+                return;
+            }
+            if (certidaoIdManual) {
+                fetch(`/certidao/atualizar_json/${certidaoIdManual}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ nova_validade: novaData })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        const editModalEl = document.getElementById('editModal');
+                        const editModal = bootstrap.Modal.getInstance(editModalEl);
+                        if (editModal) editModal.hide();
+
+                        if (linhaAtualTabela) {
+                            linhaAtualTabela.className = data.nova_classe;
+                            const dateCells = linhaAtualTabela.querySelectorAll('.date-cell');
+                            if (dateCells.length >= 2) dateCells[1].textContent = data.nova_data_formatada;
+                        }
+                        showToast(data.message, "success");
+                    } else {
+                        showToast("Erro: " + data.message, "error");
+                    }
+                })
+                .catch(error => { console.error(error); showToast('Erro de comunicação.', "error"); });
+            }
+        });
+    }
+
+    // Marcar Pendente Manual
+    if (btnPendenteManual) {
+        btnPendenteManual.addEventListener('click', function() {
+            if (certidaoIdManual) {
+                fetch(`/certidao/marcar_pendente_json/${certidaoIdManual}`, { method: 'POST' })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        const editModalEl = document.getElementById('editModal');
+                        const editModal = bootstrap.Modal.getInstance(editModalEl);
+                        if (editModal) editModal.hide();
+
+                        if (linhaAtualTabela) {
+                            linhaAtualTabela.className = 'status-vermelho';
+                            const dateCells = linhaAtualTabela.querySelectorAll('.date-cell');
+                            if (dateCells.length >= 2) dateCells[1].innerHTML = '<span class="fw-semibold">Pendente</span>';
+                        }
+                        showToast("Certidão marcada como Pendente.", "success");
+                    } else {
+                        showToast('Erro ao marcar pendente: ' + data.message, "error");
+                    }
+                })
+                .catch(error => { console.error(error); showToast('Erro de comunicação.', "error"); });
+            }
+        });
+    }
+
+    // =================================================================
+    // 5. FILTROS E CHECKBOXES (Lógica Visual)
+    // =================================================================
+    
+    // Filtro Nome
     if (filtroInput) {
         const tabelaBody = document.querySelector('.table tbody');
         filtroInput.addEventListener('keyup', () => {
@@ -325,6 +665,7 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
+    // Filtro Status
     const todasCheckbox = document.getElementById('status-todas');
     const otherCheckboxes = [
         document.getElementById('status-validas'),
@@ -340,7 +681,6 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     }
-
     otherCheckboxes.forEach(cb => {
         if (cb) {
             cb.addEventListener('change', function() {
@@ -348,267 +688,16 @@ document.addEventListener('DOMContentLoaded', function() {
             });
         }
     });
-
     const form = document.getElementById('filtro-form');
     if (form) {
         form.addEventListener('submit', function() {
             let oneChecked = false;
             if (todasCheckbox && todasCheckbox.checked) oneChecked = true;
             else otherCheckboxes.forEach(cb => { if (cb && cb.checked) oneChecked = true; });
-            
             if (!oneChecked && todasCheckbox) todasCheckbox.checked = true;
         });
     }
 
-    const federalModalElement = document.getElementById('federalModal');
-    const federalModalBody = document.getElementById('federalModalBody');
-    const federalModal = new bootstrap.Modal(federalModalElement);
-
-    const confirmModalElement = document.getElementById('confirmarDataModal');
-    let confirmModal = null;
-    if (confirmModalElement) confirmModal = new bootstrap.Modal(confirmModalElement);
-    
-    const pendenteModalElement = document.getElementById('marcarPendenteModal');
-    let pendenteModal = null;
-    if (pendenteModalElement) pendenteModal = new bootstrap.Modal(pendenteModalElement);
-    
-    const displayData = document.getElementById('displayDataEncontrada');
-    const displayTipo = document.getElementById('displayTipoCertidao');
-    const btnSalvar = document.getElementById('btnConfirmarSalvar');
-    
-    const displayTipoPendente = document.getElementById('displayTipoPendente');
-    const btnConfirmarPendente = document.getElementById('btnConfirmarPendente');
-
-    const btnsEditar = document.querySelectorAll('.btn-warning');
-    const btnPendenteManual = document.getElementById('btnPendenteManual');
-    const editForm = document.getElementById('editForm');
-
-    let dadosParaSalvar = {}; 
-    let linhaAtualTabela = null; 
-    let certidaoIdPendente = null; 
-    let certidaoIdManual = null;
-
-    const btnsAbrirSite = document.querySelectorAll('.btn-abrir-site');
-    btnsAbrirSite.forEach(function(btn) {
-        btn.addEventListener('click', function(event) {
-            event.preventDefault(); 
-            
-            linhaAtualTabela = btn.closest('tr');
-
-            const url = btn.dataset.url;
-            const cnpj = btn.dataset.cnpj;
-            const tipo = btn.dataset.tipo;
-            const certidaoId = btn.dataset.id; 
-            
-            let dataToCopy = cnpj;
-            let copyMessage = "O CNPJ foi copiado.";
-            
-            if (url === '#') {
-                alert('URL não cadastrada.');
-                return;
-            }
-
-            federalModalElement.addEventListener('hidden.bs.modal', function () {
-                const novaAba = window.open(url, '_blank');
-
-                if (tipo === 'FEDERAL') {
-                    fetch(`/certidao/monitorar_download_federal/${certidaoId}`)
-                        .then(response => response.json())
-                        .then(data => {
-                            if (data.status === 'success') console.log("Federal salva!");
-                        });
-
-                    if (novaAba) {
-                        const timer = setInterval(function() {
-                            if (novaAba.closed) {
-                                clearInterval(timer);
-                                
-                                const hoje = new Date();
-                                const validade = new Date(hoje);
-                                validade.setDate(hoje.getDate() + 180);
-                                
-                                const dia = String(validade.getDate()).padStart(2, '0');
-                                const mes = String(validade.getMonth() + 1).padStart(2, '0');
-                                const ano = validade.getFullYear();
-                                const dataFormatada = `${dia}/${mes}/${ano}`;
-                                const dataBanco = validade.toISOString().split('T')[0];
-
-                                if (displayData) displayData.textContent = dataFormatada;
-                                if (displayTipo) displayTipo.textContent = "FEDERAL";
-                                
-                                dadosParaSalvar = {
-                                    certidao_id: certidaoId,
-                                    nova_validade: dataBanco
-                                };
-                                
-                                if (confirmModal) confirmModal.show();
-                            }
-                        }, 1000);
-                    }
-                }
-            }, { once: true });
-
-            navigator.clipboard.writeText(dataToCopy).then(function() {
-                federalModalBody.textContent = copyMessage + "\n\nPressione OK para abrir o site. Cole o dado (Ctrl+V) no campo.";
-                federalModal.show();
-            }).catch(function(err) {
-                console.error('Erro copiar:', err);
-                federalModalBody.textContent = "Pressione OK para abrir o site.";
-                federalModal.show();
-            });
-        });
-    });
-
-    const btnsBaixar = document.querySelectorAll('.btn-baixar-certidao');
-    btnsBaixar.forEach(function(btn) {
-        btn.addEventListener('click', function(event) {
-            event.preventDefault();
-
-            linhaAtualTabela = btn.closest('tr');
-
-            if (btn.dataset.tipo === 'FEDERAL') {
-                alert("A Receita Federal não aceita automação completa atualmente.\n\nPor favor, utilize o botão azul 'Abrir Site' para emissão semi-automática.");
-                return;
-            }
-
-            const pythonUrl = btn.dataset.href;
-            
-            btn.textContent = "Rodando...";
-            btn.disabled = true;
-
-            fetch(pythonUrl)
-                .then(response => response.json())
-                .then(data => {
-                    btn.textContent = "Baixar";
-                    btn.disabled = false;
-
-                    if (data.status === 'success_file_saved') {
-                        if (displayData) displayData.textContent = data.data_formatada;
-                        if (displayTipo) displayTipo.textContent = data.tipo_certidao;
-                        
-                        dadosParaSalvar = {
-                            certidao_id: data.certidao_id,
-                            nova_validade: data.nova_data
-                        };
-                        
-                        if (confirmModal) confirmModal.show();
-                    
-                    } else if (data.status === 'window_closed_no_file') {
-                        if (displayTipoPendente) displayTipoPendente.textContent = data.tipo_certidao;
-                        certidaoIdPendente = data.certidao_id;
-                        if (pendenteModal) pendenteModal.show();
-
-                    } else if (data.status === 'success_file_saved_no_date') {
-                        alert("Arquivo salvo com sucesso! Porém, não há regra de data definida para este município.");
-                        location.reload();
-
-                    } else {
-                        alert('Aviso: ' + (data.message || 'Status desconhecido'));
-                    }
-                })
-                .catch(error => {
-                    console.error('Erro:', error);
-                    btn.textContent = "Erro";
-                    btn.disabled = false;
-                    alert("Erro de comunicação com o servidor.");
-                });
-        });
-    });
-
-    if (btnSalvar) {
-        btnSalvar.addEventListener('click', function() {
-            if (dadosParaSalvar.certidao_id) {
-                fetch('/certidao/salvar_data_confirmada', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(dadosParaSalvar)
-                })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.status === 'success') {
-                        if (confirmModal) confirmModal.hide();
-                        location.reload(); 
-                    } else {
-                        alert('Erro ao salvar: ' + data.message);
-                    }
-                })
-                .catch(error => {
-                    console.error('Erro:', error);
-                    alert('Erro de comunicação.');
-                });
-            }
-        });
-    }
-
-    if (btnConfirmarPendente) {
-        btnConfirmarPendente.addEventListener('click', function() {
-            if (certidaoIdPendente) {
-                fetch(`/certidao/marcar_pendente_json/${certidaoIdPendente}`, {
-                    method: 'POST'
-                })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.status === 'success') {
-                        if (pendenteModal) pendenteModal.hide();
-
-                        if (linhaAtualTabela) {
-                            linhaAtualTabela.className = 'status-vermelho';
-                            const dateCells = linhaAtualTabela.querySelectorAll('.date-cell');
-                            if (dateCells.length >= 2) {
-                                dateCells[1].innerHTML = '<span class="fw-semibold">Pendente</span>';
-                            }
-                        }
-                    } else {
-                        alert('Erro ao marcar pendente: ' + data.message);
-                    }
-                })
-                .catch(error => {
-                    console.error('Erro:', error);
-                    alert('Erro de comunicação.');
-                });
-            }
-        });
-    }
-
-    btnsEditar.forEach(function(btn) {
-        btn.addEventListener('click', function() {
-            linhaAtualTabela = btn.closest('tr');
-            certidaoIdManual = btn.dataset.certidaoId;
-            editForm.action = `/certidao/atualizar/${certidaoIdManual}`;
-        });
-    });
-
-    if (btnPendenteManual) {
-        btnPendenteManual.addEventListener('click', function() {
-            if (certidaoIdManual) {
-                fetch(`/certidao/marcar_pendente_json/${certidaoIdManual}`, {
-                    method: 'POST'
-                })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.status === 'success') {
-                        const editModalEl = document.getElementById('editModal');
-                        const editModal = bootstrap.Modal.getInstance(editModalEl);
-                        if (editModal) editModal.hide();
-
-                        if (linhaAtualTabela) {
-                            linhaAtualTabela.className = 'status-vermelho';
-                            const dateCells = linhaAtualTabela.querySelectorAll('.date-cell');
-                            if (dateCells.length >= 2) {
-                                dateCells[1].innerHTML = '<span class="fw-semibold">Pendente</span>';
-                            }
-                        }
-                    } else {
-                        alert('Erro ao marcar pendente: ' + data.message);
-                    }
-                })
-                .catch(error => {
-                    console.error('Erro:', error);
-                    alert('Erro de comunicação.');
-                });
-            }
-        });
-    }
 });
 </script>
 {% endblock %}
