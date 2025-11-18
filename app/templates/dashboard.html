@@ -219,7 +219,7 @@
     </table>
 </div>
 
-</div> <div class="modal fade" id="editModal" tabindex="-1" aria-labelledby="editModalLabel" aria-hidden="true">
+<div class="modal fade" id="editModal" tabindex="-1" aria-labelledby="editModalLabel" aria-hidden="true">
   <div class="modal-dialog">
     <div class="modal-content">
       <div class="modal-header">
@@ -235,9 +235,8 @@
         </form>
       </div>
       <div class="modal-footer">
-        <form id ="pendenteForm" method="POST" class="me-auto">
-            <button type="submit" class="btn tn-outline-danger">Marcar como Pendente</button>
-        </form>
+        <button type="button" class="btn btn-outline-danger me-auto" id="btnPendenteManual">Marcar como Pendente</button>
+        
         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
         <button type="submit" form="editForm" class="btn btn-primary">Salvar Alterações</button>
       </div>
@@ -295,9 +294,7 @@
       </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Não, manter como está</button>
-        <form id="formMarcarPendenteAuto" method="POST" style="display: inline;">
-             <button type="submit" class="btn btn-danger">Sim, marcar Pendente</button>
-        </form>
+        <button type="button" class="btn btn-danger" id="btnConfirmarPendente">Sim, marcar Pendente</button>
       </div>
     </div>
   </div>
@@ -306,6 +303,7 @@
 {% block scripts %}
 <script>
 document.addEventListener('DOMContentLoaded', function() {
+    
     const filtroInput = document.getElementById('filtroEmpresa');
     if (filtroInput) {
         const tabelaBody = document.querySelector('.table tbody');
@@ -362,7 +360,6 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-
     const federalModalElement = document.getElementById('federalModal');
     const federalModalBody = document.getElementById('federalModalBody');
     const federalModal = new bootstrap.Modal(federalModalElement);
@@ -371,23 +368,33 @@ document.addEventListener('DOMContentLoaded', function() {
     let confirmModal = null;
     if (confirmModalElement) confirmModal = new bootstrap.Modal(confirmModalElement);
     
-    const displayData = document.getElementById('displayDataEncontrada');
-    const displayTipo = document.getElementById('displayTipoCertidao');
-    const btnSalvar = document.getElementById('btnConfirmarSalvar');
-    let dadosParaSalvar = {}; 
-
     const pendenteModalElement = document.getElementById('marcarPendenteModal');
     let pendenteModal = null;
     if (pendenteModalElement) pendenteModal = new bootstrap.Modal(pendenteModalElement);
     
+    const displayData = document.getElementById('displayDataEncontrada');
+    const displayTipo = document.getElementById('displayTipoCertidao');
+    const btnSalvar = document.getElementById('btnConfirmarSalvar');
+    
     const displayTipoPendente = document.getElementById('displayTipoPendente');
-    const formPendenteAuto = document.getElementById('formMarcarPendenteAuto');
+    const btnConfirmarPendente = document.getElementById('btnConfirmarPendente');
+
+    const btnsEditar = document.querySelectorAll('.btn-warning');
+    const btnPendenteManual = document.getElementById('btnPendenteManual');
+    const editForm = document.getElementById('editForm');
+
+    let dadosParaSalvar = {}; 
+    let linhaAtualTabela = null; 
+    let certidaoIdPendente = null; 
+    let certidaoIdManual = null;
 
     const btnsAbrirSite = document.querySelectorAll('.btn-abrir-site');
     btnsAbrirSite.forEach(function(btn) {
         btn.addEventListener('click', function(event) {
             event.preventDefault(); 
             
+            linhaAtualTabela = btn.closest('tr');
+
             const url = btn.dataset.url;
             const cnpj = btn.dataset.cnpj;
             const tipo = btn.dataset.tipo;
@@ -405,16 +412,10 @@ document.addEventListener('DOMContentLoaded', function() {
                 const novaAba = window.open(url, '_blank');
 
                 if (tipo === 'FEDERAL') {
-                    
                     fetch(`/certidao/monitorar_download_federal/${certidaoId}`)
                         .then(response => response.json())
                         .then(data => {
-                            if (data.status === 'success') {
-                                console.log("Federal salva com sucesso!");
-                                alert("Certidão Federal salva automaticamente na pasta da empresa!");
-                            } else if (data.status === 'error') {
-                                console.error("Erro ao salvar Federal:", data.mensagem);
-                            }
+                            if (data.status === 'success') console.log("Federal salva!");
                         });
 
                     if (novaAba) {
@@ -445,7 +446,6 @@ document.addEventListener('DOMContentLoaded', function() {
                         }, 1000);
                     }
                 }
-
             }, { once: true });
 
             navigator.clipboard.writeText(dataToCopy).then(function() {
@@ -459,17 +459,18 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
 
-
     const btnsBaixar = document.querySelectorAll('.btn-baixar-certidao');
     btnsBaixar.forEach(function(btn) {
         btn.addEventListener('click', function(event) {
             event.preventDefault();
 
+            linhaAtualTabela = btn.closest('tr');
+
             if (btn.dataset.tipo === 'FEDERAL') {
                 alert("A Receita Federal não aceita automação completa atualmente.\n\nPor favor, utilize o botão azul 'Abrir Site' para emissão semi-automática.");
                 return;
             }
-            
+
             const pythonUrl = btn.dataset.href;
             
             btn.textContent = "Rodando...";
@@ -494,11 +495,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     
                     } else if (data.status === 'window_closed_no_file') {
                         if (displayTipoPendente) displayTipoPendente.textContent = data.tipo_certidao;
-                        
-                        if (formPendenteAuto) {
-                            formPendenteAuto.action = `/certidao/marcar_pendente/${data.certidao_id}`;
-                        }
-                        
+                        certidaoIdPendente = data.certidao_id;
                         if (pendenteModal) pendenteModal.show();
 
                     } else if (data.status === 'success_file_saved_no_date') {
@@ -513,7 +510,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     console.error('Erro:', error);
                     btn.textContent = "Erro";
                     btn.disabled = false;
-                    alert("Erro de comunicação.");
+                    alert("Erro de comunicação com o servidor.");
                 });
         });
     });
@@ -533,6 +530,76 @@ document.addEventListener('DOMContentLoaded', function() {
                         location.reload(); 
                     } else {
                         alert('Erro ao salvar: ' + data.message);
+                    }
+                })
+                .catch(error => {
+                    console.error('Erro:', error);
+                    alert('Erro de comunicação.');
+                });
+            }
+        });
+    }
+
+    if (btnConfirmarPendente) {
+        btnConfirmarPendente.addEventListener('click', function() {
+            if (certidaoIdPendente) {
+                fetch(`/certidao/marcar_pendente_json/${certidaoIdPendente}`, {
+                    method: 'POST'
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        if (pendenteModal) pendenteModal.hide();
+
+                        if (linhaAtualTabela) {
+                            linhaAtualTabela.className = 'status-vermelho';
+                            const dateCells = linhaAtualTabela.querySelectorAll('.date-cell');
+                            if (dateCells.length >= 2) {
+                                dateCells[1].innerHTML = '<span class="fw-semibold">Pendente</span>';
+                            }
+                        }
+                    } else {
+                        alert('Erro ao marcar pendente: ' + data.message);
+                    }
+                })
+                .catch(error => {
+                    console.error('Erro:', error);
+                    alert('Erro de comunicação.');
+                });
+            }
+        });
+    }
+
+    btnsEditar.forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            linhaAtualTabela = btn.closest('tr');
+            certidaoIdManual = btn.dataset.certidaoId;
+            editForm.action = `/certidao/atualizar/${certidaoIdManual}`;
+        });
+    });
+
+    if (btnPendenteManual) {
+        btnPendenteManual.addEventListener('click', function() {
+            if (certidaoIdManual) {
+                fetch(`/certidao/marcar_pendente_json/${certidaoIdManual}`, {
+                    method: 'POST'
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        const editModalEl = document.getElementById('editModal');
+                        const editModal = bootstrap.Modal.getInstance(editModalEl);
+                        if (editModal) editModal.hide();
+
+                        if (linhaAtualTabela) {
+                            linhaAtualTabela.className = 'status-vermelho';
+                            const dateCells = linhaAtualTabela.querySelectorAll('.date-cell');
+                            if (dateCells.length >= 2) {
+                                dateCells[1].innerHTML = '<span class="fw-semibold">Pendente</span>';
+                            }
+                        }
+                    } else {
+                        alert('Erro ao marcar pendente: ' + data.message);
                     }
                 })
                 .catch(error => {
