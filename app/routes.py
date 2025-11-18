@@ -290,6 +290,7 @@ def baixar_certidao(certidao_id):
             response_data['nova_data'] = data_encontrada.strftime('%Y-%m-%d')
             response_data['data_formatada'] = data_encontrada.strftime('%d/%m/%Y')
         else:
+            data_calc = None
             if tipo_certidao_chave == 'TRABALHISTA':
                 data_calc = date.today() + timedelta(days=180)
             elif tipo_certidao_chave == 'ESTADUAL':
