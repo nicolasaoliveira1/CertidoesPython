@@ -197,8 +197,8 @@
                                 Editar
                             </button>
                             <button class="btn btn-sm btn-primary me-2 btn-baixar-certidao"
-                                    data-href="{{ url_for('main.baixar_certidao', certidao_id=certidao.id) }}">
-                                Baixar
+                                    data-href="{{ url_for('main.baixar_certidao', certidao_id=certidao.id) }}"
+                                    data-tipo="{{ certidao.tipo.name }}">Baixar
                             </button>
                         </td>
                     </tr>
@@ -464,6 +464,12 @@ document.addEventListener('DOMContentLoaded', function() {
     btnsBaixar.forEach(function(btn) {
         btn.addEventListener('click', function(event) {
             event.preventDefault();
+
+            if (btn.dataset.tipo === 'FEDERAL') {
+                alert("A Receita Federal não aceita automação completa atualmente.\n\nPor favor, utilize o botão azul 'Abrir Site' para emissão semi-automática.");
+                return;
+            }
+            
             const pythonUrl = btn.dataset.href;
             
             btn.textContent = "Rodando...";
