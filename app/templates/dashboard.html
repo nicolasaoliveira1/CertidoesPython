@@ -404,32 +404,46 @@ document.addEventListener('DOMContentLoaded', function() {
             federalModalElement.addEventListener('hidden.bs.modal', function () {
                 const novaAba = window.open(url, '_blank');
 
-                if (tipo === 'FEDERAL' && novaAba) {
-                    const timer = setInterval(function() {
-                        if (novaAba.closed) {
-                            clearInterval(timer);
-                            
-                            const hoje = new Date();
-                            const validade = new Date(hoje);
-                            validade.setDate(hoje.getDate() + 180);
-                            
-                            const dia = String(validade.getDate()).padStart(2, '0');
-                            const mes = String(validade.getMonth() + 1).padStart(2, '0');
-                            const ano = validade.getFullYear();
-                            const dataFormatada = `${dia}/${mes}/${ano}`;
-                            const dataBanco = validade.toISOString().split('T')[0];
+                if (tipo === 'FEDERAL') {
+                    
+                    fetch(`/certidao/monitorar_download_federal/${certidaoId}`)
+                        .then(response => response.json())
+                        .then(data => {
+                            if (data.status === 'success') {
+                                console.log("Federal salva com sucesso!");
+                                alert("Certidão Federal salva automaticamente na pasta da empresa!");
+                            } else if (data.status === 'error') {
+                                console.error("Erro ao salvar Federal:", data.mensagem);
+                            }
+                        });
 
-                            if (displayData) displayData.textContent = dataFormatada;
-                            if (displayTipo) displayTipo.textContent = "FEDERAL";
-                            
-                            dadosParaSalvar = {
-                                certidao_id: certidaoId,
-                                nova_validade: dataBanco
-                            };
-                            
-                            if (confirmModal) confirmModal.show();
-                        }
-                    }, 1000);
+                    if (novaAba) {
+                        const timer = setInterval(function() {
+                            if (novaAba.closed) {
+                                clearInterval(timer);
+                                
+                                const hoje = new Date();
+                                const validade = new Date(hoje);
+                                validade.setDate(hoje.getDate() + 180);
+                                
+                                const dia = String(validade.getDate()).padStart(2, '0');
+                                const mes = String(validade.getMonth() + 1).padStart(2, '0');
+                                const ano = validade.getFullYear();
+                                const dataFormatada = `${dia}/${mes}/${ano}`;
+                                const dataBanco = validade.toISOString().split('T')[0];
+
+                                if (displayData) displayData.textContent = dataFormatada;
+                                if (displayTipo) displayTipo.textContent = "FEDERAL";
+                                
+                                dadosParaSalvar = {
+                                    certidao_id: certidaoId,
+                                    nova_validade: dataBanco
+                                };
+                                
+                                if (confirmModal) confirmModal.show();
+                            }
+                        }, 1000);
+                    }
                 }
 
             }, { once: true });

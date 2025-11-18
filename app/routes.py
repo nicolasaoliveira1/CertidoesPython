@@ -335,3 +335,39 @@ def salvar_data_confirmada():
     except Exception as e:
         print(f"Erro ao salvar data confirmada: {e}")
         return jsonify({'status': 'error', 'message': str(e)}), 500
+    
+@bp.route('/certidao/monitorar_download_federal/<int:certidao_id>')
+def monitorar_download_federal(certidao_id):
+    certidao = Certidao.query.get_or_404(certidao_id)
+    
+    print(f"--- INICIANDO MONITORAMENTO DE DOWNLOAD (FEDERAL) ---")
+    
+    tempo_limite = 180 
+    tempo_inicio = time.time()
+    
+    while (time.time() - tempo_inicio) < tempo_limite:
+        novo_arquivo = file_manager.verificar_novo_arquivo(tempo_inicio)
+        
+        if novo_arquivo:
+            print(f"Arquivo Federal detectado: {novo_arquivo}")
+            
+            sucesso, msg = file_manager.mover_e_renomear(
+                novo_arquivo, 
+                certidao.empresa.nome, 
+                certidao.tipo.value
+            )
+            
+            if sucesso:
+                return jsonify({
+                    'status': 'success', 
+                    'mensagem': f"Arquivo salvo no servidor: {msg}"
+                })
+            else:
+                return jsonify({
+                    'status': 'error', 
+                    'mensagem': f"Erro ao mover: {msg}"
+                })
+        
+        time.sleep(1)
+
+    return jsonify({'status': 'timeout', 'mensagem': 'Tempo esgotado sem download.'})
