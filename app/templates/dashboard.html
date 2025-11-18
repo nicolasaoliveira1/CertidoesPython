@@ -281,10 +281,31 @@
   </div>
 </div>
 
+<div class="modal fade" id="marcarPendenteModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title text-warning">Nenhum arquivo baixado</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <p>A automação terminou sem salvar nenhum PDF para a certidão <strong id="displayTipoPendente">---</strong>.</p>
+        <p class="text-muted">Isso pode indicar que a empresa tem débitos ou houve apenas uma consulta.</p>
+        <p class="fw-bold text-center">Deseja marcar esta certidão como <span class="text-danger">PENDENTE</span>?</p>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Não, manter como está</button>
+        <form id="formMarcarPendenteAuto" method="POST" style="display: inline;">
+             <button type="submit" class="btn btn-danger">Sim, marcar Pendente</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+
 {% block scripts %}
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    
     const filtroInput = document.getElementById('filtroEmpresa');
     if (filtroInput) {
         const tabelaBody = document.querySelector('.table tbody');
@@ -341,6 +362,7 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
+
     const federalModalElement = document.getElementById('federalModal');
     const federalModalBody = document.getElementById('federalModalBody');
     const federalModal = new bootstrap.Modal(federalModalElement);
@@ -352,8 +374,14 @@ document.addEventListener('DOMContentLoaded', function() {
     const displayData = document.getElementById('displayDataEncontrada');
     const displayTipo = document.getElementById('displayTipoCertidao');
     const btnSalvar = document.getElementById('btnConfirmarSalvar');
-    
     let dadosParaSalvar = {}; 
+
+    const pendenteModalElement = document.getElementById('marcarPendenteModal');
+    let pendenteModal = null;
+    if (pendenteModalElement) pendenteModal = new bootstrap.Modal(pendenteModalElement);
+    
+    const displayTipoPendente = document.getElementById('displayTipoPendente');
+    const formPendenteAuto = document.getElementById('formMarcarPendenteAuto');
 
     const btnsAbrirSite = document.querySelectorAll('.btn-abrir-site');
     btnsAbrirSite.forEach(function(btn) {
@@ -392,7 +420,7 @@ document.addEventListener('DOMContentLoaded', function() {
                             const dataBanco = validade.toISOString().split('T')[0];
 
                             if (displayData) displayData.textContent = dataFormatada;
-                            if (displayTipo) displayTipo.textContent = "FEDERAL"; 
+                            if (displayTipo) displayTipo.textContent = "FEDERAL";
                             
                             dadosParaSalvar = {
                                 certidao_id: certidaoId,
@@ -433,10 +461,9 @@ document.addEventListener('DOMContentLoaded', function() {
                     btn.textContent = "Baixar";
                     btn.disabled = false;
 
-                    if (data.status === 'success' && data.nova_data) {
+                    if (data.status === 'success_file_saved') {
                         if (displayData) displayData.textContent = data.data_formatada;
-                        
-                        if (displayTipo) displayTipo.textContent = data.tipo_certidao; 
+                        if (displayTipo) displayTipo.textContent = data.tipo_certidao;
                         
                         dadosParaSalvar = {
                             certidao_id: data.certidao_id,
@@ -444,10 +471,22 @@ document.addEventListener('DOMContentLoaded', function() {
                         };
                         
                         if (confirmModal) confirmModal.show();
-                    } else if (data.status === 'success_no_date') {
+                    
+                    } else if (data.status === 'window_closed_no_file') {
+                        if (displayTipoPendente) displayTipoPendente.textContent = data.tipo_certidao;
+                        
+                        if (formPendenteAuto) {
+                            formPendenteAuto.action = `/certidao/marcar_pendente/${data.certidao_id}`;
+                        }
+                        
+                        if (pendenteModal) pendenteModal.show();
+
+                    } else if (data.status === 'success_file_saved_no_date') {
+                        alert("Arquivo salvo com sucesso! Porém, não há regra de data definida para este município.");
+                        location.reload();
 
                     } else {
-                        alert('Erro/Aviso: ' + (data.message || 'Erro desconhecido'));
+                        alert('Aviso: ' + (data.message || 'Status desconhecido'));
                     }
                 })
                 .catch(error => {

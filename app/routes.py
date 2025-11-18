@@ -277,32 +277,43 @@ def baixar_certidao(certidao_id):
             try: driver.quit()
             except: pass
         return jsonify({"status": "error", "message": "Ocorreu um erro na automação."}), 500
-
-    if not data_encontrada:
-        if tipo_certidao_chave == 'TRABALHISTA':
-            data_encontrada = date.today() + timedelta(days=180)
-        elif tipo_certidao_chave == 'ESTADUAL':
-            data_encontrada = date.today() + timedelta(days=59)
-        elif tipo_certidao_chave == 'MUNICIPAL':
-            cidade = certidao.empresa.cidade.strip().upper()
-            if cidade in ['IMBÉ', 'IMBE']:
-                data_encontrada = date.today() + timedelta(days=90)
-            elif cidade in ['TRAMANDAÍ', 'TRAMANDAI', 'TRAMANDAI/RS']:
-                data_encontrada = date.today() + timedelta(days=30)
-
-    response_data = {'status': 'success'}
     
-    if data_encontrada:
-        response_data['certidao_id'] = certidao_id
-        response_data['nova_data'] = data_encontrada.strftime('%Y-%m-%d')
-        response_data['data_formatada'] = data_encontrada.strftime('%d/%m/%Y')
-        response_data['tipo_certidao'] = certidao.tipo.value
-    else:
-        response_data['status'] = 'success_no_date'
-        
+    response_data = {'status': 'unknown'}
+
     if arquivo_salvo_msg:
+        response_data['status'] = 'success_file_saved'
         response_data['mensagem_arquivo'] = arquivo_salvo_msg
+        response_data['certidao_id'] = certidao_id
+        response_data['tipo_certidao'] = certidao.tipo.value
         
+        if data_encontrada:
+            response_data['nova_data'] = data_encontrada.strftime('%Y-%m-%d')
+            response_data['data_formatada'] = data_encontrada.strftime('%d/%m/%Y')
+        else:
+            if tipo_certidao_chave == 'TRABALHISTA':
+                data_calc = date.today() + timedelta(days=180)
+            elif tipo_certidao_chave == 'ESTADUAL':
+                data_calc = date.today() + timedelta(days=59)
+            elif tipo_certidao_chave == 'MUNICIPAL':
+                cidade = certidao.empresa.cidade.strip().upper()
+                if cidade in ['IMBÉ', 'IMBE']:
+                    data_calc = date.today() + timedelta(days=90)
+                elif cidade in ['TRAMANDAÍ', 'TRAMANDAI', 'TRAMANDAI/RS']:
+                    data_calc = date.today() + timedelta(days=30)
+                else:
+                    data_calc = None
+            
+            if data_calc:
+                response_data['nova_data'] = data_calc.strftime('%Y-%m-%d')
+                response_data['data_formatada'] = data_calc.strftime('%d/%m/%Y')
+            else:
+                 response_data['status'] = 'success_file_saved_no_date'
+
+    else:
+        response_data['status'] = 'window_closed_no_file'
+        response_data['certidao_id'] = certidao_id
+        response_data['tipo_certidao'] = certidao.tipo.value
+
     return jsonify(response_data)
 
 @bp.route('/certidao/salvar_data_confirmada', methods=['POST'])
