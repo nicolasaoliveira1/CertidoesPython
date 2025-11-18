@@ -10,7 +10,26 @@ VARIACOES_DOCS = [
     "DOCUMENTOS EMPRESA", "DOCS. EMPRESA", "DOC. EMPRESA", 
     "DOCUMENTOS", "DOCS", "DOCS EMPRESA", "DOC EMPRESA"
 ]
+STOP_FEDERAL_KEY = 'stop_federal_monitor.txt'
 
+def obter_caminho_chave_interrupcao():
+    """Retorna o caminho completo para o arquivo de interrupção."""
+    return os.path.join(os.path.dirname(os.path.abspath(__file__)), STOP_FEDERAL_KEY)
+
+def criar_chave_interrupcao():
+    """Cria o arquivo de interrupção."""
+    caminho_chave = obter_caminho_chave_interrupcao()
+    with open(caminho_chave, 'w') as f:
+        f.write(str(time.time()))
+    print(f"Chave de interrupção criada em: {caminho_chave}")
+    
+def remover_chave_interrupcao():
+    """Remove o arquivo de interrupção."""
+    caminho_chave = obter_caminho_chave_interrupcao()
+    if os.path.exists(caminho_chave):
+        os.remove(caminho_chave)
+        print(f"Chave de interrupção removida.")
+        
 def remover_acentos(texto):
     if not texto:
         return ""
