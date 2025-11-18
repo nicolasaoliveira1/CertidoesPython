@@ -190,7 +190,30 @@ def baixar_certidao(certidao_id):
         
         driver = webdriver.Chrome(service=ChromeService(ChromeDriverManager().install()), options=chrome_options)
         
+        print(f"1. Acessando a URL: {info_site.get('url')}")
         driver.get(info_site.get('url'))
+        
+        if certidao.empresa.cidade.upper() == 'CIDREIRA':
+            print("--- CIDREIRA DETECTADA: Executando manobra anti-modal ---")
+            time.sleep(2)
+            driver.refresh()
+            print("Refresh realizado.")
+            
+            wait = WebDriverWait(driver, 20)
+            
+            try:
+                print("Clicando no menu 'Emitir Certidões'...")
+                menu_emitir = wait.until(EC.element_to_be_clickable((By.CLASS_NAME, "emitir-certidoes")))
+                menu_emitir.click()
+                time.sleep(1)
+                
+                print("Clicando na aba 'CNPJ'...")
+                aba_cnpj = wait.until(EC.element_to_be_clickable((By.XPATH, "//a[contains(text(), 'CNPJ')]")))
+                aba_cnpj.click()
+                time.sleep(1)
+            except Exception as e:
+                print(f"Erro na navegação de Cidreira: {e}")
+
         wait = WebDriverWait(driver, 20)
         
         if info_site.get('pre_fill_click_id'):
@@ -300,6 +323,8 @@ def baixar_certidao(certidao_id):
                 if cidade in ['IMBÉ', 'IMBE']:
                     data_calc = date.today() + timedelta(days=90)
                 elif cidade in ['TRAMANDAÍ', 'TRAMANDAI', 'TRAMANDAI/RS']:
+                    data_calc = date.today() + timedelta(days=30)
+                elif cidade == "CIDREIRA":
                     data_calc = date.today() + timedelta(days=30)
                 else:
                     data_calc = None
