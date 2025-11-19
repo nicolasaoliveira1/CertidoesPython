@@ -1,6 +1,5 @@
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-from selenium.common.exceptions import TimeoutException
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service as ChromeService
 from webdriver_manager.chrome import ChromeDriverManager
@@ -10,13 +9,11 @@ from app.automation import SITES_CERTIDOES
 from flask import render_template, Blueprint, request, redirect, url_for, flash, jsonify
 from app import db
 from app import file_manager
-from app.file_manager import criar_chave_interrupcao, remover_chave_interrupcao, obter_caminho_chave_interrupcao
 from app.models import Empresa, Certidao, TipoCertidao, StatusEspecial, Municipio
 from datetime import date, datetime, timedelta
 from sqlalchemy import or_
 import time
 import os
-from datetime import date, datetime, timedelta
 
 bp = Blueprint('main', __name__)
 
@@ -290,7 +287,7 @@ def baixar_certidao(certidao_id):
                         arquivo_salvo_msg = f"Arquivo salvo em: {msg}"
                         print(arquivo_salvo_msg)
                         try:
-                            driver.execute_script(f"alert('PDF salvo no servidor com sucesso!');")
+                            driver.execute_script("alert('PDF salvo no servidor com sucesso!');")
                         except: pass
                     else:
                         print(f"Erro ao salvar: {msg}")
@@ -382,7 +379,7 @@ def salvar_data_confirmada():
 def monitorar_download_federal(certidao_id):
     certidao = Certidao.query.get_or_404(certidao_id)
     
-    print(f"--- INICIANDO MONITORAMENTO DE DOWNLOAD (FEDERAL) ---")
+    print("--- INICIANDO MONITORAMENTO DE DOWNLOAD (FEDERAL) ---")
     
     file_manager.remover_chave_interrupcao()
     
@@ -403,7 +400,7 @@ def monitorar_download_federal(certidao_id):
             file_manager.remover_chave_interrupcao()
             return jsonify({'status': 'interrupted', 'mensagem': 'Monitoramento Federal interrompido por nova requisição.'})
         
-        novo_arquivo = file_manager.verificar_novo_arquivo(tempo_inicio)
+        novo_arquivo = file_manager.verificar_novo_arquivo(tempo_inicio, termos_ignorar=termos_proibidos)
         
         if novo_arquivo:
             print(f"Arquivo Federal detectado: {novo_arquivo}")
