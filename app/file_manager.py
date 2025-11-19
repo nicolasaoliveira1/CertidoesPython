@@ -28,7 +28,7 @@ def remover_chave_interrupcao():
     caminho_chave = obter_caminho_chave_interrupcao()
     if os.path.exists(caminho_chave):
         os.remove(caminho_chave)
-        print(f"Chave de interrupção removida.")
+        print("Chave de interrupção removida.")
         
 def remover_acentos(texto):
     if not texto:
@@ -129,7 +129,7 @@ def limpar_versoes_antigas(pasta_destino, novo_nome_padrao, tipo_certidao):
     except Exception as e:
         print(f"Erro ao tentar limpar versões antigas: {e}")
 
-def verificar_novo_arquivo(tempo_inicio):
+def verificar_novo_arquivo(tempo_inicio, termos_ignorar=None):
     pasta_downloads = os.path.join(os.path.expanduser("~"), "Downloads")
     padrao_busca = os.path.join(pasta_downloads, "*")
     
@@ -143,8 +143,17 @@ def verificar_novo_arquivo(tempo_inicio):
     tempo_criacao = os.path.getctime(arquivo_mais_recente)
     
     if tempo_criacao > tempo_inicio:
-        if not arquivo_mais_recente.endswith('.crdownload') and not arquivo_mais_recente.endswith('.tmp'):
-            return arquivo_mais_recente
+        if not arquivo_mais_recente.endswith('.crdownload') or arquivo_mais_recente.endswith('.tmp'):
+            return None
+
+        if termos_ignorar:
+            nome_arquivo = os.path.basename(arquivo_mais_recente).lower()
+            for termo in termos_ignorar:
+                if termo.lower() in nome_arquivo:
+                    print(f"Arquivo ignorado pelo filtro '{termo}': {nome_arquivo}")
+                    return None
+
+        return arquivo_mais_recente
             
     return None
 
