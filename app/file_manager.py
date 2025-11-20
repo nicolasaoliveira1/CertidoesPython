@@ -142,17 +142,25 @@ def verificar_novo_arquivo(tempo_inicio, termos_ignorar=None):
     arquivo_mais_recente = max(arquivos, key=os.path.getctime)
     tempo_criacao = os.path.getctime(arquivo_mais_recente)
     
+    # Debug: Vamos ver o que ele encontrou
+    nome_arquivo = os.path.basename(arquivo_mais_recente).lower()
+    
     if tempo_criacao > tempo_inicio:
-        if not arquivo_mais_recente.endswith('.crdownload') or arquivo_mais_recente.endswith('.tmp'):
+        # Debug
+        print(f"[DEBUG] Arquivo novo encontrado: {nome_arquivo}")
+
+        if nome_arquivo.endswith('.crdownload') or nome_arquivo.endswith('.tmp'):
+            # Debug
+            print(f"[DEBUG] Ignorado pois é temporário: {nome_arquivo}")
             return None
 
         if termos_ignorar:
-            nome_arquivo = os.path.basename(arquivo_mais_recente).lower()
             for termo in termos_ignorar:
                 if termo.lower() in nome_arquivo:
                     print(f"Arquivo ignorado pelo filtro '{termo}': {nome_arquivo}")
                     return None
 
+        print(f"[SUCESSO] Arquivo aceito: {nome_arquivo}")
         return arquivo_mais_recente
             
     return None
