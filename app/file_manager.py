@@ -6,6 +6,7 @@ import unicodedata
 from thefuzz import process, fuzz
 
 CAMINHO_REDE = r"Z:\PASTAS EMPRESAS"
+CAMINHO_SEM_MOVIMENTO = os.path.join(CAMINHO_REDE, "A a Z", "EMPRESAS SEM MOVIMENTO")
 VARIACOES_DOCS = [
     "DOCUMENTOS EMPRESA", "DOCS. EMPRESA", "DOC. EMPRESA", 
     "DOCUMENTOS", "DOCS", "DOCS EMPRESA", "DOC EMPRESA"
@@ -35,59 +36,64 @@ def remover_acentos(texto):
         return ""
     return unicodedata.normalize('NFKD', texto).encode('ASCII', 'ignore').decode('ASCII')
 
-def encontrar_pasta_empresa(nome_banco):
-    if not os.path.exists(CAMINHO_REDE):
-        print(f"ERRO: Caminho de rede não encontrado: {CAMINHO_REDE}")
+def buscar_na_pasta_especifica(caminho_base, nome_banco):
+    if not os.path.exists(caminho_base):
         return None
 
     try:
-        todas_pastas_brutas = os.listdir(CAMINHO_REDE)
+        todas_pastas_brutas = os.listdir(caminho_base)
         
         todas_pastas = [
             pasta for pasta in todas_pastas_brutas 
-            if "FILIAL" not in pasta.upper()
+            if not any(word.upper() in pasta.upper() for word in ["FILIAL", "ANTIGA"])
         ]
         
         resultado = process.extractOne(nome_banco, todas_pastas, score_cutoff=95)
-        
         if resultado:
             pasta_encontrada = resultado[0]
-            print(f"Pasta encontrada (Match Direto): '{pasta_encontrada}'")
-            return os.path.join(CAMINHO_REDE, pasta_encontrada)
+            print(f"Pasta encontrada em '{caminho_base}': '{pasta_encontrada}' (Match Direto)")
+            return os.path.join(caminho_base, pasta_encontrada)
         
         resultado_token = process.extractOne(nome_banco, todas_pastas, scorer=fuzz.token_set_ratio, score_cutoff=100)
-        
         if resultado_token:
             pasta_encontrada = resultado_token[0]
-            print(f"Pasta encontrada (Match Inteligente): '{pasta_encontrada}'")
-            return os.path.join(CAMINHO_REDE, pasta_encontrada)
+            print(f"Pasta encontrada em '{caminho_base}': '{pasta_encontrada}' (Match Inteligente)")
+            return os.path.join(caminho_base, pasta_encontrada)
 
         nome_banco_clean = remover_acentos(nome_banco).upper()
-        
         for pasta in todas_pastas:
             pasta_clean = remover_acentos(pasta).upper()
-            
             score = fuzz.token_set_ratio(nome_banco_clean, pasta_clean)
-            
             if score == 100:
-                print(f"Pasta encontrada (Match Sem Acentos): '{pasta}'")
-                return os.path.join(CAMINHO_REDE, pasta)
+                print(f"Pasta encontrada em '{caminho_base}': '{pasta}' (Match Sem Acentos)")
+                return os.path.join(caminho_base, pasta)
 
         for pasta in todas_pastas:
             if pasta.upper() == nome_banco.upper():
-                print(f"Pasta encontrada (Match Exato): '{pasta}'")
-                return os.path.join(CAMINHO_REDE, pasta)
-
-        print(f"ALERTA DE SEGURANÇA: Nenhuma pasta confiável encontrada para: '{nome_banco}'")
-        print("O arquivo permanecerá na pasta Downloads para evitar erros.")
-        return None
-            
+                print(f"Pasta encontrada em '{caminho_base}': '{pasta}' (Match Exato)")
+                return os.path.join(caminho_base, pasta)
+                
     except Exception as e:
-        print(f"Erro ao buscar pasta: {e}")
-        return None
+        print(f"Erro ao ler pasta {caminho_base}: {e}")
+        
+    return None
+
+def encontrar_pasta_empresa(nome_banco):
+    resultado_principal = buscar_na_pasta_especifica(CAMINHO_REDE, nome_banco)
+    if resultado_principal:
+        return resultado_principal
+        
+    print(f"Empresa '{nome_banco}' não encontrada na raiz. Procurando em Sem Movimento...")
+    resultado_sem_movimento = buscar_na_pasta_especifica(CAMINHO_SEM_MOVIMENTO, nome_banco)
+    
+    if resultado_sem_movimento:
+        return resultado_sem_movimento
+
+    print(f"ALERTA DE SEGURANÇA: Nenhuma pasta confiável encontrada para: '{nome_banco}'")
+    print("O arquivo permanecerá na pasta Downloads para evitar erros.")
+    return None
     
 def encontrar_caminho_final(caminho_empresa):
-    
     pasta_destino = caminho_empresa 
     
     for variacao in VARIACOES_DOCS:
@@ -96,14 +102,19 @@ def encontrar_caminho_final(caminho_empresa):
             pasta_destino = teste_path
             break
     
-    pasta_certidoes = os.path.join(pasta_destino, "CERTIDOES")
-    if not os.path.exists(pasta_certidoes):
-        try:
-            os.makedirs(pasta_certidoes)
-        except OSError:
-            return pasta_destino
+    variacoes_certidoes = ["CERTIDOES", "CERTIDÕES", "Certidoes", "Certidões"]
+    
+    for nome_pasta in variacoes_certidoes:
+        caminho_teste = os.path.join(pasta_destino, nome_pasta)
+        if os.path.exists(caminho_teste):
+            return caminho_teste
 
-    return pasta_certidoes
+    pasta_padrao = os.path.join(pasta_destino, "CERTIDOES")
+    try:
+        os.makedirs(pasta_padrao)
+        return pasta_padrao
+    except OSError:
+        return pasta_destino
 
 def limpar_versoes_antigas(pasta_destino, novo_nome_padrao, tipo_certidao):
     try:
