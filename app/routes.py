@@ -379,7 +379,11 @@ def salvar_data_confirmada():
 def monitorar_download_federal(certidao_id):
     certidao = Certidao.query.get_or_404(certidao_id)
     
-    print("--- INICIANDO MONITORAMENTO DE DOWNLOAD (FEDERAL) ---")
+    print(f"--- INICIANDO MONITORAMENTO DE DOWNLOAD (FEDERAL) - ID: {certidao_id} ---")
+    
+    file_manager.criar_chave_interrupcao()
+    
+    time.sleep(2)
     
     file_manager.remover_chave_interrupcao()
     
@@ -396,9 +400,9 @@ def monitorar_download_federal(certidao_id):
     
     while (time.time() - tempo_inicio) < tempo_limite:
         if os.path.exists(chave_interrupcao):
-            print("MONITORAMENTO FEDERAL INTERROMPIDO POR CHAVE EXTERNA.")
-            file_manager.remover_chave_interrupcao()
-            return jsonify({'status': 'interrupted', 'mensagem': 'Monitoramento Federal interrompido por nova requisição.'})
+            print(f"MONITORAMENTO FEDERAL (ID {certidao_id}) INTERROMPIDO POR NOVA REQUISIÇÃO.")
+            file_manager.remover_chave_interrupcao() 
+            return jsonify({'status': 'interrupted', 'mensagem': 'Monitoramento interrompido.'})
         
         novo_arquivo = file_manager.verificar_novo_arquivo(tempo_inicio, termos_ignorar=termos_proibidos)
         
@@ -423,7 +427,8 @@ def monitorar_download_federal(certidao_id):
                 })
         
         time.sleep(1)
-        
+
+    # limpeza final por segurança
     file_manager.remover_chave_interrupcao()
     return jsonify({'status': 'timeout', 'mensagem': 'Tempo esgotado sem download.'})
 
