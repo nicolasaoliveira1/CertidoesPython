@@ -375,7 +375,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
 
     // =================================================================
-    // 1. BOTÃO "ABRIR SITE" (MODAL + CÓPIA + MONITORAMENTO)
+    // 1. BOTÃO "ABRIR SITE" (CORRIGIDO PARA VALIDAR DOWNLOAD)
     // =================================================================
     const btnsAbrirSite = document.querySelectorAll('.btn-abrir-site');
     btnsAbrirSite.forEach(function(btn) {
@@ -384,7 +384,7 @@ document.addEventListener('DOMContentLoaded', function() {
             
             linhaAtualTabela = btn.closest('tr');
 
-            // Guarda os dados nas variáveis globais para usar no botão OK
+            // Guarda os dados nas variáveis globais
             urlParaAbrir = btn.dataset.url;
             tipoParaAbrir = btn.dataset.tipo;
             idParaMonitorar = btn.dataset.id;
@@ -396,9 +396,9 @@ document.addEventListener('DOMContentLoaded', function() {
                 return;
             }
 
-            // Copia o CNPJ primeiro
             navigator.clipboard.writeText(cnpj).then(function() {
-                // Sucesso na cópia -> Abre o Modal avisando
+                
+                // Mostra Modal de Aviso antes de abrir
                 infoModalBody.innerHTML = `
                     <p class="mb-2">O CNPJ <strong>${cnpj}</strong> foi copiado para sua área de transferência.</p>
                     <p class="text-muted small">Pressione <strong>OK</strong> para abrir o site e depois cole (Ctrl+V) no campo correspondente.</p>
@@ -407,7 +407,6 @@ document.addEventListener('DOMContentLoaded', function() {
 
             }).catch(function(err) {
                 console.error('Erro copiar:', err);
-                // Falha na cópia -> Abre o Modal avisando do erro
                 infoModalBody.innerHTML = `
                     <p class="text-danger mb-2">Não foi possível copiar o CNPJ automaticamente.</p>
                     <p>Por favor, copie manualmente e pressione <strong>OK</strong> para abrir o site.</p>
@@ -425,31 +424,50 @@ document.addEventListener('DOMContentLoaded', function() {
             if (urlParaAbrir) {
                 const novaAba = window.open(urlParaAbrir, '_blank');
 
-                // Lógica Especial da Federal (Monitoramento)
+                // Lógica Especial da Federal
                 if (tipoParaAbrir === 'FEDERAL') {
-                    // 1. Monitora Download
+                    
+                    let arquivoSalvo = false; // <--- NOVA BANDEIRA DE CONTROLE
+
+                    // 1. Monitora Download (Python)
                     fetch(`/certidao/monitorar_download_federal/${idParaMonitorar}`)
                         .then(response => response.json())
-                        .then(data => { if (data.status === 'success') console.log("Federal salva!"); });
+                        .then(data => { 
+                            if (data.status === 'success') {
+                                console.log("Federal salva!");
+                                arquivoSalvo = true; // <--- MARCA COMO SUCESSO SE O ARQUIVO CAIU
+                                showToast("Arquivo identificado e salvo no servidor!", "success");
+                            }
+                        });
 
-                    // 2. Monitora Fechamento da Aba
+                    // 2. Monitora Fechamento da Aba (Navegador)
                     if (novaAba) {
                         const timer = setInterval(function() {
                             if (novaAba.closed) {
                                 clearInterval(timer);
                                 
-                                const hoje = new Date();
-                                const validade = new Date(hoje);
-                                validade.setDate(hoje.getDate() + 180);
-                                
-                                const dataBanco = validade.toISOString().split('T')[0];
-                                const dataFormatada = `${validade.getDate().toString().padStart(2, '0')}/${(validade.getMonth() + 1).toString().padStart(2, '0')}/${validade.getFullYear()}`;
+                                // DECISÃO: SUCESSO OU PENDENTE?
+                                if (arquivoSalvo) {
+                                    // CENÁRIO A: ARQUIVO FOI BAIXADO -> CONFIRMA DATA
+                                    const hoje = new Date();
+                                    const validade = new Date(hoje);
+                                    validade.setDate(hoje.getDate() + 180);
+                                    
+                                    const dataBanco = validade.toISOString().split('T')[0];
+                                    const dataFormatada = `${validade.getDate().toString().padStart(2, '0')}/${(validade.getMonth() + 1).toString().padStart(2, '0')}/${validade.getFullYear()}`;
 
-                                if (displayData) displayData.textContent = dataFormatada;
-                                if (displayTipo) displayTipo.textContent = "FEDERAL";
+                                    if (displayData) displayData.textContent = dataFormatada;
+                                    if (displayTipo) displayTipo.textContent = "FEDERAL";
+                                    
+                                    dadosParaSalvar = { certidao_id: idParaMonitorar, nova_validade: dataBanco };
+                                    if (confirmModal) confirmModal.show();
                                 
-                                dadosParaSalvar = { certidao_id: idParaMonitorar, nova_validade: dataBanco };
-                                if (confirmModal) confirmModal.show();
+                                } else {
+                                    // CENÁRIO B: ABA FECHADA SEM ARQUIVO -> SUGERE PENDENTE
+                                    if (displayTipoPendente) displayTipoPendente.textContent = "FEDERAL";
+                                    certidaoIdPendente = idParaMonitorar; // Atualiza o ID global
+                                    if (pendenteModal) pendenteModal.show();
+                                }
                             }
                         }, 1000);
                     }
