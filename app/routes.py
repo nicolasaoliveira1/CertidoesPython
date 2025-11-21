@@ -5,6 +5,7 @@ from selenium.webdriver.chrome.service import Service as ChromeService
 from webdriver_manager.chrome import ChromeDriverManager
 from selenium.webdriver.common.by import By
 from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.support.ui import Select
 from app.automation import SITES_CERTIDOES
 from flask import render_template, Blueprint, request, redirect, url_for, flash, jsonify
 from app import db
@@ -189,32 +190,105 @@ def baixar_certidao(certidao_id):
         chrome_options.add_argument("--start-maximized")
         
         driver = webdriver.Chrome(service=ChromeService(ChromeDriverManager().install()), options=chrome_options)
-        
+        wait = WebDriverWait(driver, 20)
         print(f"1. Acessando a URL: {info_site.get('url')}")
         driver.get(info_site.get('url'))
         
-        if certidao.empresa.cidade.upper() == 'CIDREIRA':
-            print("--- CIDREIRA DETECTADA: Executando manobra anti-modal ---")
-            time.sleep(2)
-            driver.refresh()
-            print("Refresh realizado.")
-            
-            wait = WebDriverWait(driver, 20)
-            
-            try:
-                print("Clicando no menu 'Emitir Certidões'...")
-                menu_emitir = wait.until(EC.element_to_be_clickable((By.CLASS_NAME, "emitir-certidoes")))
-                menu_emitir.click()
-                time.sleep(1)
+        if tipo_certidao_chave == 'MUNICIPAL':
+            if certidao.empresa.cidade.upper() == 'CIDREIRA':
+                print("--- CIDREIRA DETECTADA: Executando manobra anti-modal ---")
+                time.sleep(2)
+                driver.refresh()
+                print("Refresh realizado.")
                 
-                print("Clicando na aba 'CNPJ'...")
-                aba_cnpj = wait.until(EC.element_to_be_clickable((By.XPATH, "//a[contains(text(), 'CNPJ')]")))
-                aba_cnpj.click()
-                time.sleep(1)
-            except Exception as e:
-                print(f"Erro na navegação de Cidreira: {e}")
+                wait = WebDriverWait(driver, 20)
+                
+                try:
+                    print("Clicando no menu 'Emitir Certidões'...")
+                    menu_emitir = wait.until(EC.element_to_be_clickable((By.CLASS_NAME, "emitir-certidoes")))
+                    menu_emitir.click()
+                    time.sleep(1)
+                    
+                    print("Clicando na aba 'CNPJ'...")
+                    aba_cnpj = wait.until(EC.element_to_be_clickable((By.XPATH, "//a[contains(text(), 'CNPJ')]")))
+                    aba_cnpj.click()
+                    time.sleep(1)
+                except Exception as e:
+                    print(f"Erro na navegação de Cidreira: {e}")
+            
+            elif certidao.empresa.cidade.upper() in ['GRAVATAI', 'GRAVATAÍ']:
+                print("--- GRAVATAÍ DETECTADA ---")
+                
+                print("Aguardando campo de opção aparecer (Resolva o Captcha se necessário)...")
+                
+                try:
+                    select_emissao_el = wait.until(EC.element_to_be_clickable((By.NAME, "opcaoEmissao")))
+                    
+                    select_emissao = Select(select_emissao_el)
+                    for option in select_emissao.options:
+                        if "CNPJ" in option.text.upper():
+                            select_emissao.select_by_visible_text(option.text)
+                            print("Opção CNPJ selecionada.")
+                            break
 
-        wait = WebDriverWait(driver, 20)
+                    time.sleep(1)
+
+                    campo_cnpj = wait.until(EC.element_to_be_clickable((By.NAME, "cpfCnpj")))
+                    campo_cnpj.clear()
+                    campo_cnpj.send_keys(cnpj_limpo)
+                    print("CNPJ preenchido.")
+                    
+                    select_finalidade_el = wait.until(EC.element_to_be_clickable((By.NAME, "FinalidadeCertidaoDebito.codigo")))
+                    select_finalidade = Select(select_finalidade_el)
+                    for option in select_finalidade.options:
+                        if "CONTRIBUINTE" in option.text.upper():
+                            select_finalidade.select_by_visible_text(option.text)
+                            print("Finalidade Contribuinte selecionada.")
+                            break
+                        
+                    time.sleep(1)
+                    
+                    btn_confirmar = driver.find_element(By.NAME, "confirmar")
+                    btn_confirmar.click()
+                    print("Botão Confirmar clicado.")
+                    
+                    info_site['cnpj_field_id'] = None
+                    
+                    driver.execute_script("alert('Dados preenchidos! Resolva o Captcha final (se houver) e emita a certidão.');")
+
+                except Exception as e:
+                    print(f"Erro na navegação de Gravataí: {e}")
+
+            elif certidao.empresa.cidade.upper() in ['XANGRI-LA', 'XANGRI-LÁ', 'XANGRILA']:
+                print("--- XANGRI-LÁ DETECTADA ---")
+                
+                try:
+                    print("Clicando em Contribuinte...")
+                    btn_contribuinte = wait.until(EC.element_to_be_clickable((By.XPATH, "//a[span[contains(text(), 'Contribuinte')]]")))
+                    btn_contribuinte.click()
+                    
+                    print("Selecionando Pessoa Jurídica...")
+                    radio_juridica = wait.until(EC.element_to_be_clickable((By.XPATH, "//input[@type='radio' and @value='J']")))
+                    radio_juridica.click()
+                    
+                    time.sleep(1)
+
+                    print("Preenchendo CNPJ...")
+                    input_cnpj = wait.until(EC.element_to_be_clickable((By.ID, "compInformarContribuinte:formNumero:itIdent")))
+                    input_cnpj.clear()
+                    input_cnpj.send_keys(cnpj_limpo)
+                    
+                    print("Clicando em Validar...")
+                    btn_validar = wait.until(EC.element_to_be_clickable((By.ID, "compInformarContribuinte:formNumero:btnValidar")))
+                    btn_validar.click()
+                    
+                    info_site['cnpj_field_id'] = None
+                    
+                    print("Aguardando geração do PDF...")
+
+                except Exception as e:
+                    print(f"Erro na navegação de Xangri-Lá: {e}")
+
         
         if info_site.get('pre_fill_click_id'):
             click_by_map = {'id': By.ID, 'css_selector': By.CSS_SELECTOR, 'xpath': By.XPATH}
@@ -325,6 +399,10 @@ def baixar_certidao(certidao_id):
                 elif cidade in ['TRAMANDAÍ', 'TRAMANDAI', 'TRAMANDAI/RS']:
                     data_calc = date.today() + timedelta(days=30)
                 elif cidade == "CIDREIRA":
+                    data_calc = date.today() + timedelta(days=30)
+                elif cidade in ['GRAVATAI', 'GRAVATAÍ']:
+                    data_calc = date.today() + timedelta(days=91)
+                elif cidade in ['XANGRI-LA', 'XANGRI-LÁ', 'XANGRILA']:
                     data_calc = date.today() + timedelta(days=30)
                 else:
                     data_calc = None
