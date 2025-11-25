@@ -53,9 +53,9 @@
 
 <div class="card mb-4">
     <div class="card-body">
-        <div class="row g-3 align-items-end">
+        <div class="row g-3 align-items-start">
 
-    <div class="col-md-6">
+    <div class="col-md-6 mb-3">
         <label for="filtroEmpresa" class="form-label fw-bold">Buscar Empresa por Nome:</label>
         <input type="search" class="form-control" id="filtroEmpresa" 
                placeholder="Digite o nome da empresa para filtrar...">
@@ -89,7 +89,7 @@
                     <label class="btn btn-outline-info flex-grow-1" for="status-pendentes">Pendentes</label>
                 </div>
 
-                <button type="submit" class="btn btn-primary d-flex px-5 justify-content-center">Filtrar</button>
+                <button type="submit" class="btn btn-primary d-flex px-5 justify-content-center align-items-center">Filtrar</button>
             </div>
         </form>
     </div>
@@ -179,7 +179,7 @@
                                 {{ certidao.data_validade.strftime('%d/%m/%Y') if certidao.data_validade else 'Não definida' }}
                             {% endif %}
                         </td>
-                        <td class="text-center px-5 d-flex justify-content-around">
+                        <td class="text-center d-flex justify-content-center">
                             <a href="#" 
                                 class="btn btn-sm btn-info btn-abrir-site me-2"
                                 data-id="{{ certidao.id }}"
