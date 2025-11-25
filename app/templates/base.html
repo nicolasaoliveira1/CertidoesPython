@@ -33,22 +33,94 @@
             padding: 6px;
         }
     </style>
+    <script>
+    // logica para evitar o flash do tema claro
+    (function() {
+        const getStoredTheme = () => localStorage.getItem('theme');
+        const setStoredTheme = theme => localStorage.setItem('theme', theme);
+        
+        const getPreferredTheme = () => {
+        const storedTheme = getStoredTheme();
+        if (storedTheme) {
+            return storedTheme;
+        }
+        return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+        };
+
+        const setTheme = theme => {
+            document.documentElement.setAttribute('data-bs-theme', theme);
+        };
+
+        const updateLogo = theme => {
+            const logoEl = document.getElementById('navbar-logo');
+            if (logoEl) {
+                if (theme === 'dark') {
+                    logoEl.src = logoEl.getAttribute('data-dark');
+                } else {
+
+                    logoEl.src = logoEl.getAttribute('data-light');
+                }
+            }
+        };
+
+
+        setTheme(getPreferredTheme());
+
+        window.toggleTheme = function() {
+        const currentTheme = document.documentElement.getAttribute('data-bs-theme');
+        const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+        setTheme(newTheme);
+        setStoredTheme(newTheme);
+        updateIcon(newTheme);
+        updateLogo(newTheme);
+        };
+
+        document.addEventListener('DOMContentLoaded', () => {
+            const activeTheme = getPreferredTheme();
+            updateIcon(activeTheme);
+            updateLogo(activeTheme);
+        });
+
+        function updateIcon(theme) {
+            const iconEl = document.getElementById('theme-icon');
+            if(iconEl) {
+                if (theme === 'dark') {
+                    iconEl.innerHTML = '<path d="M8 11a3 3 0 1 1 0-6 3 3 0 0 1 0 6zm0 1a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM8 0a.5.5 0 0 1 .5.5v2a.5.5 0 0 1-1 0v-2A.5.5 0 0 1 8 0zm0 13a.5.5 0 0 1 .5.5v2a.5.5 0 0 1-1 0v-2A.5.5 0 0 1 8 13zm8-5a.5.5 0 0 1-.5.5h-2a.5.5 0 0 1 0-1h2a.5.5 0 0 1 .5.5zM3 8a.5.5 0 0 1-.5.5h-2a.5.5 0 0 1 0-1h2A.5.5 0 0 1 3 8zm10.657-5.657a.5.5 0 0 1 0 .707l-1.414 1.415a.5.5 0 1 1-.707-.708l1.414-1.414a.5.5 0 0 1 .707 0zm-9.193 9.193a.5.5 0 0 1 0 .707L3.05 13.657a.5.5 0 0 1-.707-.707l1.414-1.414a.5.5 0 0 1 .707 0zm9.193 2.121a.5.5 0 0 1-.707 0l-1.414-1.414a.5.5 0 0 1 .707-.707l1.414 1.414a.5.5 0 0 1 0 .707zM4.464 4.465a.5.5 0 0 1-.707 0L2.343 3.05a.5.5 0 1 1 .707-.707l1.414 1.414a.5.5 0 0 1 0 .707z"/>';
+                } else {
+                    iconEl.innerHTML = '<path d="M6 .278a.768.768 0 0 1 .08.858 7.208 7.208 0 0 0-.878 3.46c0 4.021 3.278 7.277 7.318 7.277.527 0 1.04-.055 1.533-.16a.787.787 0 0 1 .81.316.733.733 0 0 1-.031.893A8.349 8.349 0 0 1 8.344 16C3.734 16 0 12.286 0 7.71 0 4.266 2.114 1.312 5.124.06A.752.752 0 0 1 6 .278z"/>';
+                }
+            }
+        }
+    })();
+    </script>
 </head>
 <body>
 
-    <nav class="navbar navbar-expand-lg navbar-dark bg-dark mb-4">
+    <nav class="navbar navbar-expand-lg bg-body-tertiary mb-4">
         <div class="container-fluid mx-2">
-
-            <button class="navbar-toggler me-3" type="button" data-bs-toggle="offcanvas" data-bs-target="#sidebarOffcanvas" aria-controls="sidebarOffcanvas" aria-label="Toggle navigation">
+    
+            <button class="navbar-toggler me-3" type="button" data-bs-toggle="offcanvas" data-bs-target="#sidebarOffcanvas"
+                aria-controls="sidebarOffcanvas" aria-label="Toggle navigation">
                 <span class="navbar-toggler-icon"></span>
             </button>
-
+    
             <a class="navbar-brand fs-1 fw-semibold me-auto" href="/">Controle de Certidões Fiscais</a>
-
+    
             <a class="navbar-brand" href="#">
-                <img src="{{ url_for('static', filename='images/assecon_branco_logo.png') }}" class="d-inline-block align-top img-fluid" alt="Logo Assecon" style="width: 250px; height: auto;">
+                <img id="navbar-logo" src="{{ url_for('static', filename='images/assecon_branco_logo.png') }}"
+                    data-light="{{ url_for('static', filename='images/asseconlogo.png') }}"
+                    data-dark="{{ url_for('static', filename='images/assecon_branco_logo.png') }}"
+                    class="d-inline-block align-top img-fluid" alt="Logo Assecon" style="width: 250px; height: auto;">
             </a>
         </div>
+        <li class="nav-item ms-2">
+            <button class="btn btn-link nav-link py-2 px-0 px-lg-2" onclick="toggleTheme()" type="button"
+                title="Alternar tema">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" class="bi"
+                    viewBox="0 0 16 16" id="theme-icon" style="fill: currentColor;">
+                </svg>
+            </button>
+        </li>
     </nav>
 
     <main class="container-fluid mt-4 px-5">

@@ -177,6 +177,7 @@ def verificar_novo_arquivo(tempo_inicio, termos_ignorar=None):
     return None
 
 def mover_e_renomear(caminho_arquivo_origem, nome_empresa, tipo_certidao):
+    print(f"[DEBUG] Emitindo certidão para empresa: {nome_empresa}")
     caminho_empresa = encontrar_pasta_empresa(nome_empresa)
     
     if not caminho_empresa:
