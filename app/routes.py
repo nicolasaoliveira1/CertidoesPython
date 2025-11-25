@@ -340,7 +340,7 @@ def baixar_certidao(certidao_id):
                     if " a " in texto:
                         parte_data = texto.split(" a ")[-1].strip()[:10]
                         data_encontrada = datetime.strptime(parte_data, '%d/%m/%Y').date()
-                        driver.execute_script("alert('Data lida! Agora faça o download do PDF.');")
+                        driver.execute_script(f"alert('Data lida: {data_encontrada.strftime('%d/%m/%Y')}\\nAgora faça o download do PDF.');")
                 except:
                     pass 
             
@@ -361,7 +361,12 @@ def baixar_certidao(certidao_id):
                         arquivo_salvo_msg = f"Arquivo salvo em: {msg}"
                         print(arquivo_salvo_msg)
                         try:
-                            driver.execute_script("alert('PDF salvo no servidor com sucesso!');")
+                            idx = msg.upper().find("CERTIDOES")
+                            nome_pasta_empresa = ""
+                            if idx > 0:
+                                caminho_ate_certidoes = msg[:idx].rstrip("\\/")
+                                nome_pasta_empresa = caminho_ate_certidoes.split("\\")[-1]
+                            driver.execute_script(f"alert('PDF salvo no servidor com sucesso!\\nSalvo em: {nome_pasta_empresa}');")
                         except: pass
                     else:
                         print(f"Erro ao salvar: {msg}")
@@ -384,6 +389,7 @@ def baixar_certidao(certidao_id):
         response_data['tipo_certidao'] = certidao.tipo.value
         
         if data_encontrada:
+            print(f"[DEBUG] Data de validade encontrada: {data_encontrada.strftime('%d/%m/%Y')}")
             response_data['nova_data'] = data_encontrada.strftime('%Y-%m-%d')
             response_data['data_formatada'] = data_encontrada.strftime('%d/%m/%Y')
         else:
@@ -408,6 +414,7 @@ def baixar_certidao(certidao_id):
                     data_calc = None
             
             if data_calc:
+                print(f"[DEBUG] Data de validade calculada: {data_calc.strftime('%d/%m/%Y')}")
                 response_data['nova_data'] = data_calc.strftime('%Y-%m-%d')
                 response_data['data_formatada'] = data_calc.strftime('%d/%m/%Y')
             else:
