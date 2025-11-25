@@ -64,3 +64,22 @@
 [data-bs-theme="dark"] .table td[rowspan] {
     background-color: var(--bs-table-bg) !important;
 }
+
+/* =========================================
+   CONTROLE DA LOGO (Zero Delay)
+   ========================================= */
+
+/* Por padrão, escondemos ambas para evitar layout shift inicial */
+.logo-light, .logo-dark {
+    display: none !important;
+}
+
+/* Se o tema for LIGHT -> Mostra a logo clara (preta) */
+[data-bs-theme="light"] .logo-light {
+    display: inline-block !important;
+}
+
+/* Se o tema for DARK -> Mostra a logo escura (branca) */
+[data-bs-theme="dark"] .logo-dark {
+    display: inline-block !important;
+}
