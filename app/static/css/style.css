@@ -85,3 +85,88 @@
 [data-bs-theme="dark"] .logo-dark {
     display: inline-block !important;
 }
+
+/* =========================================
+   RESPONSIVIDADE (ZOOM E MOBILE)
+   ========================================= */
+
+/* Centraliza os botões de ação da tabela */
+.table td.d-flex {
+    padding-left: 0.5rem !important;
+    padding-right: 0.5rem !important;
+    gap: 0.5rem;
+}
+
+/* Ajustes para telas menores que 1200px (Notebooks comuns ou Zoom 110%+) */
+@media (max-width: 1200px) {
+    .table td, .table th {
+        font-size: 0.9rem; /* Diminui um pouco a fonte */
+        padding: 0.4rem !important; /* Diminui o "ar" dentro das células */
+    }
+    
+    .btn-sm {
+        font-size: 0.75rem; /* Botões menores */
+        padding: 0.2rem 0.4rem;
+    }
+    
+    /* Reduz padding da coluna de ações em zoom maior */
+    .table td.d-flex {
+        padding-left: 0.3rem !important;
+        padding-right: 0.3rem !important;
+        gap: 0.3rem;
+    }
+}
+
+/* Ajustes para telas menores que 768px (Tablets ou Zoom 150%+) */
+@media (max-width: 768px) {
+    /* A tabela permite rolagem horizontal sem quebrar o layout */
+    .table-responsive {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    /* Garante que o nome da empresa quebre linha se for longo */
+    .table td {
+        white-space: normal !important; 
+        min-width: 100px; /* Garante um tamanho mínimo para colunas não sumirem */
+    }
+
+    /* Botões de ação empilhados em telas muito pequenas para economizar largura */
+    .table td .d-flex {
+        flex-direction: column;
+        gap: 5px;
+    }
+    
+    .table td .btn {
+        width: 100%; /* Botão ocupa largura total da célula */
+        margin-right: 0 !important;
+    }
+}
+
+/* Faz os botões de filtro (Checkboxes) se ajustarem melhor */
+.btn-group {
+    flex-wrap: wrap; /* Se não couber na linha, desce para a próxima */
+}
+
+.btn-group .btn {
+    flex: 1 1 auto; /* Faz os botões crescerem e diminuírem juntos */
+    min-width: 80px; /* Tamanho mínimo para não ficar ilegível */
+    margin-bottom: 0;
+}
+
+/* No mobile/zoom alto, dá um espaço entre os filtros de cima e de baixo */
+@media (max-width: 768px) {
+    .btn-group {
+        margin-top: 10px;
+        width: 100%;
+    }
+    
+    #filtro-form .d-flex {
+        flex-direction: column; /* Empilha o grupo de botões e o botão Filtrar */
+    }
+    
+    #filtro-form button[type="submit"] {
+        width: 100%;
+        margin-top: 10px;
+    }
+}
