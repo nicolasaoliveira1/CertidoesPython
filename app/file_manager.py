@@ -23,7 +23,7 @@ def obter_caminho_chave_interrupcao():
 def criar_chave_interrupcao():
     """Cria o arquivo de interrupção."""
     caminho_chave = obter_caminho_chave_interrupcao()
-    with open(caminho_chave, 'w') as f:
+    with open(caminho_chave, 'w', encoding='utf-8') as f:
         f.write(str(time.time()))
     print(f"Chave de interrupção criada em: {caminho_chave}")
 
