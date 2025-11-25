@@ -6,23 +6,28 @@
    AJUSTES DO DARK MODE (Certidões)
    ========================================= */
 
-/* 1. Reseta o fundo da LINHA inteira para neutro (transparente) */
+/* 1. REGRA GERAL: Força TODAS as bordas a serem cinza uniforme */
+[data-bs-theme="dark"] .table-bordered,
+[data-bs-theme="dark"] .table-bordered > :not(caption) > * > * {
+    border-color: #495057 !important; /* Cor de borda padrão suave */
+    border-width: 1px !important;     /* Garante espessura uniforme */
+}
+
+/* 2. Reseta o fundo da LINHA inteira para transparente */
 [data-bs-theme="dark"] tr[class*="status-"] > td,
 [data-bs-theme="dark"] tr[class*="status-"] > th {
     background-color: transparent !important; 
-    color: var(--bs-body-color) !important;   /* Texto padrão (branco/cinza) */
-    border-color: var(--bs-border-color);     /* Borda padrão */
+    color: var(--bs-body-color) !important;
 }
 
-/* 2. Aplica cor APENAS nas células de "Data" (Penúltima) e "Tipo" (Antepenúltima) */
+/* 3. Aplica cor APENAS nas células de "Data" e "Tipo" (SEM mexer na borda) */
 
 /* --- VERDE (Válidas) --- */
-[data-bs-theme="dark"] tr.status-verde > td:nth-last-child(2), /* Coluna Data */
-[data-bs-theme="dark"] tr.status-verde > td:nth-last-child(3)  /* Coluna Tipo */
+[data-bs-theme="dark"] tr.status-verde > td:nth-last-child(2), 
+[data-bs-theme="dark"] tr.status-verde > td:nth-last-child(3)  
 {
     background-color: #147945 !important; 
-    color: #a3cfbb !important; /* Verde Claro para texto */
-    border-color: #0a3622;
+    color: #a3cfbb !important; 
 }
 
 /* --- VERMELHO (Vencidas/Pendentes) --- */
@@ -30,8 +35,7 @@
 [data-bs-theme="dark"] tr.status-vermelho > td:nth-last-child(3)
 {
     background-color: #7e1e26 !important;
-    color: #ea868f !important; /* Vermelho Claro para texto */
-    border-color: #58151c;
+    color: #ea868f !important; 
 }
 
 /* --- AMARELO (A Vencer) --- */
@@ -39,28 +43,26 @@
 [data-bs-theme="dark"] tr.status-amarelo > td:nth-last-child(3)
 {
     background-color: #a3831b !important;
-    color: #ffe69c !important; /* Amarelo Claro para texto */
-    border-color: #664d03;
+    color: #ffe69c !important; 
 }
 
 /* --- CINZA (Sem Data) --- */
 [data-bs-theme="dark"] tr.status-cinza > td:nth-last-child(2),
 [data-bs-theme="dark"] tr.status-cinza > td:nth-last-child(3)
 {
-    background-color: #64686c !important;
-    color: #adb5bd !important; /* Cinza Claro para texto */
-    border-color: #343a40;
+    background-color: #343a40 !important; /* Cinza um pouco mais escuro que a borda */
+    color: #adb5bd !important; 
 }
 
-/* 3. Ajuste para os botões na última coluna não ficarem "apagados" */
+/* 4. Ajuste para os botões na última coluna */
 [data-bs-theme="dark"] .table tr td:last-child button,
 [data-bs-theme="dark"] .table tr td:last-child a {
-    box-shadow: 0 0 2px rgba(0,0,0,0.5); /* Sombra leve para destaque */
+    box-shadow: 0 0 2px rgba(0,0,0,0.5);
     position: relative;
     z-index: 1;
 }
 
-/* 4. Ajuste das células mescladas (Empresa/CNPJ) para garantir fundo neutro */
+/* 5. Garante que células com rowspan (Empresa/CNPJ) tenham fundo neutro */
 [data-bs-theme="dark"] .table td[rowspan] {
     background-color: var(--bs-table-bg) !important;
 }
