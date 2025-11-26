@@ -2,6 +2,58 @@
     display: block !important;
     border: 1px solid rgba(255, 255, 255, 0.2);
 }
+
+/* Logos responsivas da navbar */
+.logo-full {
+    display: block !important;
+}
+.logo-compact {
+    display: none !important;
+}
+
+/* Em zoom alto (900px ou menos) / telas menores, mostra logo compacta */
+@media (max-width: 900px) {
+    .logo-full {
+        display: none !important;
+    }
+    .logo-compact {
+        display: block !important;
+    }
+}
+
+/* Tamanho da logo compacta responsivo */
+.logo-navbar-compact {
+    max-width: 50px;
+    width: 100%;
+    height: auto;
+    transition: max-width 0.2s;
+    display: none !important;
+}
+
+/* Mostrar logo compacta baseado no tema */
+[data-bs-theme="light"] .logo-navbar-compact.logo-light {
+    display: inline-block !important;
+}
+[data-bs-theme="dark"] .logo-navbar-compact.logo-dark {
+    display: inline-block !important;
+}
+
+@media (max-width: 900px) {
+    .logo-navbar-compact {
+        max-width: 50px;
+    }
+}
+@media (max-width: 768px) {
+    .logo-navbar-compact {
+        max-width: 45px;
+    }
+}
+@media (max-width: 600px) {
+    .logo-navbar-compact {
+        max-width: 35px;
+    }
+}
+
 /* =========================================
    AJUSTES DO DARK MODE (Certidões)
    ========================================= */
@@ -86,6 +138,29 @@
     display: inline-block !important;
 }
 
+/* Responsividade para a logo do navbar */
+.logo-navbar {
+    max-width: 230px;
+    width: 100%;
+    height: auto;
+    transition: max-width 0.2s;
+}
+@media (max-width: 1200px) {
+    .logo-navbar {
+        max-width: 170px;
+    }
+}
+@media (max-width: 900px) {
+    .logo-navbar {
+        max-width: 120px;
+    }
+}
+@media (max-width: 600px) {
+    .logo-navbar {
+        max-width: 90px;
+    }
+}
+
 /* =========================================
    RESPONSIVIDADE (ZOOM E MOBILE)
    ========================================= */
@@ -168,5 +243,98 @@
     #filtro-form button[type="submit"] {
         width: 100%;
         margin-top: 10px;
+    }
+}
+
+/* Título da navbar responsivo e harmonizado com a logo */
+.nav-title {
+    font-size: 2rem;
+    font-weight: 600;
+    margin-right: 1.5rem;
+    letter-spacing: 0.5px;
+    line-height: 1.1;
+    white-space: nowrap;
+    transition: font-size 0.2s, margin 0.2s;
+}
+@media (max-width: 1200px) {
+    .nav-title {
+        font-size: 1.4rem;
+        margin-right: 1rem;
+    }
+}
+@media (max-width: 900px) {
+    .nav-title {
+        font-size: 1rem;
+        margin-right: 0.7rem;
+    }
+}
+@media (max-width: 600px) {
+    .nav-title {
+        font-size: 0.8rem;
+        margin-right: 0.3rem;
+    }
+}
+
+.theme-toggle-svg {
+    width: 24px;
+    height: 24px;
+    transition: width 0.2s, height 0.2s;
+}
+@media (max-width: 1200px) {
+    .theme-toggle-svg {
+        width: 20px;
+        height: 20px;
+    }
+}
+@media (max-width: 900px) {
+    .theme-toggle-svg {
+        width: 16px;
+        height: 16px;
+    }
+}
+@media (max-width: 600px) {
+    .theme-toggle-svg {
+        width: 13px;
+        height: 13px;
+    }
+}
+
+.menu-button {
+    width: 40px;
+    height: 36px;
+    padding: 0;
+    transition: width 0.2s, height 0.2s;
+    border: 0px;
+
+}
+.menu-button .menu-icon {
+    width: 28px;
+    height: 28px;
+    transition: width 0.2s, height 0.2s;
+    margin-top: 3.8px;
+
+}
+@media (max-width: 1200px) {
+    .menu-button {
+        width: 32px;
+        height: 30px;
+    }
+    .menu-button .menu-icon {
+        width: 22px;
+        height: 22px;
+        margin-top: 1px;
+        margin-bottom: 0px;
+    }
+}
+@media (max-width: 900px) {
+    .menu-button {
+        width: 22px;
+        height: 22px;
+    }
+    .menu-button .menu-icon {
+        width: 16px;
+        height: 16px;
+        margin-bottom: 3.2px;
+
     }
 }

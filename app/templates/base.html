@@ -96,34 +96,38 @@
 <body>
 
     <nav class="navbar navbar-expand-lg bg-body-tertiary mb-4">
-        <div class="container-fluid mx-2">
-
-            <button class="navbar-toggler me-3" type="button" data-bs-toggle="offcanvas"
-                data-bs-target="#sidebarOffcanvas" aria-controls="sidebarOffcanvas" aria-label="Toggle navigation">
-                <span class="navbar-toggler-icon"></span>
-            </button>
-
-            <a class="navbar-brand fs-1 fw-semibold me-auto" href="/">Controle de Certidões Fiscais</a>
-
-            <a class="navbar-brand" href="#">
-                <img src="{{ url_for('static', filename='images/asseconlogo.png') }}"
-                    class="d-inline-block align-top img-fluid logo-light" alt="Logo Assecon"
-                    style="max-width: 250px; width: 100%; height: auto;">
-
-
-                <img src="{{ url_for('static', filename='images/assecon_branco_logo.png') }}"
-                    class="d-inline-block align-top img-fluid logo-dark" alt="Logo Assecon"
-                    style="max-width: 250px; width: 100%; height: auto;">
-            </a>
+        <div class="container-fluid mx-1 d-flex align-items-center flex-nowrap justify-content-between">
+            <div class="d-flex align-items-center flex-nowrap gap-0">
+                <button class="navbar-toggler me-1 order-1 menu-button" type="button" data-bs-toggle="offcanvas"
+                    data-bs-target="#sidebarOffcanvas" aria-controls="sidebarOffcanvas" aria-label="Toggle navigation">
+                    <span class="navbar-toggler-icon menu-icon"></span>
+                </button>
+                <a class="navbar-brand fw-semibold nav-title order-2 mb-0 ms-1" href="/">Controle de Certidões Fiscais
+                </a>
+            </div>
+            <div class="d-flex align-items-center flex-nowrap gap-2">
+                <a class="navbar-brand order-3 mb-0 me-1 logo-full" href="#">
+                    <img src="{{ url_for('static', filename='images/asseconlogo.png') }}"
+                        class="d-inline-block align-top img-fluid logo-light logo-navbar" alt="Logo Assecon">
+                    <img src="{{ url_for('static', filename='images/assecon_branco_logo.png') }}"
+                        class="d-inline-block align-top img-fluid logo-dark logo-navbar" alt="Logo Assecon">
+                </a>
+                <a class="navbar-brand order-3 mb-0 me-1 logo-compact d-none" href="#">
+                    <img src="{{ url_for('static', filename='images/assecon_preto.png') }}"
+                        class="d-inline-block align-top img-fluid logo-light logo-navbar-compact" alt="Logo Assecon">
+                    <img src="{{ url_for('static', filename='images/assecon_branco.png') }}"
+                        class="d-inline-block align-top img-fluid logo-dark logo-navbar-compact" alt="Logo Assecon">
+                </a>
+                <li class="nav-item ms-0 order-4 list-unstyled mb-0">
+                    <button class="btn btn-link nav-link pt-1 py-2 px-0 px-lg-2" onclick="toggleTheme()" type="button"
+                        title="Alternar tema">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" class="bi theme-toggle-svg"
+                            viewBox="0 0 16 16" id="theme-icon" style="fill: currentColor;">
+                        </svg>
+                    </button>
+                </li>
+            </div>
         </div>
-        <li class="nav-item ms-2">
-            <button class="btn btn-link nav-link py-2 px-0 px-lg-2" onclick="toggleTheme()" type="button"
-                title="Alternar tema">
-                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" class="bi"
-                    viewBox="0 0 16 16" id="theme-icon" style="fill: currentColor;">
-                </svg>
-            </button>
-        </li>
     </nav>
 
     <main class="container-fluid mt-4 px-5">
