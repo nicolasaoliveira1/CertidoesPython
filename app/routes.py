@@ -404,14 +404,9 @@ def baixar_certidao(certidao_id):
                         arquivo_salvo_msg = f"Arquivo salvo em: {msg}"
                         print(arquivo_salvo_msg)
                         try:
-                            idx = msg.upper().find("CERTIDOES")
-                            nome_pasta_empresa = ""
-                            if idx > 0:
-                                caminho_ate_certidoes = msg[:idx].rstrip("\\/")
-                                nome_pasta_empresa = caminho_ate_certidoes.split(
-                                    "\\")[-1]
+                            caminho_certidao = msg.replace("\\", "\\\\")
                             driver.execute_script(
-                                f"alert('PDF salvo no servidor com sucesso!\\nSalvo em: {nome_pasta_empresa}');")
+                                f"alert('PDF salvo no servidor com sucesso!\\nSalvo em: {caminho_certidao}');")
                         except:
                             pass
                     else:
