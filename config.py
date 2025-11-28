@@ -8,7 +8,15 @@ load_dotenv(os.path.join(basedir, '.env'))
 class Config:
     SECRET_KEY = os.environ.get('SECRET_KEY') or 'uma-chave-secreta-muito-dificil-de-adivinhar'
 
-    SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL') or \
-        'sqlite:///' + os.path.join(basedir, 'instance', 'database.db')
+    # --- BANCO DE DADOS ANTIGO (SQLite) ---
+    # (Comentado para não usar mais)
+    # SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL') or \
+    #     'sqlite:///' + os.path.join(basedir, 'instance', 'database.db')
+
+    # --- NOVO BANCO DE DADOS (MySQL) ---
+    # Estrutura: mysql+pymysql://USUARIO:SENHA@IP_DO_SERVIDOR/NOME_DO_BANCO
+    # Exemplo: 'mysql+pymysql://root:123456@192.168.0.15/DATABASE'
+    
+    SQLALCHEMY_DATABASE_URI = 'mysql+pymysql://USER:PASS@127.0.0.1/DATABASE'
         
     SQLALCHEMY_TRACK_MODIFICATIONS = False
