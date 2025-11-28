@@ -1,6 +1,7 @@
 # 📋 Sistema de Controle de Certidões Fiscais - Python (⚠️ Em Desenvolvimento..)
 
-Sistema web desenvolvido em Flask para gerenciamento e automação de emissão de certidões fiscais (Federal, FGTS, Estadual, Municipal e Trabalhista) de empresas.
+Sistema web desenvolvido em **Python/Flask** para centralizar, gerenciar e automatizar a emissão de certidões fiscais (Federal, FGTS, Estadual, Municipal e Trabalhista).
+Projetado para escritórios contábeis, o sistema permite que múltiplos usuários trabalhem simultaneamente, com automação local e banco de dados centralizado.
 
 ![Dashboard](docs/screenshot-dashboard.png)
 
@@ -8,82 +9,63 @@ Sistema web desenvolvido em Flask para gerenciamento e automação de emissão d
 
 ## 🎯 Sobre o Projeto
 
-Este sistema foi desenvolvido para facilitar o controle e a emissão automatizada de certidões fiscais de múltiplas empresas. Atualmente, utilizado no escritório contábil onde trabalho, o que me ajuda a ter mais tempo para outras tarefas importantes.
-Com uma interface web moderna e intuitiva, permite:
+Este sistema foi criado para resolver o problema de controle manual de centenas de vencimentos de certidões. Ele transforma uma tarefa repetitiva e propensa a erros em um processo fluido e visual.
 
-- **Gerenciar empresas** e suas certidões em um único lugar
-- **Automatizar a emissão** de certidões via Selenium WebDriver
-- **Monitorar validades** com sistema de alertas por cores
-- **Filtrar e pesquisar** empresas de forma ágil
-- **Tema claro/escuro** com persistência de preferência
+**Principais benefícios**
+- **Centralização**: Todas as certidões de todas as empresas em uma única tela.
+- **Automação Híbrida**: O robô (Selenium) roda no seu computador (permitindo resolver Captchas), mas salva os dados no servidor central.
+- **Visualização Rápida**: Cores intuitivas indicam o que precisa de atenção imediata.
+- **Segurança**: Banco de dados robusto (MySQL) permitindo acesso simultâneo sem conflitos.
 
 ---
 
-## 🛠️ Tecnologias Utilizadas
+## 🛠️ Tecnologias
 
 ### Backend
-- **Python** (3.10+)
+- **Python 3.10+**
 - **Flask** - Framework web
-- **SQLAlchemy** - ORM
-- **Flask-Migrate** - Gerenciamento de migrations
-- **Selenium** - Automação de navegador
-- **webdriver-manager** - Gerenciamento automático do ChromeDriver
+- **SQLAlchemy** - ORM + PyMySQL (Driver)
+- **Flask-Migrate** - Gerenciamento de banco
+- **Selenium WebDriver** - Automação de navegador
 
 ### Frontend
 - **Bootstrap 5.3** - Framework CSS
-- **JavaScript** - Interatividade e tema
-- **HTML/CSS** - Estrutura e estilização
+- **JavaScript (Vanilla)** - Lógica de interface e chamadas assíncronas
+- **HTML/CSS** - Estrutura responsiva e adaptável
 
-### Automação
-- **Selenium WebDriver** (Chrome)
-- **ChromeDriver** (gerenciado automaticamente)
+### Banco de Dados
+- MySQL Server (Recomendado para produção/multiusuário)
+- SQLite (Opcional para desenvolvimento local/single-user)
 
 ---
 
 ## ✨ Funcionalidades
+📊 **Dashboard Inteligente**
 
-### 📊 Dashboard Interativo
-- Visualização de todas as empresas e suas certidões
-- Sistema de cores para status de validade:
-  - 🟢 **Verde**: Válida (mais de 7 dias)
-  - 🟡 **Amarelo**: A vencer (até 7 dias)
-  - 🔴 **Vermelho**: Vencida ou pendente
-  - ⚪ **Cinza**: Sem data cadastrada
+- **Status Visual**:
+  - 🟢 **Verde**: Válida (> 7 dias)
+  - 🟡 **Amarelo**: A Vencer (≤ 7 dias)
+  - 🔴 **Vermelho**: Vencida ou Pendente
+  - ⚪ **Cinza**: Sem data
 
-### 🔍 Filtros e Busca
-- Filtro por status: Todas, Válidas, A Vencer, Vencidas, Pendentes
-- Busca em tempo real por nome de empresa
-- Interface responsiva e adaptável
+- **Dark Mode Automático**: Detecção de preferência do sistema + botão de troca manual (Persistente).
 
-### 🤖 Automação de Certidões
-- Emissão automática via Selenium (Chrome WebDriver)
-- Sites suportados:
-  - **Federal**: Receita Federal
-  - **FGTS**: Caixa Econômica Federal
-  - **Estadual**: SEFAZ/RS
-  - **Municipal**: Configurável por município
-  - **Trabalhista**: TST (CNDT)
-- Download automático dos PDFs
-- Organização por empresa e tipo de certidão
+- **Responsividade**: Tabela e menus se adaptam a telas pequenas e zoom alto.
 
-### 📁 Gestão de Arquivos
-- Salvamento organizado em pastas por empresa
-- Nomenclatura padronizada dos arquivos
-- Alerta visual com caminho do arquivo salvo
+🤖 **Automação de Emissão**
+  - **Federal (Receita)**: Monitoramento inteligente de download. O sistema detecta quando o PDF cai na pasta Downloads e o move automaticamente.
+  - **FGTS / Estadual / Trabalhista**: Navegação automática até a página de emissão e preenchimento de CNPJ.
+  - **Municipal**: Suporte configurável para sites de prefeituras (ex: Gravataí, Xangri-Lá, Cidreira, etc.) com lógica personalizada para sistemas complexos.
 
-### 🎨 Interface Moderna
-- Tema claro/escuro (bootstrap)
-- Menu offcanvas responsivo
-- Logo adaptável ao tema e zoom
-- Design mobile-friendly
+**📁 Gestão de Arquivos (File Server)**
+  - O sistema varre a pasta de Downloads local.
+  - Identifica o PDF da certidão (com filtro inteligente de nomes para evitar conflitos).
+  - Renomeia e Move automaticamente para a pasta da empresa na rede (ex: Z:\PASTAS EMPRESAS\Cliente X\CERTIDOES\CERTIDAO FGTS.pdf).
+  - Evita duplicação de pastas (reconhece CERTIDOES e CERTIDÕES).
 
-### 🗄️ Banco de Dados
-- SQLite (padrão) ou configurável via `.env`
-- Migrations com Flask-Migrate (Alembic)
-- Modelos:
-  - **Empresa**: Nome, CNPJ, Cidade, Inscrição Mobiliária
-  - **Certidão**: Tipo, Validade, Status Especial
-  - **Município**: Configurações de automação personalizadas
+**🔍 Filtros Avançados**
+- **Busca Instantânea**: Filtre empresas por nome digitando poucas letras.
+- **Filtros de Status**: Veja apenas as "Vencidas" ou "Pendentes" com um clique.
 
 ---
 
@@ -93,6 +75,7 @@ Com uma interface web moderna e intuitiva, permite:
 - Python 3.10 ou superior
 - Google Chrome instalado
 - Git
+- MySQL Server
 
 ### Passo a Passo
 
@@ -117,25 +100,27 @@ pip install -r requirements.txt
 
 Crie um arquivo `.env` na raiz do projeto:
 ```env
-SECRET_KEY=sua-chave-secreta-aqui
-DATABASE_URL=sqlite:///instance/database.db
+# Para MySQL (Recomendado)
+# SQLALCHEMY_DATABASE_URI = 'mysql+pymysql://usuario:senha@IP_DO_SERVIDOR/sistema_certidoes'
+
+# Para SQLite (Desenvolvimento)
+# SQLALCHEMY_DATABASE_URI = 'sqlite:///instance/database.db'
 ```
 
 5. **Inicialize o banco de dados**
 ```powershell
 flask db upgrade
 ```
+6. ** Configurar Caminhos de Rede (app/file_manager.py)
+```powershell
+CAMINHO_REDE = r"Z:\PASTAS EMPRESAS"  # Ajuste para o seu servidor
+```
 
-6. **Execute a aplicação**
+7. **Execute a aplicação**
 ```powershell
 python run.py
+# Acesse: http://localhost:5000
 ```
-
-7. **Acesse no navegador**
-```
-http://localhost:5000
-```
-
 ---
 
 ## ⚙️ Configuração
@@ -302,11 +287,10 @@ Edite em `app/templates/base.html`:
 
 - [ ] Configuração de caminho via interface web (sem editar código)
 - [ ] Download automático completo (salvar PDF sem intervenção)
+- [ ] Leitura de PDF via OCR (para ler a data de validade de qualquer certidão)
 - [ ] Notificações por e-mail para certidões vencendo
 - [ ] Relatórios em Excel/PDF
-- [ ] API REST para integração
 - [ ] Autenticação de usuários
-- [ ] Logs de auditoria
 - [ ] Suporte a mais estados (certidão estadual)
 
 ---
@@ -325,13 +309,14 @@ Contribuições são bem-vindas! Sinta-se à vontade para:
 
 ## 📄 Licença
 
-Este projeto é de código aberto. Consulte o proprietário para mais informações sobre licenciamento.
+Este projeto é de uso interno/privado. Consulte o autor para permissões de uso.
 
 ---
 
 ## 👤 Autor
 
 Nome: Nicolas Oliveira
+
 Email: eu@nicolasoliveira.dev.br
 
 ---
@@ -339,4 +324,5 @@ Email: eu@nicolasoliveira.dev.br
 ## Status
 
 Iniciado em: 20/10/2025
+
 Em desenvolvimento...
