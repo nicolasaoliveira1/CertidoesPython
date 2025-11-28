@@ -3,7 +3,6 @@
 Sistema web desenvolvido em Flask para gerenciamento e automação de emissão de certidões fiscais (Federal, FGTS, Estadual, Municipal e Trabalhista) de empresas.
 
 ![Dashboard](docs/screenshot-dashboard.png)
-*Adicionar aqui uma screenshot do dashboard*
 
 ---
 
