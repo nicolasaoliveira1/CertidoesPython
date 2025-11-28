@@ -665,7 +665,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // Filtro Nome
     if (filtroInput) {
         const tabelaBody = document.querySelector('.table tbody');
-        filtroInput.addEventListener('keyup', () => {
+        filtroInput.addEventListener('input', () => {
             const termoBusca = filtroInput.value.toLowerCase();
             const todasAsLinhas = tabelaBody.getElementsByTagName('tr');
             for (let linha of todasAsLinhas) {
