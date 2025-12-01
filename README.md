@@ -3,7 +3,7 @@
 Sistema web desenvolvido em **Python/Flask** para centralizar, gerenciar e automatizar a emissão de certidões fiscais (Federal, FGTS, Estadual, Municipal e Trabalhista).
 Projetado para escritórios contábeis, o sistema permite que múltiplos usuários trabalhem simultaneamente, com automação local e banco de dados centralizado.
 
-![Dashboard](docs/screenshot-dashboard.png)
+![Dashboard](docs/image.png)
 
 ---
 
