@@ -56,6 +56,9 @@ def dashboard():
             conditions.append(Certidao.status_especial ==
                               StatusEspecial.PENDENTE)
 
+        if 'nao_definida' in status_filtros:
+            conditions.append(Certidao.data_validade == None)
+
         if conditions:
             query = query.filter(or_(*conditions))
         else:

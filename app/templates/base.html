@@ -7,6 +7,7 @@
     <title>Controle de Certidões Fiscais</title>
 
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
     <link rel="shortcut icon" href="{{ url_for('static', filename='images/assecon.ico') }}">
 
@@ -96,10 +97,13 @@
 <body>
 
     <nav class="navbar navbar-expand-lg bg-body-tertiary mb-4">
-        <div class="container-fluid mx-1 d-flex align-items-center flex-nowrap justify-content-between">
+        <div class="container-fluid mx-1 px-4 d-flex align-items-center flex-nowrap justify-content-between">
             <div class="d-flex align-items-center flex-nowrap gap-0">
-                <button class="navbar-toggler me-1 order-1 menu-button" type="button" data-bs-toggle="offcanvas"
-                    data-bs-target="#sidebarOffcanvas" aria-controls="sidebarOffcanvas" aria-label="Toggle navigation">
+                <button class="navbar-toggler me-1 order-1 menu-button" type="button"
+                    data-bs-toggle="offcanvas"
+                    data-bs-target="#sidebarOffcanvas" 
+                    aria-controls="sidebarOffcanvas" 
+                    aria-label="Toggle navigation">
                     <span class="navbar-toggler-icon menu-icon"></span>
                 </button>
                 <a class="navbar-brand fw-semibold nav-title order-2 mb-0 ms-1" href="/">Controle de Certidões Fiscais
@@ -121,8 +125,8 @@
                 <li class="nav-item ms-0 order-4 list-unstyled mb-0">
                     <button class="btn btn-link nav-link pt-1 py-2 px-0 px-lg-2" onclick="toggleTheme()" type="button"
                         title="Alternar tema">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" class="bi theme-toggle-svg"
-                            viewBox="0 0 16 16" id="theme-icon" style="fill: currentColor;">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor"
+                            class="bi theme-toggle-svg" viewBox="0 0 16 16" id="theme-icon" style="fill: currentColor;">
                         </svg>
                     </button>
                 </li>
@@ -130,10 +134,42 @@
         </div>
     </nav>
 
+    <div class="offcanvas offcanvas-start" data-bs-scroll="true" tabindex="-1" id="sidebarOffcanvas" aria-labelledby="sidebarOffcanvasLabel">
+        <div class="offcanvas-header">
+            <h5 class="offcanvas-title" id="offcanvasExampleLabel">Menu</h5>
+            <button type="button" class="btn-close text-reset" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+        </div>
+        <div class="offcanvas-body">
+            <h6 class="fw-bold mb-3">Cadastrar Nova Empresa</h6>
+            <form method="POST" action="{{ url_for('main.adicionar_empresa') }}">
+                <div class="mb-3">
+                    <label for="nome" class="form-label">Nome da Empresa</label>
+                    <input type="text" class="form-control" id="nome" name="nome" required>
+                </div>
+                <div class="mb-3">
+                    <label for="cnpj" class="form-label">CNPJ</label>
+                    <input type="text" class="form-control" id="cnpj" name="cnpj"
+                           placeholder="XX.XXX.XXX/XXXX-XX" required 
+                           oninput="mascaraCnpj(this)" maxlength="18"
+                           minlength="18" title="Digite um CNPJ válido." >
+                </div>
+                <div class="mb-3">
+                    <label for="cidade" class="form-label">Cidade</label>
+                    <input type="text" class="form-control" id="cidade" name="cidade" required>
+                </div>
+                <div class="mb-3">
+                    <label for="inscricao_mobiliaria" class="form-label">Inscrição Mobiliária (se houver)</label>
+                    <input type="text" class="form-control" id="inscricao_mobiliaria" name="inscricao_mobiliaria">
+                </div>
+                <button type="submit" class="btn btn-success w-100">Cadastrar Empresa</button>
+            </form>
+        </div>
+    </div>
+
     <main class="container-fluid mt-4 px-5">
         {% block content %}{% endblock %}
     </main>
-
+    
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 
     <script>
@@ -222,6 +258,14 @@
             });
         });
     </script>
+
+    <footer class="bg-body-secondary border-top mt-5 py-4">
+        <div class="container-fluid text-center text-muted small">
+            <p class="mb-1">&copy; 2025 Sistema de Controle de Certidões Fiscais</p>
+            <p class="mb-0"><strong>Assecon Assessoria e Contabilidade</strong></p>
+        </div>
+    </footer>
+
 </body>
 
 </html>

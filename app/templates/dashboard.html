@@ -14,209 +14,197 @@
   {% endif %}
 {% endwith %}
 
-<div class="card mb-4">
-    <div class="card-header fw-bold collapsible-header" data-bs-toggle="collapse" data-bs-target="#formCadastroCollapse">
-        Cadastrar Nova Empresa (Clique para expandir/recolher)
-    </div>
-
-    <div id="formCadastroCollapse" class="collapse">
-        <div class="card-body">
-            <form method="POST" action="{{ url_for('main.adicionar_empresa') }}">
-                <div class="row g-3">
-                    <div class="col-md-6">
-                        <label for="nome" class="form-label">Nome da Empresa</label>
-                        <input type="text" class="form-control" id="nome" name="nome" required>
-                    </div>
-                    <div class="col-md-6">
-                        <label for="cnpj" class="form-label">CNPJ</label>
-                        <input type="text" class="form-control" id="cnpj" name="cnpj"
-                               placeholder="XX.XXX.XXX/XXXX-XX" required 
-                               oninput="mascaraCnpj(this)" maxlength="18"
-                               minlength="18" title="Digite um CNPJ válido." >
-                    </div>
-                    <div class="col-md-6">
-                        <label for="cidade" class="form-label">Cidade</label>
-                        <input type="text" class="form-control" id="cidade" name="cidade" required>
-                    </div>
-                    <div class="col-md-6">
-                        <label for="inscricao_mobiliaria" class="form-label">Inscrição Mobiliária (se houver)</label>
-                        <input type="text" class="form-control" id="inscricao_mobiliaria" name="inscricao_mobiliaria">
-                    </div>
-                    <div class="col-12 text-end">
-                        <button type="submit" class="btn btn-success">Cadastrar Empresa</button>
-                    </div>
+<div class="card shadow-sm border-0 mb-5 bg-body-tertiary rounded-3">
+    <div class="card-body p-4">
+        <div class="d-flex flex-wrap gap-3 w-100 filter-container">
+            <div style="flex: 1 1 45%; min-width: 280px;">
+                <label for="filtroEmpresa" class="form-label fw-bold text-secondary text-uppercase small">Buscar Empresa</label>
+                <div class="input-group">
+                    <span class="input-group-text bg-white border-end-0"><i class="bi bi-search text-muted"></i></span>
+                    <input type="search" class="form-control border-start-0 ps-1" id="filtroEmpresa" 
+                           placeholder="Digite o nome...">
                 </div>
-            </form>
+            </div>
+
+            <div style="flex: 1 1 50%; min-width: 300px;">
+                <label class="form-label fw-bold text-secondary text-uppercase small mb-2">Filtrar Status</label>
+            
+                <form action="{{ url_for('main.dashboard') }}" method="GET" class="mb-0" id="filtro-form">
+                    <div class="d-flex flex-wrap gap-2">
+            
+                        <input type="checkbox" class="btn-check filter-trigger" id="status-todas" name="status" value="todas" {%
+                            if 'todas' in status_filtros %}checked{% endif %}>
+                        <label class="filter-chip chip-gray" for="status-todas">
+                            <i class="bi bi-grid-fill"></i> Todas
+                        </label>
+            
+                        <input type="checkbox" class="btn-check filter-trigger" id="status-validas" name="status" value="validas" {%
+                            if 'validas' in status_filtros %}checked{% endif %}>
+                        <label class="filter-chip chip-green" for="status-validas">
+                            <i class="bi bi-check-circle-fill"></i> Válidas
+                        </label>
+            
+                        <input type="checkbox" class="btn-check filter-trigger" id="status-a-vencer" name="status" value="a_vencer"
+                            {% if 'a_vencer' in status_filtros %}checked{% endif %}>
+                        <label class="filter-chip chip-yellow" for="status-a-vencer">
+                            <i class="bi bi-exclamation-triangle-fill"></i> A Vencer
+                        </label>
+            
+                        <input type="checkbox" class="btn-check filter-trigger" id="status-vencidas" name="status" value="vencidas"
+                            {% if 'vencidas' in status_filtros %}checked{% endif %}>
+                        <label class="filter-chip chip-red" for="status-vencidas">
+                            <i class="bi bi-x-circle-fill"></i> Vencidas
+                        </label>
+            
+                        <input type="checkbox" class="btn-check filter-trigger" id="status-pendentes" name="status"
+                            value="pendentes" {% if 'pendentes' in status_filtros %}checked{% endif %}>
+                        <label class="filter-chip chip-red-outline" for="status-pendentes">
+                            <i class="bi bi-exclamation-circle-fill"></i> Pendentes
+                        </label>
+            
+                        <input type="checkbox" class="btn-check filter-trigger" id="status-nao-definida" name="status"
+                            value="nao_definida" {% if 'nao_definida' in status_filtros %}checked{% endif %}>
+                        <label class="filter-chip chip-nao-definida" for="status-nao-definida">
+                            <i class="bi bi-question-circle-fill"></i> Não Definida
+                        </label>
+            
+                    </div>
+                </form>
+            </div>
         </div>
     </div>
 </div>
 
-<div class="card mb-4">
-    <div class="card-body">
-        <div class="row g-3 align-items-start">
+<div id="lista-empresas">
+    {% for empresa in empresas %}
+    
+        {% set certidoes_filtradas = [] %}
+        {% for c in empresa.certidoes.all() %}
+            {# ... (Mesma lógica de cálculo de status do seu código anterior) ... #}
+            {% set status_calculado = '' %}
+            {% if c.status_especial and c.status_especial.value == 'Pendente' %}{% set status_calculado = 'pendentes' %}
+            {% elif not c.data_validade %}{% set status_calculado = 'nao_definida' %}
+            {% elif c.data_validade < hoje %}{% set status_calculado = 'vencidas' %}
+            {% elif (c.data_validade - hoje).days <= 7 %}{% set status_calculado = 'a_vencer' %}
+            {% else %}{% set status_calculado = 'validas' %}
+            {% endif %}
 
-    <div class="col-md-6 mb-3">
-        <label for="filtroEmpresa" class="form-label fw-bold">Buscar Empresa por Nome:</label>
-        <input type="search" class="form-control" id="filtroEmpresa" 
-               placeholder="Digite o nome da empresa para filtrar...">
-    </div>
+            {% if 'todas' in status_filtros or status_calculado in status_filtros %}
+                {% set _ = certidoes_filtradas.append(c) %}
+            {% endif %}
+        {% endfor %}
 
-    <div class="col-md-6">
-        <label class="form-label fw-bold">Filtrar por Status:</label>
+        {# SÓ MOSTRA O CARD SE HOUVER CERTIDÕES NO FILTRO #}
+        {% if certidoes_filtradas | length > 0 %}
         
-        <form action="{{ url_for('main.dashboard') }}" method="GET" class="mb-0" id="filtro-form">
-            <div class="d-flex">
-                
-                <div class="btn-group d-flex flex-grow-1 me-2" role="group">
-                    <input type="checkbox" class="btn-check" id="status-todas" name="status" value="todas" autocomplete="off" 
-                           {% if 'todas' in status_filtros %}checked{% endif %}>
-                    <label class="btn btn-outline-secondary flex-grow-1" for="status-todas">Todas</label>
-
-                    <input type="checkbox" class="btn-check" id="status-validas" name="status" value="validas" autocomplete="off"
-                           {% if 'validas' in status_filtros %}checked{% endif %}>
-                    <label class="btn btn-outline-success flex-grow-1" for="status-validas">Válidas</label>
-
-                    <input type="checkbox" class="btn-check" id="status-a-vencer" name="status" value="a_vencer" autocomplete="off"
-                           {% if 'a_vencer' in status_filtros %}checked{% endif %}>
-                    <label class="btn btn-outline-warning flex-grow-1" for="status-a-vencer">A Vencer</label>
-
-                    <input type="checkbox" class="btn-check" id="status-vencidas" name="status" value="vencidas" autocomplete="off"
-                           {% if 'vencidas' in status_filtros %}checked{% endif %}>
-                    <label class="btn btn-outline-danger flex-grow-1" for="status-vencidas">Vencidas</label>
-
-                    <input type="checkbox" class="btn-check" id="status-pendentes" name="status" value="pendentes" autocomplete="off"
-                           {% if 'pendentes' in status_filtros %}checked{% endif %}>
-                    <label class="btn btn-outline-info flex-grow-1" for="status-pendentes">Pendentes</label>
-                </div>
-
-                <button type="submit" class="btn btn-primary d-flex px-5 justify-content-center align-items-center">Filtrar</button>
-            </div>
-        </form>
-    </div>
-
-
-
-<div class="table-responsive">
-    <table class="table table-bordered align-middle table-fixed-layout">
-        <thead class="table-dark">
-            <tr>
-                <th class="px-2">Empresa</th>
-                <th class="px-2">CNPJ</th>
-                <th class="px-2">Tipo de Certidão</th>
-                <th class="px-2">Data de Validade</th>
-                <th class="text-center px-2">Ações</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for empresa in empresas %}
+        <div class="card mb-4 shadow-sm border-0 company-card" data-nome-empresa="{{ empresa.nome }}">
             
-                {% set certidoes_filtradas = [] %}
-                
-                {% for c in empresa.certidoes.all() %}
-        
-                    {% set status_calculado = '' %}
-                    
-                    {% if c.status_especial and c.status_especial.value == 'Pendente' %}
-                        {% set status_calculado = 'pendentes' %}
-                    {% elif not c.data_validade %}
-                        {% set status_calculado = 'pendentes' %}
-                    {% elif c.data_validade < hoje %}
-                        {% set status_calculado = 'vencidas' %}
-                    {% elif (c.data_validade - hoje).days <= 7 %}
-                        {% set status_calculado = 'a_vencer' %}
-                    {% else %}
-                        {% set status_calculado = 'validas' %}
-                    {% endif %}
-        
-                    {% if 'todas' in status_filtros or status_calculado in status_filtros %}
-                        {% set _ = certidoes_filtradas.append(c) %}
-                    {% endif %}
-                    
-                {% endfor %}
-                
-                {% set filtered_count = certidoes_filtradas | length %}
-        
-                {% for certidao in certidoes_filtradas %}
-                    
-                    {% if certidao.status_especial and certidao.status_especial.value == 'Pendente' %}
-                        {% set status_css = 'vermelho' %}
-                    {% elif not certidao.data_validade %}
-                        {% set status_css = 'cinza' %}
-                    {% elif certidao.data_validade < hoje %}
-                        {% set status_css = 'vermelho' %}
-                    {% elif (certidao.data_validade - hoje).days <= 7 %}
-                        {% set status_css = 'amarelo' %}
-                    {% else %}
-                        {% set status_css = 'verde' %}
-                    {% endif %}
-
-                    {% set data_url_final = '#' %}
-                    {% if certidao.tipo.name == 'MUNICIPAL' %}
-                        {% set data_url_final = urls_municipais.get(certidao.empresa.cidade, '#') %}
-                    {% else %}
-                        {% set data_url_final = sites_urls.get(certidao.tipo.name, {}).get('url', '#') %}
-                    {% endif %}
-                    
-                    <tr class="status-{{ status_css }}" data-nome-empresa="{{ empresa.nome }}">
-                        
-                        {% if loop.first %}
-                            <td rowspan="{{ filtered_count }}" class="px-2 fs-5 align-middle text-center fw-semibold">{{ empresa.nome }}
-                                <small class="text-muted">- {{ empresa.cidade }}</small>
-                            </td>
-                            <td rowspan="{{ filtered_count }}" class="px-2 fs-5 align-middle text-center">
-                                {{ empresa.cnpj }}
-                                {% if empresa.inscricao_mobiliaria %}
-                                    <small class="text-muted"> Insc. Mob.: {{ empresa.inscricao_mobiliaria }}</small>
-                                {% endif %}
-                            </td>
-                        {% endif %}
-                        
-                        <td class="date-cell px-2">{{ certidao.tipo.value }}</td>
-                        <td class="date-cell px-2">
-                            {% if certidao.status_especial and certidao.status_especial.value == 'Pendente' %}
-                                <span class="fw-semibold">Pendente</span>
-                            {% else %}
-                                {{ certidao.data_validade.strftime('%d/%m/%Y') if certidao.data_validade else 'Não definida' }}
+            <div class="card-header bg-white border-bottom py-3 d-flex flex-wrap justify-content-between align-items-center">
+                <div class="d-flex align-items-center gap-3">
+                    <div class="bg-primary bg-opacity-10 text-primary rounded p-2 d-flex align-items-center justify-content-center" style="width: 45px; height: 45px;">
+                        <i class="bi bi-building fs-4"></i>
+                    </div>
+                    <div>
+                        <h5 class="mb-0 fw-bold text-dark">{{ empresa.nome }}</h5>
+                        <div class="d-flex gap-3 text-muted small mt-1">
+                            <span><i class="bi bi-geo-alt me-1"></i>{{ empresa.cidade }}</span>
+                            <span><i class="bi bi-card-text me-1"></i>{{ empresa.cnpj }}</span>
+                            {% if empresa.inscricao_mobiliaria %}
+                                <span><i class="bi bi-hash me-1"></i>IM: {{ empresa.inscricao_mobiliaria }}</span>
                             {% endif %}
-                        </td>
-                        <td class="text-center d-flex justify-content-center">
-                            <a href="#" 
-                                class="btn btn-sm btn-info btn-abrir-site me-2"
-                                data-id="{{ certidao.id }}"
-                                data-tipo="{{ certidao.tipo.name }}"
-                                data-url="{{ data_url_final }}"
-                                data-cnpj="{{ certidao.empresa.cnpj | replace('.', '') | replace('/', '') | replace('-', '') }}"
-                                data-inscricao="{{ certidao.empresa.inscricao_mobiliaria | default('') }}">
-                                Abrir Site
-                            </a>
-                            <button class="btn btn-sm btn-warning me-2"
-                                    data-bs-toggle="modal"
-                                    data-bs-target="#editModal"
-                                    data-certidao-id="{{ certidao.id }}"
-                                    data-certidao-info="{{ certidao.tipo.value }} - {{ certidao.empresa.nome }}">
-                                Editar
-                            </button>
-                            <button class="btn btn-sm btn-primary me-2 btn-baixar-certidao"
-                                    data-href="{{ url_for('main.baixar_certidao', certidao_id=certidao.id) }}"
-                                    data-tipo="{{ certidao.tipo.name }}">Baixar
-                            </button>
-                        </td>
-                    </tr>
-                {% endfor %}
-                
-                {% if not loop.last and (certidoes_filtradas | length > 0) %}
-                    <tr class="company-group-separator">
-                        <td colspan="5"></td>
-                    </tr>
-                {% endif %}
-                
-            {% else %}
-                <tr>
-                    <td colspan="5" class="text-center">Nenhuma empresa encontrada para este filtro.</td>
-                </tr>
-            {% endfor %}
-        </tbody>
-    </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead class="table-light small text-uppercase text-muted">
+                            <tr>
+                                <th class="ps-4" style="width: 25%;">Tipo</th>
+                                <th class="text-center" style="width: 40%;">Validade / Status</th>
+                                <th class="text-center pe-4" style="width: 35%;">Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for certidao in certidoes_filtradas %}
+                                {# ... Lógica de Cores da Badge (Igual a anterior) ... #}
+                                {% set badge_class = 'text-bg-success' %}
+                                {% set icone_status = 'bi-check-circle-fill' %}
+                                {% if certidao.status_especial and certidao.status_especial.value == 'Pendente' %}
+                                    {% set badge_class = 'text-bg-danger' %} {% set icone_status = 'bi-exclamation-circle-fill' %}
+                                {% elif not certidao.data_validade %}
+                                    {% set badge_class = 'text-bg-secondary' %} {% set icone_status = 'bi-question-circle-fill' %}
+                                {% elif certidao.data_validade < hoje %}
+                                    {% set badge_class = 'text-bg-danger' %} {% set icone_status = 'bi-x-circle-fill' %}
+                                {% elif (certidao.data_validade - hoje).days <= 7 %}
+                                    {% set badge_class = 'text-bg-warning text-dark' %} {% set icone_status = 'bi-exclamation-triangle-fill' %}
+                                {% endif %}
+
+                                {% set data_url_final = '#' %}
+                                {% if certidao.tipo.name == 'MUNICIPAL' %}
+                                    {% set data_url_final = urls_municipais.get(certidao.empresa.cidade, '#') %}
+                                {% else %}
+                                    {% set data_url_final = sites_urls.get(certidao.tipo.name, {}).get('url', '#') %}
+                                {% endif %}
+
+                                <tr>
+                                    <td class="ps-4 fw-medium">{{ certidao.tipo.value }}</td>
+                                    
+                                    <td class="text-center">
+                                        <span class="badge rounded-pill {{ badge_class }} fs-6 fw-normal px-3 py-2 d-inline-flex align-items-center gap-2">
+                                            <i class="bi {{ icone_status }}"></i>
+                                            {% if certidao.status_especial and certidao.status_especial.value == 'Pendente' %}
+                                                PENDENTE
+                                            {% else %}
+                                                {{ certidao.data_validade.strftime('%d/%m/%Y') if certidao.data_validade else 'Não definida' }}
+                                            {% endif %}
+                                        </span>
+                                    </td>
+
+                                    <td class="text-center pe-4">
+                                        <div class="d-flex justify-content-center gap-2">
+                                            <a href="#" class="btn btn-sm btn-outline-info border-0 btn-abrir-site"
+                                               title="Abrir Site"
+                                               data-id="{{ certidao.id }}" data-tipo="{{ certidao.tipo.name }}" data-url="{{ data_url_final }}"
+                                               data-cnpj="{{ certidao.empresa.cnpj | replace('.', '') | replace('/', '') | replace('-', '') }}">
+                                                <i class="bi bi-box-arrow-up-right fs-5"></i>
+                                            </a>
+
+                                            <button class="btn btn-sm btn-outline-warning border-0"
+                                                    title="Editar"
+                                                    data-bs-toggle="modal" data-bs-target="#editModal"
+                                                    data-certidao-id="{{ certidao.id }}"
+                                                    data-certidao-info="{{ certidao.tipo.value }} - {{ certidao.empresa.nome }}">
+                                                <i class="bi bi-pencil-square fs-5"></i>
+                                            </button>
+
+                                            <button class="btn btn-sm btn-outline-primary border-0 btn-baixar-certidao"
+                                                    title="Baixar"
+                                                    data-href="{{ url_for('main.baixar_certidao', certidao_id=certidao.id) }}"
+                                                    data-tipo="{{ certidao.tipo.name }}">
+                                                <i class="bi bi-download fs-5"></i>
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        
+        {% endif %} {# Fim do if certidoes_filtradas #}
+        
+    {% else %}
+        <div class="alert alert-secondary text-center py-5">
+            <i class="bi bi-inbox fs-1 mb-3 d-block"></i>
+            <h4>Nenhuma empresa encontrada</h4>
+            <p>Tente ajustar os filtros acima.</p>
+        </div>
+    {% endfor %}
 </div>
 
 <div class="modal fade" id="editModal" tabindex="-1" aria-labelledby="editModalLabel" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
@@ -273,7 +261,6 @@
       </div>
       <div class="modal-body">
         <p>A automação terminou sem salvar nenhum PDF para a certidão <strong id="displayTipoPendente">---</strong>.</p>
-        <p class="text-muted">Isso pode indicar que a empresa tem débitos ou houve apenas uma consulta.</p>
         <p class="fw-bold text-center">Deseja marcar esta certidão como <span class="text-danger">PENDENTE</span>?</p>
       </div>
       <div class="modal-footer">
@@ -343,11 +330,13 @@ document.addEventListener('DOMContentLoaded', function() {
     const pendenteModalElement = document.getElementById('marcarPendenteModal');
     let pendenteModal = pendenteModalElement ? new bootstrap.Modal(pendenteModalElement) : null;
 
-    // NOVO MODAL DE INFORMAÇÃO (ABRIR SITE)
     const infoModalElement = document.getElementById('infoModal');
     let infoModal = infoModalElement ? new bootstrap.Modal(infoModalElement) : null;
     const infoModalBody = document.getElementById('infoModalBody');
     const btnInfoModalOK = document.getElementById('btnInfoModalOK');
+
+    const editModalEl = document.getElementById('editModal');
+    let editModal = editModalEl ? new bootstrap.Modal(editModalEl) : null;
 
     // ELEMENTOS DA TELA
     const displayData = document.getElementById('displayDataEncontrada');
@@ -357,7 +346,8 @@ document.addEventListener('DOMContentLoaded', function() {
     const btnConfirmarPendente = document.getElementById('btnConfirmarPendente');
     
     // Edição Manual
-    const btnsEditar = document.querySelectorAll('.btn-warning');
+    // ATENÇÃO: Seletor ajustado para o novo botão 'outline'
+    const btnsEditar = document.querySelectorAll('.btn-outline-warning'); 
     const btnPendenteManual = document.getElementById('btnPendenteManual');
     const btnSalvarManual = document.getElementById('btnSalvarManual');
     const editFormInput = document.getElementById('nova_validade');
@@ -373,22 +363,55 @@ document.addEventListener('DOMContentLoaded', function() {
     let tipoParaAbrir = null;
     let idParaMonitorar = null;
 
+    // =================================================================
+    // [NOVO] FUNÇÃO AUXILIAR: ATUALIZAR UI DA LINHA COM BADGES
+    // =================================================================
+    function atualizarLinhaUI(linha, classeStatusAntiga, novoTexto) {
+        // Encontra a Badge (Pílula) dentro da linha atual
+        const badge = linha.querySelector('.badge');
+        if (!badge) return;
+
+        let novaClasseBadge = 'text-bg-secondary';
+        let novoIcone = 'bi-question-circle-fill';
+
+        // Mapeia o status do backend (verde/vermelho) para classes do Bootstrap
+        if (classeStatusAntiga === 'status-verde') {
+            novaClasseBadge = 'text-bg-success';
+            novoIcone = 'bi-check-circle-fill';
+        } else if (classeStatusAntiga === 'status-vermelho') {
+            novaClasseBadge = 'text-bg-danger';
+            novoIcone = 'bi-x-circle-fill';
+            // Se for Pendente, usa ícone de exclamação
+            if (novoTexto && novoTexto.toLowerCase().includes('pendente')) {
+                 novoIcone = 'bi-exclamation-circle-fill';
+            }
+        } else if (classeStatusAntiga === 'status-amarelo') {
+            novaClasseBadge = 'text-bg-warning text-dark';
+            novoIcone = 'bi-exclamation-triangle-fill';
+        } else if (classeStatusAntiga === 'status-cinza') {
+            novaClasseBadge = 'text-bg-secondary';
+            novoIcone = 'bi-question-circle-fill';
+        }
+
+        // 1. Aplica a nova cor na Badge
+        badge.className = `badge rounded-pill ${novaClasseBadge} fs-6 fw-normal px-3 py-2 d-inline-flex align-items-center gap-2`;
+        
+        // 2. Atualiza o texto e o ícone
+        badge.innerHTML = `<i class="bi ${novoIcone}"></i> ${novoTexto}`;
+    }
 
     // =================================================================
-    // 1. BOTÃO "ABRIR SITE" (CORRIGIDO PARA VALIDAR DOWNLOAD)
+    // 1. BOTÃO "ABRIR SITE"
     // =================================================================
     const btnsAbrirSite = document.querySelectorAll('.btn-abrir-site');
     btnsAbrirSite.forEach(function(btn) {
         btn.addEventListener('click', function(event) {
             event.preventDefault(); 
-            
             linhaAtualTabela = btn.closest('tr');
-
-            // Guarda os dados nas variáveis globais
+            
             urlParaAbrir = btn.dataset.url;
             tipoParaAbrir = btn.dataset.tipo;
             idParaMonitorar = btn.dataset.id;
-            
             const cnpj = btn.dataset.cnpj;
             
             if (urlParaAbrir === '#') {
@@ -397,75 +420,57 @@ document.addEventListener('DOMContentLoaded', function() {
             }
 
             navigator.clipboard.writeText(cnpj).then(function() {
-                
-                // Mostra Modal de Aviso antes de abrir
                 infoModalBody.innerHTML = `
-                    <p class="mb-2">O CNPJ <strong>${cnpj}</strong> foi copiado para sua área de transferência.</p>
-                    <p class="text-muted small">Pressione <strong>OK</strong> para abrir o site e depois cole (Ctrl+V) no campo correspondente.</p>
+                    <p class="mb-2">O CNPJ <strong>${cnpj}</strong> foi copiado.</p>
+                    <p class="text-muted small">Pressione <strong>OK</strong> para abrir o site.</p>
                 `;
                 if (infoModal) infoModal.show();
-
             }).catch(function(err) {
                 console.error('Erro copiar:', err);
-                infoModalBody.innerHTML = `
-                    <p class="text-danger mb-2">Não foi possível copiar o CNPJ automaticamente.</p>
-                    <p>Por favor, copie manualmente e pressione <strong>OK</strong> para abrir o site.</p>
-                `;
+                infoModalBody.innerHTML = `<p class="text-danger">Erro ao copiar CNPJ. Copie manualmente.</p>`;
                 if (infoModal) infoModal.show();
             });
         });
     });
 
-    // AÇÃO DO BOTÃO "OK" DO MODAL DE INFORMAÇÃO
     if (btnInfoModalOK) {
         btnInfoModalOK.addEventListener('click', function() {
             if (infoModal) infoModal.hide();
-            
             if (urlParaAbrir) {
                 const novaAba = window.open(urlParaAbrir, '_blank');
-
-                // Lógica Especial da Federal
+                
                 if (tipoParaAbrir === 'FEDERAL') {
+                    let arquivoSalvo = false;
                     
-                    let arquivoSalvo = false; // <--- NOVA BANDEIRA DE CONTROLE
-
-                    // 1. Monitora Download (Python)
                     fetch(`/certidao/monitorar_download_federal/${idParaMonitorar}`)
                         .then(response => response.json())
                         .then(data => { 
                             if (data.status === 'success') {
-                                console.log("Federal salva!");
-                                arquivoSalvo = true; // <--- MARCA COMO SUCESSO SE O ARQUIVO CAIU
-                                showToast("Arquivo identificado e salvo no servidor!", "success");
+                                arquivoSalvo = true;
+                                showToast("Arquivo salvo no servidor!", "success");
                             }
                         });
 
-                    // 2. Monitora Fechamento da Aba (Navegador)
                     if (novaAba) {
                         const timer = setInterval(function() {
                             if (novaAba.closed) {
                                 clearInterval(timer);
-                                
-                                // DECISÃO: SUCESSO OU PENDENTE?
                                 if (arquivoSalvo) {
-                                    // CENÁRIO A: ARQUIVO FOI BAIXADO -> CONFIRMA DATA
+                                    // SUCESSO - MOSTRAR MODAL DE DATA
                                     const hoje = new Date();
                                     const validade = new Date(hoje);
                                     validade.setDate(hoje.getDate() + 180);
-                                    
                                     const dataBanco = validade.toISOString().split('T')[0];
                                     const dataFormatada = `${validade.getDate().toString().padStart(2, '0')}/${(validade.getMonth() + 1).toString().padStart(2, '0')}/${validade.getFullYear()}`;
 
                                     if (displayData) displayData.textContent = dataFormatada;
                                     if (displayTipo) displayTipo.textContent = "FEDERAL";
-                                    
                                     dadosParaSalvar = { certidao_id: idParaMonitorar, nova_validade: dataBanco };
                                     if (confirmModal) confirmModal.show();
-                                
                                 } else {
-                                    // CENÁRIO B: ABA FECHADA SEM ARQUIVO -> SUGERE PENDENTE
+                                    // FALHA - SUGERIR PENDENTE
                                     if (displayTipoPendente) displayTipoPendente.textContent = "FEDERAL";
-                                    certidaoIdPendente = idParaMonitorar; // Atualiza o ID global
+                                    certidaoIdPendente = idParaMonitorar;
                                     if (pendenteModal) pendenteModal.show();
                                 }
                             }
@@ -476,7 +481,6 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-
     // =================================================================
     // 2. BOTÃO "BAIXAR" (AUTOMAÇÃO)
     // =================================================================
@@ -485,19 +489,25 @@ document.addEventListener('DOMContentLoaded', function() {
         btn.addEventListener('click', function(event) {
             event.preventDefault();
             linhaAtualTabela = btn.closest('tr');
+            
+            // Troca ícone para loading (feedback visual)
+            const originalHTML = btn.innerHTML;
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>';
+            btn.disabled = true;
+
+            const pythonUrl = btn.dataset.href;
 
             if (btn.dataset.tipo === 'FEDERAL') {
                 showToast("Para Federal, use o botão 'Abrir Site'.", "primary");
+                btn.innerHTML = originalHTML;
+                btn.disabled = false;
                 return;
             }
-            const pythonUrl = btn.dataset.href;
-            btn.textContent = "Rodando...";
-            btn.disabled = true;
 
             fetch(pythonUrl)
                 .then(response => response.json())
                 .then(data => {
-                    btn.textContent = "Baixar";
+                    btn.innerHTML = originalHTML; // Restaura ícone original
                     btn.disabled = false;
 
                     if (data.status === 'success_file_saved') {
@@ -520,7 +530,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 })
                 .catch(error => {
                     console.error('Erro:', error);
-                    btn.textContent = "Erro";
+                    btn.innerHTML = originalHTML;
                     btn.disabled = false;
                     showToast("Erro de comunicação.", "error");
                 });
@@ -528,7 +538,7 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     // =================================================================
-    // 3. AÇÕES DE SALVAR E PENDENTE (AJAX)
+    // 3. AÇÕES DE SALVAR E PENDENTE (COM ATUALIZAÇÃO VISUAL CORRETA)
     // =================================================================
 
     // Salvar Data (Modal Verde)
@@ -544,18 +554,16 @@ document.addEventListener('DOMContentLoaded', function() {
                 .then(data => {
                     if (data.status === 'success') {
                         if (confirmModal) confirmModal.hide();
-
+                        
                         if (linhaAtualTabela) {
-                            linhaAtualTabela.className = data.nova_classe;
-                            const dateCells = linhaAtualTabela.querySelectorAll('.date-cell');
-                            if (dateCells.length >= 2) dateCells[1].textContent = data.nova_data_formatada;
+                            // CHAMA A NOVA FUNÇÃO DE UI
+                            atualizarLinhaUI(linhaAtualTabela, data.nova_classe, data.nova_data_formatada);
                         }
                         showToast(data.message, "success");
                     } else {
                         showToast('Erro ao salvar: ' + data.message, "error");
                     }
-                })
-                .catch(error => { console.error(error); showToast('Erro de comunicação.', "error"); });
+                });
             }
         });
     }
@@ -569,17 +577,16 @@ document.addEventListener('DOMContentLoaded', function() {
                 .then(data => {
                     if (data.status === 'success') {
                         if (pendenteModal) pendenteModal.hide();
+                        
                         if (linhaAtualTabela) {
-                            linhaAtualTabela.className = 'status-vermelho';
-                            const dateCells = linhaAtualTabela.querySelectorAll('.date-cell');
-                            if (dateCells.length >= 2) dateCells[1].innerHTML = '<span class="fw-semibold">Pendente</span>';
+                            // ATUALIZA UI PARA PENDENTE
+                            atualizarLinhaUI(linhaAtualTabela, 'status-vermelho', 'Pendente');
                         }
                         showToast("Certidão marcada como Pendente.", "success");
                     } else {
                         showToast('Erro: ' + data.message, "error");
                     }
-                })
-                .catch(error => { console.error(error); showToast('Erro de comunicação.', "error"); });
+                });
             }
         });
     }
@@ -587,6 +594,8 @@ document.addEventListener('DOMContentLoaded', function() {
     // =================================================================
     // 4. EDIÇÃO MANUAL (BOTÃO AMARELO)
     // =================================================================
+    
+    // Atualizado seletor para .btn-outline-warning (novo visual)
     btnsEditar.forEach(function(btn) {
         btn.addEventListener('click', function() {
             linhaAtualTabela = btn.closest('tr');
@@ -612,14 +621,10 @@ document.addEventListener('DOMContentLoaded', function() {
                 .then(response => response.json())
                 .then(data => {
                     if (data.status === 'success') {
-                        const editModalEl = document.getElementById('editModal');
-                        const editModal = bootstrap.Modal.getInstance(editModalEl);
                         if (editModal) editModal.hide();
 
                         if (linhaAtualTabela) {
-                            linhaAtualTabela.className = data.nova_classe;
-                            const dateCells = linhaAtualTabela.querySelectorAll('.date-cell');
-                            if (dateCells.length >= 2) dateCells[1].textContent = data.nova_data_formatada;
+                            atualizarLinhaUI(linhaAtualTabela, data.nova_classe, data.nova_data_formatada);
                         }
                         showToast(data.message, "success");
                     } else {
@@ -639,18 +644,14 @@ document.addEventListener('DOMContentLoaded', function() {
                 .then(response => response.json())
                 .then(data => {
                     if (data.status === 'success') {
-                        const editModalEl = document.getElementById('editModal');
-                        const editModal = bootstrap.Modal.getInstance(editModalEl);
                         if (editModal) editModal.hide();
 
                         if (linhaAtualTabela) {
-                            linhaAtualTabela.className = 'status-vermelho';
-                            const dateCells = linhaAtualTabela.querySelectorAll('.date-cell');
-                            if (dateCells.length >= 2) dateCells[1].innerHTML = '<span class="fw-semibold">Pendente</span>';
+                             atualizarLinhaUI(linhaAtualTabela, 'status-vermelho', 'Pendente');
                         }
                         showToast("Certidão marcada como Pendente.", "success");
                     } else {
-                        showToast('Erro ao marcar pendente: ' + data.message, "error");
+                        showToast('Erro: ' + data.message, "error");
                     }
                 })
                 .catch(error => { console.error(error); showToast('Erro de comunicação.', "error"); });
@@ -659,64 +660,86 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     // =================================================================
-    // 5. FILTROS E CHECKBOXES (Lógica Visual)
+    // 5. FILTRO DE PESQUISA POR NOME (Atualizado para Cards)
     // =================================================================
-    
-    // Filtro Nome
+    const filtroInput = document.getElementById('filtroEmpresa');
     if (filtroInput) {
-        const tabelaBody = document.querySelector('.table tbody');
-        filtroInput.addEventListener('input', () => {
-            const termoBusca = filtroInput.value.toLowerCase();
-            const todasAsLinhas = tabelaBody.getElementsByTagName('tr');
-            for (let linha of todasAsLinhas) {
-                if (linha.dataset.nomeEmpresa) {
-                    const nomeEmpresa = linha.dataset.nomeEmpresa.toLowerCase();
-                    linha.style.display = nomeEmpresa.includes(termoBusca) ? '' : 'none';
+        filtroInput.addEventListener('input', () => { 
+            const termoBusca = filtroInput.value.toLowerCase().trim();
+            const cardsEmpresa = document.querySelectorAll('.company-card'); // Pega todos os cards
+            
+            cardsEmpresa.forEach(card => {
+                // O nome da empresa está no atributo data-nome-empresa da div do card
+                if (card.dataset.nomeEmpresa) {
+                    const nomeEmpresa = card.dataset.nomeEmpresa.toLowerCase();
+                    
+                    if (nomeEmpresa.includes(termoBusca)) {
+                        card.style.display = ''; // Mostra o card
+                        card.classList.remove('d-none');
+                    } else {
+                        card.style.display = 'none'; // Esconde o card inteiro
+                        card.classList.add('d-none');
+                    }
                 }
-            }
-            for (let linha of todasAsLinhas) {
-                if (linha.classList.contains('company-group-separator')) {
-                    const linhaAnterior = linha.previousElementSibling;
-                    linha.style.display = (linhaAnterior && linhaAnterior.style.display !== 'none') ? '' : 'none';
-                }
-            }
+            });
         });
     }
 
-    // Filtro Status
+    const formFiltro = document.getElementById('filtro-form');
     const todasCheckbox = document.getElementById('status-todas');
-    const otherCheckboxes = [
+    
+    // Lista de checkboxes de status específicos
+    const statusCheckboxes = [
         document.getElementById('status-validas'),
         document.getElementById('status-a-vencer'),
         document.getElementById('status-vencidas'),
-        document.getElementById('status-pendentes')
+        document.getElementById('status-pendentes'),
+        document.getElementById('status-nao-definida')
     ];
 
+    // Função para submeter o formulário automaticamente
+    function autoSubmit() {
+        if (formFiltro) {
+            // Pequeno delay para a animação do clique acontecer antes do reload
+            setTimeout(() => {
+                formFiltro.submit();
+            }, 100);
+        }
+    }
+
+    // 1. Lógica do botão "Todas"
     if (todasCheckbox) {
         todasCheckbox.addEventListener('change', function() {
             if (todasCheckbox.checked) {
-                otherCheckboxes.forEach(cb => { if (cb) cb.checked = false; });
+                // Se marcou todas, desmarca as outras
+                statusCheckboxes.forEach(cb => { if (cb) cb.checked = false; });
+            } else {
+                // Se desmarcou todas e não tem nada marcado, remarca todas (evita filtro vazio)
+                const algumMarcado = statusCheckboxes.some(cb => cb && cb.checked);
+                if (!algumMarcado) todasCheckbox.checked = true;
             }
-        });
-    }
-    otherCheckboxes.forEach(cb => {
-        if (cb) {
-            cb.addEventListener('change', function() {
-                if (cb.checked && todasCheckbox) todasCheckbox.checked = false;
-            });
-        }
-    });
-    const form = document.getElementById('filtro-form');
-    if (form) {
-        form.addEventListener('submit', function() {
-            let oneChecked = false;
-            if (todasCheckbox && todasCheckbox.checked) oneChecked = true;
-            else otherCheckboxes.forEach(cb => { if (cb && cb.checked) oneChecked = true; });
-            if (!oneChecked && todasCheckbox) todasCheckbox.checked = true;
+            autoSubmit();
         });
     }
 
+    // 2. Lógica dos outros botões
+    statusCheckboxes.forEach(cb => {
+        if (cb) {
+            cb.addEventListener('change', function() {
+                if (cb.checked) {
+                    // Se marcou algum específico, desmarca o "Todas"
+                    if (todasCheckbox) todasCheckbox.checked = false;
+                } else {
+                    // Se desmarcou e sobrou zero marcados, volta para "Todas"
+                    const algumMarcado = statusCheckboxes.some(other => other && other.checked);
+                    if (!algumMarcado && todasCheckbox) todasCheckbox.checked = true;
+                }
+                autoSubmit();
+            });
+        }
+    });
 });
+
 </script>
 {% endblock %}
 {% endblock %}

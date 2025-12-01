@@ -43,16 +43,6 @@
         max-width: 50px;
     }
 }
-@media (max-width: 768px) {
-    .logo-navbar-compact {
-        max-width: 45px;
-    }
-}
-@media (max-width: 600px) {
-    .logo-navbar-compact {
-        max-width: 35px;
-    }
-}
 
 /* =========================================
    AJUSTES DO DARK MODE (Certidões)
@@ -106,15 +96,7 @@
     color: #adb5bd !important; 
 }
 
-/* 4. Ajuste para os botões na última coluna */
-[data-bs-theme="dark"] .table tr td:last-child button,
-[data-bs-theme="dark"] .table tr td:last-child a {
-    box-shadow: 0 0 2px rgba(0,0,0,0.5);
-    position: relative;
-    z-index: 1;
-}
-
-/* 5. Garante que células com rowspan (Empresa/CNPJ) tenham fundo neutro */
+/* 4. Garante que células com rowspan (Empresa/CNPJ) tenham fundo neutro */
 [data-bs-theme="dark"] .table td[rowspan] {
     background-color: var(--bs-table-bg) !important;
 }
@@ -140,19 +122,19 @@
 
 /* Responsividade para a logo do navbar */
 .logo-navbar {
-    max-width: 230px;
+    max-width: 190px;
     width: 100%;
     height: auto;
     transition: max-width 0.2s;
 }
 @media (max-width: 1200px) {
     .logo-navbar {
-        max-width: 170px;
+        max-width: 140px;
     }
 }
 @media (max-width: 900px) {
     .logo-navbar {
-        max-width: 120px;
+        max-width: 100px;
     }
 }
 @media (max-width: 600px) {
@@ -248,7 +230,7 @@
 
 /* Título da navbar responsivo e harmonizado com a logo */
 .nav-title {
-    font-size: 2rem;
+    font-size: 1.6rem;
     font-weight: 600;
     margin-right: 1.5rem;
     letter-spacing: 0.5px;
@@ -258,7 +240,7 @@
 }
 @media (max-width: 1200px) {
     .nav-title {
-        font-size: 1.4rem;
+        font-size: 1.0rem;
         margin-right: 1rem;
     }
 }
@@ -270,7 +252,7 @@
 }
 @media (max-width: 600px) {
     .nav-title {
-        font-size: 0.8rem;
+        font-size: 0.75rem;
         margin-right: 0.3rem;
     }
 }
@@ -336,5 +318,184 @@
         height: 16px;
         margin-bottom: 3.2px;
 
+    }
+}
+
+#sidebarOffcanvas.offcanvas-start {
+    width: 350px;
+}
+
+@media (max-width: 1200px) {
+    #sidebarOffcanvas.offcanvas-start {
+        width: 250px;
+        transition: 0.1s;
+    }
+}
+
+.navbar-toggler:focus,
+.navbar-toggler:active,
+.navbar-toggler:focus-visible {
+    outline: none !important;
+    box-shadow: none !important;
+}
+
+/* AJUSTES DARK MODE PARA OS CARDS */
+[data-bs-theme="dark"] .card {
+    background-color: #212529 !important; /* Fundo escuro do card */
+    border: 1px solid #373b3e !important;
+}
+
+[data-bs-theme="dark"] .card-header {
+    background-color: #2c3034 !important; /* Header um pouco mais claro */
+    border-bottom-color: #373b3e !important;
+    color: #e0e0e0 !important;
+}
+
+[data-bs-theme="dark"] .card-header .text-dark {
+    color: #fff !important; /* Força título branco */
+}
+
+/* Ajuste dos inputs de busca no dark mode */
+[data-bs-theme="dark"] .input-group-text {
+    background-color: #2c3034 !important;
+    border-color: #373b3e !important;
+    color: #adb5bd !important;
+}
+[data-bs-theme="dark"] .form-control {
+    background-color: #212529;
+    border-color: #373b3e;
+    color: #fff;
+}
+
+/* Transforma o fundo cinza claro padrão em um fundo escuro sutil */
+[data-bs-theme="dark"] .table-light {
+    background-color: #2c3034 !important; /* Cinza um pouco mais claro que o fundo do card */
+    color: #adb5bd !important;            /* Texto cinza claro para bom contraste */
+    border-color: #373b3e !important;     /* Borda sutil */
+}
+
+/* Garante que as células do cabeçalho herdem a cor de fundo correta */
+[data-bs-theme="dark"] .table-light th {
+    background-color: #292d30 !important;
+    color: #b6bec6 !important;
+    border-bottom: 1px solid #373b3e !important;
+}
+
+/* Estilo Base da Pílula */
+.filter-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 1rem;
+    font-size: 0.9rem;
+    font-weight: 600;
+    border-radius: 50px; /* Pílula redonda */
+    border: 1px solid transparent;
+    cursor: pointer;
+    transition: all 0.2s ease-in-out;
+    background-color: #f8f9fa; /* Fundo padrão claro */
+    color: #6c757d; /* Texto padrão cinza */
+    user-select: none;
+}
+/* Hover Suave - MAS NÃO EM FILTROS SELECIONADOS */
+.filter-chip:hover {
+    transform: translateY(-1px);
+    background-color: #e9ecef;
+}
+
+/* Quando o filtro está checked, o hover não muda */
+.btn-check:checked + .filter-chip:hover {
+    transform: translateY(-1px);
+}
+
+/* Ícones levemente maiores */
+.filter-chip i {
+    font-size: 1rem;
+}
+
+/* --- VARIAÇÕES DE CORES (QUANDO ATIVO) --- */
+
+/* 1. TODAS (Cinza Escuro) */
+.btn-check:checked + .chip-gray {
+    background-color: #343a40 !important;
+    color: #fff;
+    box-shadow: 0 4px 10px rgba(52, 58, 64, 0.3);
+}
+
+/* 2. VÁLIDAS (Verde) */
+.btn-check:checked + .chip-green {
+    background-color: #198754 !important;
+    color: #fff;
+    box-shadow: 0 4px 10px rgba(25, 135, 84, 0.3);
+}
+
+/* 3. A VENCER (Amarelo/Laranja) */
+.btn-check:checked + .chip-yellow {
+    background-color: #ffc107 !important;
+    color: #000; /* Texto preto para contraste */
+    box-shadow: 0 4px 10px rgba(255, 193, 7, 0.3);
+}
+
+/* 4. VENCIDAS (Vermelho) */
+.btn-check:checked + .chip-red {
+    background-color: #dc3545 !important;
+    color: #fff;
+    box-shadow: 0 4px 10px rgba(220, 53, 69, 0.3);
+}
+
+/* 5. PENDENTES (Borda Vermelha / Fundo Claro) */
+/* Opção diferenciada para não confundir com vencidas */
+.btn-check:checked + .chip-red-outline {
+    background-color: #fff !important;
+    border-color: #dc3545;
+    color: #dc3545;
+    box-shadow: 0 4px 10px rgba(220, 53, 69, 0.15);
+}
+
+/* 6. NÃO DEFINIDA (Azul-Cinza) */
+.btn-check:checked + .chip-nao-definida {
+    background-color: #5a7f9d !important;
+    color: #fff;
+    box-shadow: 0 4px 10px rgba(90, 127, 157, 0.3);
+}
+
+/* --- AJUSTES DARK MODE --- */
+[data-bs-theme="dark"] .filter-chip {
+    background-color: #2b3035;
+    color: #adb5bd;
+}
+[data-bs-theme="dark"] .filter-chip:hover {
+    background-color: #343a40;
+}
+/* Quando selecionado no dark mode, hover mantém a cor com opacidade */
+[data-bs-theme="dark"] .btn-check:checked + .filter-chip:hover {
+    transform: translateY(-1px);
+}
+
+/* Destaque para "Todas" no dark mode quando selecionado */
+[data-bs-theme="dark"] .btn-check:checked + .chip-gray {
+    background-color: #495057 !important;
+}
+/* No dark mode, o "Pendentes" precisa de ajuste */
+[data-bs-theme="dark"] .btn-check:checked + .chip-red-outline {
+    background-color: #fff !important;
+    border-color: #dc3545;
+    color: #dc3545;
+}
+
+/* =========================================
+   RESPONSIVIDADE PARA FILTROS (ZOOM ALTO)
+   ========================================= */
+
+/* Remove borda/outline do input ao clicar */
+#filtroEmpresa:focus {
+    outline: none;
+    box-shadow: none;
+    border-color: inherit;
+}/* Em zoom/telas pequenas (900px ou menos), filtros ficam full-width e empilhados */
+@media (max-width: 900px) {
+    .filter-container > div {
+        flex: 1 1 100% !important;
+        min-width: 100% !important;
     }
 }
