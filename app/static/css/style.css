@@ -3,6 +3,24 @@
     border: 1px solid rgba(255, 255, 255, 0.2);
 }
 
+/* Layout com flexbox para footer ficar no rodapé */
+html, body {
+    height: 100%;
+}
+
+body {
+    display: flex;
+    flex-direction: column;
+}
+
+main {
+    flex: 1;
+}
+
+footer {
+    flex-shrink: 0;
+}
+
 /* Logos responsivas da navbar */
 .logo-full {
     display: block !important;
