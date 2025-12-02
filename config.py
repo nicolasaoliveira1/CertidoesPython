@@ -15,8 +15,5 @@ class Config:
 
     # --- NOVO BANCO DE DADOS (MySQL) ---
     # Estrutura: mysql+pymysql://USUARIO:SENHA@IP_DO_SERVIDOR/NOME_DO_BANCO
-    # Exemplo: 'mysql+pymysql://root:123456@192.168.0.15/DATABASE'
-    
-    #SQLALCHEMY_DATABASE_URI = 'mysql+pymysql://USER:PASS@127.0.0.1/DATABASE'
         
     SQLALCHEMY_TRACK_MODIFICATIONS = False
