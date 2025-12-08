@@ -18,3 +18,4 @@ instance/
 # Comandos do flask que serao sempre rodados
 .flaskenv
 app/stop_federal_monitor.txt
+docs/todo.txt
