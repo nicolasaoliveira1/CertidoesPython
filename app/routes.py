@@ -10,6 +10,7 @@ from selenium.webdriver.chrome.service import Service as ChromeService
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import Select, WebDriverWait
+from selenium.webdriver.common.keys import Keys
 from sqlalchemy import or_
 from webdriver_manager.chrome import ChromeDriverManager
 
@@ -361,6 +362,7 @@ def baixar_certidao(certidao_id):
                         (field_by, info_site['inscricao_field_id'])))
                     campo2.click()
                     campo2.send_keys(inscricao_limpa)
+                    campo2.send_keys(Keys.TAB)
                 except:
                     pass
 
@@ -409,7 +411,7 @@ def baixar_certidao(certidao_id):
                         try:
                             caminho_certidao = msg.replace("\\", "\\\\")
                             driver.execute_script(
-                                f"alert('PDF salvo no servidor com sucesso!\\nSalvo em: {caminho_certidao}');")
+                                f"alert('PDF salvo no servidor com sucesso!\\nSalvo em: {caminho_certidao}\\n\\nFeche a janela do Chrome e retorne ao sistema.');")
                         except:
                             pass
                     else:
