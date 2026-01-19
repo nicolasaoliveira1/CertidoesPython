@@ -115,10 +115,18 @@ def encontrar_caminho_final(caminho_empresa):
     pasta_destino = caminho_empresa
 
     for variacao in VARIACOES_DOCS:
-        teste_path = os.path.join(caminho_empresa, variacao)
-        if os.path.exists(teste_path):
-            pasta_destino = teste_path
+        try:
+            for pasta_encontrada in os.listdir(caminho_empresa):
+                caminho_completo = os.path.join(caminho_empresa, pasta_encontrada)
+                if os.path.isdir(caminho_completo) and variacao.upper() in pasta_encontrada.upper():
+                    pasta_destino = caminho_completo
+                    print(f"Pasta de documentos encontrada: '{pasta_encontrada}' (contém '{variacao}')")
+                    break
+            else:
+                continue
             break
+        except Exception as e:
+            print(f"Erro ao procurar pasta em {caminho_empresa}: {e}")
 
     variacoes_certidoes = ["CERTIDOES", "CERTIDÕES", "Certidoes", "Certidões"]
 
