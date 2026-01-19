@@ -179,7 +179,16 @@ def baixar_certidao(certidao_id):
 
     info_site = {}
     if tipo_certidao_chave != 'MUNICIPAL':
-        info_site = SITES_CERTIDOES.get(tipo_certidao_chave, {})
+        if tipo_certidao_chave == 'ESTADUAL':
+            estado_emp = (certidao.empresa.estado or '').strip().upper()
+            estadual_cfg = SITES_CERTIDOES.get('ESTADUAL', {})
+            if isinstance(estadual_cfg, dict) and estado_emp in estadual_cfg:
+                info_site = estadual_cfg[estado_emp].copy()
+            else:
+                info_site = SITES_CERTIDOES.get('ESTADUAL', {}).copy()
+        else:
+            info_site = SITES_CERTIDOES.get(tipo_certidao_chave, {}).copy()
+
     else:
         cidade_empresa = certidao.empresa.cidade
         regra_municipio = Municipio.query.filter_by(
@@ -347,10 +356,18 @@ def baixar_certidao(certidao_id):
                 try:
                     campo1 = wait.until(EC.element_to_be_clickable(
                         (field_by, info_site['cnpj_field_id'])))
-                    campo1.click()
-                    dado_a_preencher = inscricao_limpa if info_site.get(
-                        'cnpj_field_id') == 'inscricao' else cnpj_limpo
-                    campo1.send_keys(dado_a_preencher)
+                    if info_site.get('slow_typing'):
+                        campo1.clear()
+                        apenas_numeros = ''.join(filter(str.isdigit, cnpj_limpo))
+                        campo1.click()
+                        for digito in apenas_numeros:
+                            campo1.send_keys(digito)
+                            time.sleep(0.1)
+                    else:
+                        campo1.click()
+                        dado_a_preencher = inscricao_limpa if info_site.get(
+                            'cnpj_field_id') == 'inscricao' else cnpj_limpo
+                        campo1.send_keys(dado_a_preencher)
                 except:
                     pass
 
@@ -455,7 +472,7 @@ def baixar_certidao(certidao_id):
                 elif estado == "SP":
                     data_calc = date.today() + timedelta(days=180)
                 elif estado == "MT":
-                    data_calc = date.today() + timedelta(days=60)
+                    data_calc = date.today() + timedelta(days=59)
                 else:
                     data_calc = None
             elif tipo_certidao_chave == 'MUNICIPAL':
