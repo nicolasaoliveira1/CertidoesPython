@@ -107,7 +107,7 @@
                     <div>
                         <h5 class="mb-0 fw-bold text-dark">{{ empresa.nome }}</h5>
                         <div class="d-flex gap-3 text-muted small mt-1">
-                            <span><i class="bi bi-geo-alt me-1"></i>{{ empresa.cidade }}</span>
+                            <span><i class="bi bi-geo-alt me-1"></i>{{ empresa.estado }} - {{ empresa.cidade }}</span>
                             <span><i class="bi bi-card-text me-1"></i>{{ empresa.cnpj }}</span>
                             {% if empresa.inscricao_mobiliaria %}
                                 <span><i class="bi bi-hash me-1"></i>IM: {{ empresa.inscricao_mobiliaria }}</span>
