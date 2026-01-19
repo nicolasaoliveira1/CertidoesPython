@@ -85,6 +85,7 @@ def adicionar_empresa():
     # dados formulário
     nome = request.form.get('nome')
     cnpj = request.form.get('cnpj')
+    estado = request.form.get('estado')
     cidade = request.form.get('cidade')
     inscricao = request.form.get('inscricao_mobiliaria')
 
@@ -102,6 +103,7 @@ def adicionar_empresa():
     nova_empresa = Empresa(
         nome=nome,
         cnpj=cnpj,
+        estado=estado,
         cidade=cidade,
         # Garante que seja nulo se vazio
         inscricao_mobiliaria=inscricao if inscricao else None
@@ -447,7 +449,15 @@ def baixar_certidao(certidao_id):
             if tipo_certidao_chave == 'TRABALHISTA':
                 data_calc = date.today() + timedelta(days=180)
             elif tipo_certidao_chave == 'ESTADUAL':
-                data_calc = date.today() + timedelta(days=59)
+                estado = certidao.empresa.estado.strip().upper()
+                if estado == "RS":
+                    data_calc = date.today() + timedelta(days=59)
+                elif estado == "SP":
+                    data_calc = date.today() + timedelta(days=180)
+                elif estado == "MT":
+                    data_calc = date.today() + timedelta(days=60)
+                else:
+                    data_calc = None
             elif tipo_certidao_chave == 'MUNICIPAL':
                 cidade = certidao.empresa.cidade.strip().upper()
                 if cidade in ['IMBÉ', 'IMBE']:

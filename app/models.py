@@ -19,6 +19,7 @@ class Empresa(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     nome = db.Column(db.String(120), nullable=False)
     cnpj = db.Column(db.String(18), unique=True, nullable=False)
+    estado = db.Column(db.String(2), nullable=False, default='RS')
     cidade = db.Column(db.String(50), nullable=False)
     inscricao_mobiliaria = db.Column(db.String(6), nullable=True)
 
