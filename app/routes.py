@@ -123,7 +123,7 @@ def adicionar_empresa():
         db.session.rollback()
         flash(f'Erro ao cadastrar empresa: {e}', 'danger')
 
-    # Redirecionamento para dashboard
+    # redirecionamento para dashboard
     return redirect(url_for('main.dashboard'))
 
 
@@ -248,9 +248,33 @@ def baixar_certidao(certidao_id):
                     aba_cnpj = wait.until(EC.element_to_be_clickable(
                         (By.XPATH, "//a[contains(text(), 'CNPJ')]")))
                     aba_cnpj.click()
-                    time.sleep(1)
+                    time.sleep(1)            
                 except Exception as e:
                     print(f"Erro na navegação de Cidreira: {e}")
+            
+            if certidao.empresa.cidade.upper() == 'SAPUCAIA DO SUL':
+                print("--- SAPUCAIA DO SUL DETECTADA: Executando manobra anti-modal ---")
+                time.sleep(2)
+                driver.refresh()
+                print("Refresh realizado.")
+
+                wait = WebDriverWait(driver, 20)
+
+                try:
+                    print("Clicando no menu 'Emitir Certidões'...")
+                    menu_emitir = wait.until(EC.element_to_be_clickable(
+                        (By.CLASS_NAME, "emitir-certidoes")))
+                    menu_emitir.click()
+                    time.sleep(1)
+
+                    print("Clicando na aba 'CNPJ'...")
+                    aba_cnpj = wait.until(EC.element_to_be_clickable(
+                        (By.XPATH, "//a[contains(text(), 'CNPJ')]")))
+                    aba_cnpj.click()
+                    time.sleep(1)
+                    
+                except Exception as e:
+                    print(f"Erro na navegação de Sapucaia do Sul: {e}")        
 
             elif certidao.empresa.cidade.upper() in ['GRAVATAI', 'GRAVATAÍ']:
                 print("--- GRAVATAÍ DETECTADA ---")
@@ -295,11 +319,54 @@ def baixar_certidao(certidao_id):
 
                     info_site['cnpj_field_id'] = None
 
-                    driver.execute_script(
-                        "alert('Dados preenchidos! Resolva o Captcha final (se houver) e emita a certidão.');")
-
                 except Exception as e:
                     print(f"Erro na navegação de Gravataí: {e}")
+                
+            elif certidao.empresa.cidade.upper() in ['OSORIO', 'OSÓRIO']:
+                print("--- OSORIO DETECTADA ---")
+
+                print(
+                    "Aguardando campo de opção aparecer (Resolva o Captcha se necessário)...")
+
+                try:
+                    select_emissao_el = wait.until(
+                        EC.element_to_be_clickable((By.NAME, "opcaoEmissao")))
+
+                    select_emissao = Select(select_emissao_el)
+                    for option in select_emissao.options:
+                        if "CNPJ" in option.text.upper():
+                            select_emissao.select_by_visible_text(option.text)
+                            print("Opção CNPJ selecionada.")
+                            break
+
+                    time.sleep(1)
+
+                    campo_cnpj = wait.until(
+                        EC.element_to_be_clickable((By.NAME, "cpfCnpj")))
+                    campo_cnpj.clear()
+                    campo_cnpj.send_keys(cnpj_limpo)
+                    print("CNPJ preenchido.")
+
+                    select_finalidade_el = wait.until(EC.element_to_be_clickable(
+                        (By.NAME, "FinalidadeCertidaoDebito.codigo")))
+                    select_finalidade = Select(select_finalidade_el)
+                    for option in select_finalidade.options:
+                        if "CONTRIBUINTE" in option.text.upper():
+                            select_finalidade.select_by_visible_text(
+                                option.text)
+                            print("Finalidade Contribuinte selecionada.")
+                            break
+
+                    time.sleep(1)
+
+                    btn_confirmar = driver.find_element(By.NAME, "confirmar")
+                    btn_confirmar.click()
+                    print("Botão Confirmar clicado.")
+
+                    info_site['cnpj_field_id'] = None
+
+                except Exception as e:
+                    print(f"Erro na navegação de Osorio: {e}")
 
             elif certidao.empresa.cidade.upper() in ['XANGRI-LA', 'XANGRI-LÁ', 'XANGRILA']:
                 print("--- XANGRI-LÁ DETECTADA ---")
@@ -368,6 +435,28 @@ def baixar_certidao(certidao_id):
                         dado_a_preencher = inscricao_limpa if info_site.get(
                             'cnpj_field_id') == 'inscricao' else cnpj_limpo
                         campo1.send_keys(dado_a_preencher)
+                        
+                    cidade_upper = certidao.empresa.cidade.upper()
+                    if cidade_upper in ['CIDREIRA', 'SAPUCAIA DO SUL']:
+                        print(f"Clicando no botão Buscar para {cidade_upper}...")
+                        try:
+                            btn_buscar = wait.until(EC.element_to_be_clickable(
+                                (By.ID, "btn_buscar_cadastros")))
+                            btn_buscar.click()
+                            print("Botão Buscar clicado com sucesso!")
+                            time.sleep(2)
+                        except Exception as e:
+                            print(f"Erro ao clicar no botão Buscar: {e}")
+                    elif cidade_upper == 'CANOAS':
+                        print(f"Clicando em Imprimir para {cidade_upper}...")
+                        try:
+                            btn_imprimir = wait.until(EC.element_to_be_clickable(
+                                (By.NAME, "BUTTONIMPRIMIR")))
+                            btn_imprimir.click()
+                            print("Botão Imprimir clicado com sucesso!")
+                            time.sleep(2)
+                        except Exception as e:
+                            print(f"Erro ao clicar no botão Imprimir: {e}")
                 except:
                     pass
 
@@ -487,8 +576,14 @@ def baixar_certidao(certidao_id):
                     data_calc = date.today() + timedelta(days=30)
                 elif cidade == "CIDREIRA":
                     data_calc = date.today() + timedelta(days=30)
+                elif cidade == "SAPUCAIA DO SUL":
+                    data_calc = date.today() + timedelta(days=120)
                 elif cidade in ['GRAVATAI', 'GRAVATAÍ']:
                     data_calc = date.today() + timedelta(days=91)
+                elif cidade in ['OSORIO', 'OSÓRIO']:
+                    data_calc = date.today() + timedelta(days=90)
+                elif cidade == 'CANOAS':
+                    data_calc = date.today() + timedelta(days=90)
                 elif cidade in ['XANGRI-LA', 'XANGRI-LÁ', 'XANGRILA']:
                     data_calc = date.today() + timedelta(days=30)
                 else:
