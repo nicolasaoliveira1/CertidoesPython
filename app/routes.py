@@ -428,11 +428,15 @@ def baixar_certidao(certidao_id):
                         arquivo_salvo_msg = f"Arquivo salvo em: {msg}"
                         print(arquivo_salvo_msg)
                         try:
+                            janelas_abertas = driver.window_handles
+                            if janelas_abertas:
+                                driver.switch_to.window(janelas_abertas[-1])
+                            
                             caminho_certidao = msg.replace("\\", "\\\\")
                             driver.execute_script(
                                 f"alert('PDF salvo no servidor com sucesso!\\nSalvo em: {caminho_certidao}\\n\\nFeche a janela do Chrome e retorne ao sistema.');")
-                        except:
-                            pass
+                        except Exception as e:
+                            print(f"Erro ao exibir alerta: {e}")
                     else:
                         print(f"Erro ao salvar: {msg}")
 
