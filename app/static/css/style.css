@@ -517,3 +517,57 @@ footer {
         min-width: 100% !important;
     }
 }
+
+.btn-voltar-topo {
+    position: fixed;
+    bottom: 30px;
+    right: 30px;
+    width: 70px;
+    height: 70px;
+    border-radius: 50%;
+    background-color: var(--bs-primary);
+    color: rgb(255, 255, 255);
+    border: none;
+    cursor: pointer;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.5rem;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+    transition: opacity 0.4s ease;
+    z-index: 999;
+    opacity: 0;
+    pointer-events: none;
+}
+
+.btn-voltar-topo:hover {
+    background-color: #0961e6;
+    transform: translateY(-3px);
+    box-shadow: 0 6px 12px rgba(0, 0, 0, 0.3);
+}
+
+.btn-voltar-topo.visible {
+    display: flex;
+    opacity: 1;
+    pointer-events: auto;
+    animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+[data-bs-theme="dark"] .btn-voltar-topo {
+    background-color: #0d6efd;
+}
+
+[data-bs-theme="dark"] .btn-voltar-topo:hover {
+    background-color: #0b5ed7;
+}

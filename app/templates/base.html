@@ -199,6 +199,10 @@
         </div>
     </div>
 
+    <button id="btn-topo" class="btn-voltar-topo" title="Voltar ao topo">  
+        <i class="bi bi-arrow-up"></i>
+    </button>
+    
     <main class="container-fluid mt-4 px-5">
         {% block content %}{% endblock %}
     </main>
@@ -290,6 +294,73 @@
                 });
             });
         });
+
+        // botao voltar topo
+        document.addEventListener('DOMContentLoaded', function() {
+            const btnTopo = document.getElementById('btn-topo');
+            let animacaoRodando = false;
+            let scrollTimeout;
+            let fadeTimeout;
+            let ultimoScrollY = window.scrollY;
+
+            function mostrarBotao() {
+                btnTopo.style.opacity = '1';
+                btnTopo.classList.add('visible');
+            }
+
+            function esconderBotao() {
+                btnTopo.style.opacity = '0';
+                fadeTimeout = setTimeout(() => {
+                    btnTopo.classList.remove('visible');
+                }, 200);
+            }
+
+            window.addEventListener('scroll', function() {
+                const mudancaScroll = Math.abs(window.scrollY - ultimoScrollY);
+                
+                if (animacaoRodando && mudancaScroll > 10) {
+                    animacaoRodando = false;
+                }
+
+                ultimoScrollY = window.scrollY;
+
+                clearTimeout(scrollTimeout);
+                clearTimeout(fadeTimeout);
+                
+                scrollTimeout = setTimeout(function() {
+                    if (window.scrollY > 300) {
+                        mostrarBotao();
+                    } else {
+                        esconderBotao();
+                    }
+                }, 50);
+            });
+
+            btnTopo.addEventListener('click', function(e) {
+                e.preventDefault();
+                animacaoRodando = true;
+                
+                const scrollToTop = () => {
+                    if (!animacaoRodando) {
+                        return;
+                    }
+
+                    const scrollTop = window.scrollY;
+                    
+                    if (scrollTop <= 1) {
+                        window.scrollBy(0, -scrollTop);
+                        animacaoRodando = false;
+                        return;
+                    }
+                    
+                    window.scrollBy(0, -scrollTop / 6);
+                    ultimoScrollY = window.scrollY;
+                    requestAnimationFrame(scrollToTop);
+                };
+                scrollToTop();
+            });
+        });
+
     </script>
 
     <footer class="bg-body-secondary border-top mt-auto py-2">
