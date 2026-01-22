@@ -3,7 +3,6 @@
     border: 1px solid rgba(255, 255, 255, 0.2);
 }
 
-/* Layout com flexbox para footer ficar no rodapé */
 html, body {
     height: 100%;
 }
@@ -21,15 +20,18 @@ footer {
     flex-shrink: 0;
 }
 
-/* Logos responsivas da navbar */
+
+   /* NAVBAR E LOGOS */
+
+
 .logo-full {
     display: block !important;
 }
+
 .logo-compact {
     display: none !important;
 }
 
-/* Em zoom alto (900px ou menos) / telas menores, mostra logo compacta */
 @media (max-width: 900px) {
     .logo-full {
         display: none !important;
@@ -39,7 +41,6 @@ footer {
     }
 }
 
-/* Tamanho da logo compacta responsivo */
 .logo-navbar-compact {
     max-width: 50px;
     width: 100%;
@@ -48,10 +49,10 @@ footer {
     display: none !important;
 }
 
-/* Mostrar logo compacta baseado no tema */
 [data-bs-theme="light"] .logo-navbar-compact.logo-light {
     display: inline-block !important;
 }
+
 [data-bs-theme="dark"] .logo-navbar-compact.logo-dark {
     display: inline-block !important;
 }
@@ -62,191 +63,43 @@ footer {
     }
 }
 
-/* =========================================
-   AJUSTES DO DARK MODE (Certidões)
-   ========================================= */
-
-/* 1. REGRA GERAL: Força TODAS as bordas a serem cinza uniforme */
-[data-bs-theme="dark"] .table-bordered,
-[data-bs-theme="dark"] .table-bordered > :not(caption) > * > * {
-    border-color: #495057 !important; /* Cor de borda padrão suave */
-    border-width: 1px !important;     /* Garante espessura uniforme */
-}
-
-/* 2. Reseta o fundo da LINHA inteira para transparente */
-[data-bs-theme="dark"] tr[class*="status-"] > td,
-[data-bs-theme="dark"] tr[class*="status-"] > th {
-    background-color: transparent !important; 
-    color: var(--bs-body-color) !important;
-}
-
-/* 3. Aplica cor APENAS nas células de "Data" e "Tipo" (SEM mexer na borda) */
-
-/* --- VERDE (Válidas) --- */
-[data-bs-theme="dark"] tr.status-verde > td:nth-last-child(2), 
-[data-bs-theme="dark"] tr.status-verde > td:nth-last-child(3)  
-{
-    background-color: #147945 !important; 
-    color: #a3cfbb !important; 
-}
-
-/* --- VERMELHO (Vencidas/Pendentes) --- */
-[data-bs-theme="dark"] tr.status-vermelho > td:nth-last-child(2),
-[data-bs-theme="dark"] tr.status-vermelho > td:nth-last-child(3)
-{
-    background-color: #7e1e26 !important;
-    color: #ea868f !important; 
-}
-
-/* --- AMARELO (A Vencer) --- */
-[data-bs-theme="dark"] tr.status-amarelo > td:nth-last-child(2),
-[data-bs-theme="dark"] tr.status-amarelo > td:nth-last-child(3)
-{
-    background-color: #a3831b !important;
-    color: #ffe69c !important; 
-}
-
-/* --- CINZA (Sem Data) --- */
-[data-bs-theme="dark"] tr.status-cinza > td:nth-last-child(2),
-[data-bs-theme="dark"] tr.status-cinza > td:nth-last-child(3)
-{
-    background-color: #343a40 !important; /* Cinza um pouco mais escuro que a borda */
-    color: #adb5bd !important; 
-}
-
-/* 4. Garante que células com rowspan (Empresa/CNPJ) tenham fundo neutro */
-[data-bs-theme="dark"] .table td[rowspan] {
-    background-color: var(--bs-table-bg) !important;
-}
-
-/* =========================================
-   CONTROLE DA LOGO (Zero Delay)
-   ========================================= */
-
-/* Por padrão, escondemos ambas para evitar layout shift inicial */
 .logo-light, .logo-dark {
     display: none !important;
 }
 
-/* Se o tema for LIGHT -> Mostra a logo clara (preta) */
 [data-bs-theme="light"] .logo-light {
     display: inline-block !important;
 }
 
-/* Se o tema for DARK -> Mostra a logo escura (branca) */
 [data-bs-theme="dark"] .logo-dark {
     display: inline-block !important;
 }
 
-/* Responsividade para a logo do navbar */
 .logo-navbar {
     max-width: 190px;
     width: 100%;
     height: auto;
     transition: max-width 0.2s;
 }
+
 @media (max-width: 1200px) {
     .logo-navbar {
         max-width: 140px;
     }
 }
+
 @media (max-width: 900px) {
     .logo-navbar {
         max-width: 100px;
     }
 }
+
 @media (max-width: 600px) {
     .logo-navbar {
         max-width: 90px;
     }
 }
 
-/* =========================================
-   RESPONSIVIDADE (ZOOM E MOBILE)
-   ========================================= */
-
-/* Centraliza os botões de ação da tabela */
-.table td.d-flex {
-    padding-left: 0.5rem !important;
-    padding-right: 0.5rem !important;
-    gap: 0.5rem;
-}
-
-/* Ajustes para telas menores que 1200px (Notebooks comuns ou Zoom 110%+) */
-@media (max-width: 1200px) {
-    .table td, .table th {
-        font-size: 0.9rem; /* Diminui um pouco a fonte */
-        padding: 0.4rem !important; /* Diminui o "ar" dentro das células */
-    }
-    
-    .btn-sm {
-        font-size: 0.75rem; /* Botões menores */
-        padding: 0.2rem 0.4rem;
-    }
-    
-    /* Reduz padding da coluna de ações em zoom maior */
-    .table td.d-flex {
-        padding-left: 0.3rem !important;
-        padding-right: 0.3rem !important;
-        gap: 0.3rem;
-    }
-}
-
-/* Ajustes para telas menores que 768px (Tablets ou Zoom 150%+) */
-@media (max-width: 768px) {
-    /* A tabela permite rolagem horizontal sem quebrar o layout */
-    .table-responsive {
-        overflow-x: auto;
-        -webkit-overflow-scrolling: touch;
-    }
-
-    /* Garante que o nome da empresa quebre linha se for longo */
-    .table td {
-        white-space: normal !important; 
-        min-width: 100px; /* Garante um tamanho mínimo para colunas não sumirem */
-    }
-
-    /* Botões de ação empilhados em telas muito pequenas para economizar largura */
-    .table td .d-flex {
-        flex-direction: column;
-        gap: 5px;
-    }
-    
-    .table td .btn {
-        width: 100%; /* Botão ocupa largura total da célula */
-        margin-right: 0 !important;
-    }
-}
-
-/* Faz os botões de filtro (Checkboxes) se ajustarem melhor */
-.btn-group {
-    flex-wrap: wrap; /* Se não couber na linha, desce para a próxima */
-}
-
-.btn-group .btn {
-    flex: 1 1 auto; /* Faz os botões crescerem e diminuírem juntos */
-    min-width: 80px; /* Tamanho mínimo para não ficar ilegível */
-    margin-bottom: 0;
-}
-
-/* No mobile/zoom alto, dá um espaço entre os filtros de cima e de baixo */
-@media (max-width: 768px) {
-    .btn-group {
-        margin-top: 10px;
-        width: 100%;
-    }
-    
-    #filtro-form .d-flex {
-        flex-direction: column; /* Empilha o grupo de botões e o botão Filtrar */
-    }
-    
-    #filtro-form button[type="submit"] {
-        width: 100%;
-        margin-top: 10px;
-    }
-}
-
-/* Título da navbar responsivo e harmonizado com a logo */
 .nav-title {
     font-size: 1.6rem;
     font-weight: 600;
@@ -256,18 +109,21 @@ footer {
     white-space: nowrap;
     transition: font-size 0.2s, margin 0.2s;
 }
+
 @media (max-width: 1200px) {
     .nav-title {
         font-size: 1.0rem;
         margin-right: 1rem;
     }
 }
+
 @media (max-width: 900px) {
     .nav-title {
         font-size: 1rem;
         margin-right: 0.7rem;
     }
 }
+
 @media (max-width: 600px) {
     .nav-title {
         font-size: 0.75rem;
@@ -280,18 +136,21 @@ footer {
     height: 24px;
     transition: width 0.2s, height 0.2s;
 }
+
 @media (max-width: 1200px) {
     .theme-toggle-svg {
         width: 20px;
         height: 20px;
     }
 }
+
 @media (max-width: 900px) {
     .theme-toggle-svg {
         width: 16px;
         height: 16px;
     }
 }
+
 @media (max-width: 600px) {
     .theme-toggle-svg {
         width: 13px;
@@ -305,15 +164,15 @@ footer {
     padding: 0;
     transition: width 0.2s, height 0.2s;
     border: 0px;
-
 }
+
 .menu-button .menu-icon {
     width: 28px;
     height: 28px;
     transition: width 0.2s, height 0.2s;
     margin-top: 3.8px;
-
 }
+
 @media (max-width: 1200px) {
     .menu-button {
         width: 32px;
@@ -326,6 +185,7 @@ footer {
         margin-bottom: 0px;
     }
 }
+
 @media (max-width: 900px) {
     .menu-button {
         width: 22px;
@@ -335,7 +195,6 @@ footer {
         width: 16px;
         height: 16px;
         margin-bottom: 3.2px;
-
     }
 }
 
@@ -357,49 +216,156 @@ footer {
     box-shadow: none !important;
 }
 
-/* AJUSTES DARK MODE PARA OS CARDS */
+/* dark mode */
+
+[data-bs-theme="dark"] .table-bordered,
+[data-bs-theme="dark"] .table-bordered > :not(caption) > * > * {
+    border-color: #495057 !important;
+    border-width: 1px !important;
+}
+
+[data-bs-theme="dark"] tr[class*="status-"] > td,
+[data-bs-theme="dark"] tr[class*="status-"] > th {
+    background-color: transparent !important;
+    color: var(--bs-body-color) !important;
+}
+
+[data-bs-theme="dark"] tr.status-verde > td:nth-last-child(2),
+[data-bs-theme="dark"] tr.status-verde > td:nth-last-child(3) {
+    background-color: #147945 !important;
+    color: #a3cfbb !important;
+}
+
+[data-bs-theme="dark"] tr.status-vermelho > td:nth-last-child(2),
+[data-bs-theme="dark"] tr.status-vermelho > td:nth-last-child(3) {
+    background-color: #7e1e26 !important;
+    color: #ea868f !important;
+}
+
+[data-bs-theme="dark"] tr.status-amarelo > td:nth-last-child(2),
+[data-bs-theme="dark"] tr.status-amarelo > td:nth-last-child(3) {
+    background-color: #a3831b !important;
+    color: #ffe69c !important;
+}
+
+[data-bs-theme="dark"] tr.status-cinza > td:nth-last-child(2),
+[data-bs-theme="dark"] tr.status-cinza > td:nth-last-child(3) {
+    background-color: #343a40 !important;
+    color: #adb5bd !important;
+}
+
+[data-bs-theme="dark"] .table td[rowspan] {
+    background-color: var(--bs-table-bg) !important;
+}
+
 [data-bs-theme="dark"] .card {
-    background-color: #212529 !important; /* Fundo escuro do card */
+    background-color: #212529 !important;
     border: 1px solid #373b3e !important;
 }
 
 [data-bs-theme="dark"] .card-header {
-    background-color: #2c3034 !important; /* Header um pouco mais claro */
+    background-color: #2c3034 !important;
     border-bottom-color: #373b3e !important;
     color: #e0e0e0 !important;
 }
 
 [data-bs-theme="dark"] .card-header .text-dark {
-    color: #fff !important; /* Força título branco */
+    color: #fff !important;
 }
 
-/* Ajuste dos inputs de busca no dark mode */
 [data-bs-theme="dark"] .input-group-text {
     background-color: #2c3034 !important;
     border-color: #373b3e !important;
     color: #adb5bd !important;
 }
+
 [data-bs-theme="dark"] .form-control {
     background-color: #212529;
     border-color: #373b3e;
     color: #fff;
 }
 
-/* Transforma o fundo cinza claro padrão em um fundo escuro sutil */
 [data-bs-theme="dark"] .table-light {
-    background-color: #2c3034 !important; /* Cinza um pouco mais claro que o fundo do card */
-    color: #adb5bd !important;            /* Texto cinza claro para bom contraste */
-    border-color: #373b3e !important;     /* Borda sutil */
+    background-color: #2c3034 !important;
+    color: #adb5bd !important;
+    border-color: #373b3e !important;
 }
 
-/* Garante que as células do cabeçalho herdem a cor de fundo correta */
 [data-bs-theme="dark"] .table-light th {
     background-color: #292d30 !important;
     color: #b6bec6 !important;
     border-bottom: 1px solid #373b3e !important;
 }
 
-/* Estilo Base da Pílula */
+/* tabelas responsividade */
+
+.table td.d-flex {
+    padding-left: 0.5rem !important;
+    padding-right: 0.5rem !important;
+    gap: 0.5rem;
+}
+
+@media (max-width: 1200px) {
+    .table td, .table th {
+        font-size: 0.9rem;
+        padding: 0.4rem !important;
+    }
+    .btn-sm {
+        font-size: 0.75rem;
+        padding: 0.2rem 0.4rem;
+    }
+    .table td.d-flex {
+        padding-left: 0.3rem !important;
+        padding-right: 0.3rem !important;
+        gap: 0.3rem;
+    }
+}
+
+@media (max-width: 768px) {
+    .table-responsive {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+    .table td {
+        white-space: normal !important;
+        min-width: 100px;
+    }
+    .table td .d-flex {
+        flex-direction: column;
+        gap: 5px;
+    }
+    .table td .btn {
+        width: 100%;
+        margin-right: 0 !important;
+    }
+}
+
+/* filtros chips */
+
+.btn-group {
+    flex-wrap: wrap;
+}
+
+.btn-group .btn {
+    flex: 1 1 auto;
+    min-width: 80px;
+    margin-bottom: 0;
+}
+
+@media (max-width: 768px) {
+    .btn-group {
+        margin-top: 10px;
+        width: 100%;
+    }
+    #filtro-form .d-flex {
+        flex-direction: column;
+    }
+    #filtro-form button[type="submit"] {
+        width: 100%;
+        margin-top: 10px;
+    }
+}
+
 .filter-chip {
     display: inline-flex;
     align-items: center;
@@ -407,62 +373,52 @@ footer {
     padding: 0.5rem 1rem;
     font-size: 0.9rem;
     font-weight: 600;
-    border-radius: 50px; /* Pílula redonda */
+    border-radius: 50px;
     border: 1px solid transparent;
     cursor: pointer;
     transition: all 0.2s ease-in-out;
-    background-color: #f8f9fa; /* Fundo padrão claro */
-    color: #6c757d; /* Texto padrão cinza */
+    background-color: #f8f9fa;
+    color: #6c757d;
     user-select: none;
 }
-/* Hover Suave - MAS NÃO EM FILTROS SELECIONADOS */
+
 .filter-chip:hover {
     transform: translateY(-1px);
     background-color: #e9ecef;
 }
 
-/* Quando o filtro está checked, o hover não muda */
 .btn-check:checked + .filter-chip:hover {
     transform: translateY(-1px);
 }
 
-/* Ícones levemente maiores */
 .filter-chip i {
     font-size: 1rem;
 }
 
-/* --- VARIAÇÕES DE CORES (QUANDO ATIVO) --- */
-
-/* 1. TODAS (Cinza Escuro) */
 .btn-check:checked + .chip-gray {
     background-color: #343a40 !important;
     color: #fff;
     box-shadow: 0 4px 10px rgba(52, 58, 64, 0.3);
 }
 
-/* 2. VÁLIDAS (Verde) */
 .btn-check:checked + .chip-green {
     background-color: #198754 !important;
     color: #fff;
     box-shadow: 0 4px 10px rgba(25, 135, 84, 0.3);
 }
 
-/* 3. A VENCER (Amarelo/Laranja) */
 .btn-check:checked + .chip-yellow {
     background-color: #ffc107 !important;
-    color: #000; /* Texto preto para contraste */
+    color: #000;
     box-shadow: 0 4px 10px rgba(255, 193, 7, 0.3);
 }
 
-/* 4. VENCIDAS (Vermelho) */
 .btn-check:checked + .chip-red {
     background-color: #dc3545 !important;
     color: #fff;
     box-shadow: 0 4px 10px rgba(220, 53, 69, 0.3);
 }
 
-/* 5. PENDENTES (Borda Vermelha / Fundo Claro) */
-/* Opção diferenciada para não confundir com vencidas */
 .btn-check:checked + .chip-red-outline {
     background-color: #fff !important;
     border-color: #dc3545;
@@ -470,47 +426,41 @@ footer {
     box-shadow: 0 4px 10px rgba(220, 53, 69, 0.15);
 }
 
-/* 6. NÃO DEFINIDA (Azul-Cinza) */
 .btn-check:checked + .chip-nao-definida {
     background-color: #5a7f9d !important;
     color: #fff;
     box-shadow: 0 4px 10px rgba(90, 127, 157, 0.3);
 }
 
-/* --- AJUSTES DARK MODE --- */
 [data-bs-theme="dark"] .filter-chip {
     background-color: #2b3035;
     color: #adb5bd;
 }
+
 [data-bs-theme="dark"] .filter-chip:hover {
     background-color: #343a40;
 }
-/* Quando selecionado no dark mode, hover mantém a cor com opacidade */
+
 [data-bs-theme="dark"] .btn-check:checked + .filter-chip:hover {
     transform: translateY(-1px);
 }
 
-/* Destaque para "Todas" no dark mode quando selecionado */
 [data-bs-theme="dark"] .btn-check:checked + .chip-gray {
     background-color: #495057 !important;
 }
-/* No dark mode, o "Pendentes" precisa de ajuste */
+
 [data-bs-theme="dark"] .btn-check:checked + .chip-red-outline {
     background-color: #fff !important;
     border-color: #dc3545;
     color: #dc3545;
 }
 
-/* =========================================
-   RESPONSIVIDADE PARA FILTROS (ZOOM ALTO)
-   ========================================= */
-
-/* Remove borda/outline do input ao clicar */
 #filtroEmpresa:focus {
     outline: none;
     box-shadow: none;
     border-color: inherit;
-}/* Em zoom/telas pequenas (900px ou menos), filtros ficam full-width e empilhados */
+}
+
 @media (max-width: 900px) {
     .filter-container > div {
         flex: 1 1 100% !important;
@@ -518,39 +468,39 @@ footer {
     }
 }
 
+
 .btn-voltar-topo {
     position: fixed;
     bottom: 30px;
     right: 30px;
-    width: 70px;
-    height: 70px;
+    width: 60px;
+    height: 60px;
     border-radius: 50%;
     background-color: var(--bs-primary);
-    color: rgb(255, 255, 255);
+    color: white;
     border: none;
     cursor: pointer;
-    display: none;
+    display: flex;
     align-items: center;
     justify-content: center;
     font-size: 1.5rem;
     box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
-    transition: opacity 0.4s ease;
+    transition: opacity 0.4s ease, width 0.3s ease, height 0.3s ease, bottom 0.3s ease, right 0.3s ease, font-size 0.3s ease;
     z-index: 999;
     opacity: 0;
     pointer-events: none;
 }
 
 .btn-voltar-topo:hover {
-    background-color: #0961e6;
+    background-color: #0b5ed7;
     transform: translateY(-3px);
     box-shadow: 0 6px 12px rgba(0, 0, 0, 0.3);
 }
 
 .btn-voltar-topo.visible {
-    display: flex;
     opacity: 1;
     pointer-events: auto;
-    animation: fadeIn 0.3s ease;
+    animation: fadeIn 0.4s ease-in;
 }
 
 @keyframes fadeIn {
@@ -569,5 +519,46 @@ footer {
 }
 
 [data-bs-theme="dark"] .btn-voltar-topo:hover {
-    background-color: #0b5ed7;
+    background-color: #0a58ca;
+}
+
+
+@media (min-width: 1200px) {
+    .btn-voltar-topo {
+        width: 72px;
+        height: 72px;
+        bottom: 30px;
+        right: 30px;
+        font-size: 1.75rem;
+    }
+}
+
+@media (min-width: 768px) and (max-width: 1199px) {
+    .btn-voltar-topo {
+        width: 55px;
+        height: 55px;
+        bottom: 23px;
+        right: 23px;
+        font-size: 1.2rem;
+    }
+}
+
+@media (min-width: 576px) and (max-width: 767px) {
+    .btn-voltar-topo {
+        width: 40px;
+        height: 40px;
+        bottom: 18px;
+        right: 18px;
+        font-size: 0.9rem;
+    }
+}
+
+@media (max-width: 575px) {
+    .btn-voltar-topo {
+        width: 25px;
+        height: 25px;
+        bottom: 10px;
+        right: 10px;
+        font-size: 0.65rem;
+    }
 }
