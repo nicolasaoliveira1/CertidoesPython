@@ -229,8 +229,8 @@ def baixar_certidao(certidao_id):
         driver.get(info_site.get('url'))
 
         if tipo_certidao_chave == 'MUNICIPAL':
-            if certidao.empresa.cidade.upper() == 'CIDREIRA':
-                print("--- CIDREIRA DETECTADA: Executando manobra anti-modal ---")
+            if certidao.empresa.cidade.upper() in ['CIDREIRA', 'SAPUCAIA DO SUL']:
+                print(f"--- {certidao.empresa.cidade.upper()} DETECTADA: Executando manobra anti-modal ---")
                 time.sleep(2)
                 driver.refresh()
                 print("Refresh realizado.")
@@ -250,31 +250,7 @@ def baixar_certidao(certidao_id):
                     aba_cnpj.click()
                     time.sleep(1)            
                 except Exception as e:
-                    print(f"Erro na navegação de Cidreira: {e}")
-            
-            if certidao.empresa.cidade.upper() == 'SAPUCAIA DO SUL':
-                print("--- SAPUCAIA DO SUL DETECTADA: Executando manobra anti-modal ---")
-                time.sleep(2)
-                driver.refresh()
-                print("Refresh realizado.")
-
-                wait = WebDriverWait(driver, 20)
-
-                try:
-                    print("Clicando no menu 'Emitir Certidões'...")
-                    menu_emitir = wait.until(EC.element_to_be_clickable(
-                        (By.CLASS_NAME, "emitir-certidoes")))
-                    menu_emitir.click()
-                    time.sleep(1)
-
-                    print("Clicando na aba 'CNPJ'...")
-                    aba_cnpj = wait.until(EC.element_to_be_clickable(
-                        (By.XPATH, "//a[contains(text(), 'CNPJ')]")))
-                    aba_cnpj.click()
-                    time.sleep(1)
-                    
-                except Exception as e:
-                    print(f"Erro na navegação de Sapucaia do Sul: {e}")        
+                    print(f"Erro na navegação de {certidao.empresa.cidade.upper()}: {e}")
 
             elif certidao.empresa.cidade.upper() in ['GRAVATAI', 'GRAVATAÍ']:
                 print("--- GRAVATAÍ DETECTADA ---")
