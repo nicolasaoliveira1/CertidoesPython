@@ -1,10 +1,14 @@
 import os
 import time
+import string
+import random
+import base64
 from datetime import date, datetime, timedelta
 
 from flask import (Blueprint, flash, jsonify, redirect, render_template,
                    request, url_for)
 from selenium import webdriver
+from selenium.common.exceptions import NoAlertPresentException, TimeoutException
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.chrome.service import Service as ChromeService
 from selenium.webdriver.common.by import By
@@ -212,6 +216,7 @@ def baixar_certidao(certidao_id):
     driver = None
     data_encontrada = None
     arquivo_salvo_msg = None
+    pular_monitoramento = False
 
     tempo_inicio = time.time()
 
@@ -221,9 +226,9 @@ def baixar_certidao(certidao_id):
         chrome_options = Options()
         chrome_options.add_argument("--incognito")
         chrome_options.add_argument("--start-maximized")
-
         driver = webdriver.Chrome(service=ChromeService(
             ChromeDriverManager().install()), options=chrome_options)
+        
         wait = WebDriverWait(driver, 20)
         print(f"1. Acessando a URL: {info_site.get('url')}")
         driver.get(info_site.get('url'))
@@ -411,28 +416,180 @@ def baixar_certidao(certidao_id):
                         dado_a_preencher = inscricao_limpa if info_site.get(
                             'cnpj_field_id') == 'inscricao' else cnpj_limpo
                         campo1.send_keys(dado_a_preencher)
-                        
-                    cidade_upper = certidao.empresa.cidade.upper()
-                    if cidade_upper in ['CIDREIRA', 'SAPUCAIA DO SUL']:
-                        print(f"Clicando no botão Buscar para {cidade_upper}...")
+                    
+                    if tipo_certidao_chave == 'FGTS':
                         try:
-                            btn_buscar = wait.until(EC.element_to_be_clickable(
-                                (By.ID, "btn_buscar_cadastros")))
-                            btn_buscar.click()
-                            print("Botão Buscar clicado com sucesso!")
-                            time.sleep(2)
+                            btn_consultar = wait.until(EC.element_to_be_clickable(
+                                (By.ID, "mainForm:btnConsultar")))
+                            print("clicando em Consultar")
+                            btn_consultar.click()
+                            time.sleep(1)
+                            
+                            btn_certificado = wait.until(EC.element_to_be_clickable(
+                                (By.ID, "mainForm:j_id51")))
+                            print("clicando em Certificado")
+                            btn_certificado.click()
+                            time.sleep(1)
+                            
+                            if not data_encontrada:
+                                try:
+                                    elemento = driver.find_element(
+                                        By.XPATH, "//p[contains(., 'Validade:')]")
+                                    texto = elemento.text
+                                    if " a " in texto:
+                                        parte_data = texto.split(" a ")[-1].strip()[:10]
+                                        data_encontrada = datetime.strptime(
+                                            parte_data, '%d/%m/%Y').date()
+                                except Exception as e:
+                                    print(f"erro ao encontrar data fgts: {e}")
+                            
+                            btn_visualizar = wait.until(EC.element_to_be_clickable(
+                                (By.ID, "mainForm:btnVisualizar")))
+                            print("clicando em Visualizar")
+                            btn_visualizar.click()
+                            time.sleep(1)
+
+                            #gerar pdf automaticamente com CDP - novo
+                            def _gerar_nome_pdf_aleatorio(tamanho: int = 10) -> str:
+                                return ''.join(random.choices(string.ascii_letters + string.digits, k=tamanho))
+
+                            def _caminho_pdf_downloads_unico() -> str:
+                                pasta_downloads = os.path.join(os.path.expanduser("~"), "Downloads")
+                                for _ in range(50):
+                                    nome = f"{_gerar_nome_pdf_aleatorio(10)}.pdf"
+                                    caminho = os.path.join(pasta_downloads, nome)
+                                    if not os.path.exists(caminho):
+                                        return caminho
+                                return os.path.join(pasta_downloads, f"{int(time.time())}_{_gerar_nome_pdf_aleatorio(6)}.pdf")
+
+                            def _aguardar_pagina_certidao_fgts():
+                                try:
+                                    WebDriverWait(driver, 20).until(
+                                        lambda d: (
+                                            d.execute_script("return document.readyState") == "complete"
+                                            and (
+                                                len(d.find_elements(By.XPATH, "//button[contains(., 'Imprimir')] | //input[@value='Imprimir']")) > 0
+                                                or "CERTIFICADO" in (d.page_source or "").upper()
+                                            )
+                                        )
+                                    )
+                                except Exception as _e:
+                                    print(f"[FGTS] aviso: não confimou âncora da página: {_e}")
+
+                            def _gerar_pdf_da_pagina() -> str:
+                                try:
+                                    try:
+                                        driver.execute_cdp_cmd('Page.enable', {})
+                                    except Exception:
+                                        pass
+
+                                    result = driver.execute_cdp_cmd('Page.printToPDF', {
+                                        'printBackground': True,
+                                        'preferCSSPageSize': True
+                                    })
+                                    data = (result or {}).get('data')
+                                    if data:
+                                        return data
+                                except Exception as e_cdp:
+                                    print(f"[FGTS] CDP printToPDF falhou, tentando print_page: {e_cdp}")
+
+                                return driver.print_page()
+
+                            try:
+                                _aguardar_pagina_certidao_fgts()
+
+                                pdf_b64 = _gerar_pdf_da_pagina()
+                                if not pdf_b64:
+                                    raise ValueError("PDF base64 vazio")
+
+                                caminho_pdf = _caminho_pdf_downloads_unico()
+                                with open(caminho_pdf, 'wb') as f:
+                                    f.write(base64.b64decode(pdf_b64))
+
+                                print(f"[FGTS] PDF gerado em Downloads: {caminho_pdf}")
+
+                                sucesso, msg = file_manager.mover_e_renomear(
+                                    caminho_pdf,
+                                    certidao.empresa.nome,
+                                    certidao.tipo.value
+                                )
+
+                                if sucesso:
+                                    arquivo_salvo_msg = f"Arquivo salvo em: {msg}"
+                                    pular_monitoramento = True
+                                    print(arquivo_salvo_msg)
+
+                                    try:
+                                        janelas_abertas = driver.window_handles
+                                        if janelas_abertas:
+                                            driver.switch_to.window(janelas_abertas[-1])
+
+                                        caminho_certidao = msg.replace("\\", "\\\\")
+
+                                        mensagem_alerta = (
+                                            "PDF salvo no servidor com sucesso!\n"
+                                            f"Salvo em: {caminho_certidao}\n\n"
+                                            "Após fechar este alerta, a janela do Chrome será fechada automaticamente."
+                                        )
+
+                                        # Dispara o alert de forma assíncrona e espera o usuário fechar (OK)
+                                        driver.execute_script(
+                                            "var msg = arguments[0]; setTimeout(function(){ alert(msg); }, 50);",
+                                            mensagem_alerta
+                                        )
+
+                                        try:
+                                            WebDriverWait(driver, 10).until(EC.alert_is_present())
+                                        except TimeoutException:
+                                            print("[FGTS] Aviso: alerta não apareceu; seguindo para fechar Chrome.")
+                                        else:
+                                            def _alert_fechado(_d):
+                                                try:
+                                                    _d.switch_to.alert
+                                                    return False
+                                                except NoAlertPresentException:
+                                                    return True
+
+                                            try:
+                                                WebDriverWait(driver, 600).until(_alert_fechado)
+                                            except TimeoutException:
+                                                print("[FGTS] Aviso: timeout esperando usuário fechar o alerta.")
+
+                                        time.sleep(1)
+                                        try:
+                                            driver.quit()
+                                        except Exception as e_quit:
+                                            print(f"[FGTS] Aviso: erro ao fechar Chrome: {e_quit}")
+                                    except Exception as e_alert:
+                                        print(f"[FGTS] Erro ao exibir alerta/fechar Chrome: {e_alert}")
+                            except Exception as e_pdf:
+                                print(f"[FGTS] Erro ao gerar PDF automaticamente: {e_pdf}")
+                            
                         except Exception as e:
-                            print(f"Erro ao clicar no botão Buscar: {e}")
-                    elif cidade_upper == 'CANOAS':
-                        print(f"Clicando em Imprimir para {cidade_upper}...")
-                        try:
-                            btn_imprimir = wait.until(EC.element_to_be_clickable(
-                                (By.NAME, "BUTTONIMPRIMIR")))
-                            btn_imprimir.click()
-                            print("Botão Imprimir clicado com sucesso!")
-                            time.sleep(2)
-                        except Exception as e:
-                            print(f"Erro ao clicar no botão Imprimir: {e}")
+                            print(f"erro automação emissao FGTS: {e}")
+
+                    if tipo_certidao_chave == 'MUNICIPAL':   
+                        cidade_upper = certidao.empresa.cidade.upper()
+                        if cidade_upper in ['CIDREIRA', 'SAPUCAIA DO SUL']:
+                            print(f"Clicando no botão Buscar para {cidade_upper}...")
+                            try:
+                                btn_buscar = wait.until(EC.element_to_be_clickable(
+                                    (By.ID, "btn_buscar_cadastros")))
+                                btn_buscar.click()
+                                print("Botão Buscar clicado com sucesso!")
+                                time.sleep(2)
+                            except Exception as e:
+                                print(f"Erro ao clicar no botão Buscar: {e}")
+                        elif cidade_upper == 'CANOAS':
+                            print(f"Clicando em Imprimir para {cidade_upper}...")
+                            try:
+                                btn_imprimir = wait.until(EC.element_to_be_clickable(
+                                    (By.NAME, "BUTTONIMPRIMIR")))
+                                btn_imprimir.click()
+                                print("Botão Imprimir clicado com sucesso!")
+                                time.sleep(2)
+                            except Exception as e:
+                                print(f"Erro ao clicar no botão Imprimir: {e}")
                 except:
                     pass
 
@@ -450,62 +607,83 @@ def baixar_certidao(certidao_id):
                 except:
                     pass
 
-        print("--- AGUARDANDO DOWNLOAD OU FECHAMENTO ---")
+        if not pular_monitoramento:
+            print("--- AGUARDANDO DOWNLOAD OU FECHAMENTO ---")
 
-        download_detectado = False
+            download_detectado = False
 
-        while True:
-            try:
-                driver.window_handles
-            except:
-                print("Janela fechada pelo usuário.")
-                break
-
-            if tipo_certidao_chave == 'FGTS' and not data_encontrada:
+            while True:
                 try:
-                    elemento = driver.find_element(
-                        By.XPATH, "//p[contains(., 'Validade:')]")
-                    texto = elemento.text
-                    if " a " in texto:
-                        parte_data = texto.split(" a ")[-1].strip()[:10]
-                        data_encontrada = datetime.strptime(
-                            parte_data, '%d/%m/%Y').date()
-                        driver.execute_script(
-                            f"alert('Data lida: {data_encontrada.strftime('%d/%m/%Y')}\\nAgora faça o download do PDF.');")
+                    driver.window_handles
                 except:
-                    pass
+                    print("Janela fechada pelo usuário.")
+                    break
 
-            if not download_detectado:
-                novo_arquivo = file_manager.verificar_novo_arquivo(
-                    tempo_inicio)
+                if not download_detectado:
+                    novo_arquivo = file_manager.verificar_novo_arquivo(
+                        tempo_inicio)
+                    
+                    if novo_arquivo:
+                        print(f"Novo arquivo detectado: {novo_arquivo}")
+                        download_detectado = True
+                        sucesso, msg = file_manager.mover_e_renomear(
+                            novo_arquivo,
+                            certidao.empresa.nome,
+                            certidao.tipo.value
+                        )
 
-                if novo_arquivo:
-                    print(f"Novo arquivo detectado: {novo_arquivo}")
-                    download_detectado = True
+                        if sucesso:
+                            arquivo_salvo_msg = f"Arquivo salvo em: {msg}"
+                            print(arquivo_salvo_msg)
+                            try:
+                                janelas_abertas = driver.window_handles
+                                if janelas_abertas:
+                                    driver.switch_to.window(janelas_abertas[-1])
+                                
+                                caminho_certidao = msg.replace("\\", "\\\\")
+                                mensagem_alerta = (
+                                    "PDF salvo no servidor com sucesso!\n"
+                                    f"Salvo em: {caminho_certidao}\n\n"
+                                    "Após fechar este alerta, a janela do Chrome será fechada automaticamente."
+                                )
 
-                    sucesso, msg = file_manager.mover_e_renomear(
-                        novo_arquivo,
-                        certidao.empresa.nome,
-                        certidao.tipo.value
-                    )
+                                driver.execute_script(
+                                    "var msg = arguments[0]; setTimeout(function(){ alert(msg); }, 50);",
+                                    mensagem_alerta
+                                )
 
-                    if sucesso:
-                        arquivo_salvo_msg = f"Arquivo salvo em: {msg}"
-                        print(arquivo_salvo_msg)
-                        try:
-                            janelas_abertas = driver.window_handles
-                            if janelas_abertas:
-                                driver.switch_to.window(janelas_abertas[-1])
-                            
-                            caminho_certidao = msg.replace("\\", "\\\\")
-                            driver.execute_script(
-                                f"alert('PDF salvo no servidor com sucesso!\\nSalvo em: {caminho_certidao}\\n\\nFeche a janela do Chrome e retorne ao sistema.');")
-                        except Exception as e:
-                            print(f"Erro ao exibir alerta: {e}")
-                    else:
-                        print(f"Erro ao salvar: {msg}")
+                                try:
+                                    WebDriverWait(driver, 10).until(EC.alert_is_present())
+                                except TimeoutException:
+                                    print("Aviso: alerta não apareceu; seguindo para fechar Chrome.")
+                                else:
+                                    def _alert_fechado(_d):
+                                        try:
+                                            _d.switch_to.alert
+                                            return False
+                                        except NoAlertPresentException:
+                                            return True
 
-            time.sleep(1)
+                                    try:
+                                        WebDriverWait(driver, 600).until(_alert_fechado)
+                                    except TimeoutException:
+                                        print("Aviso: timeout esperando usuário fechar o alerta.")
+
+                                time.sleep(1)
+                                try:
+                                    driver.quit()
+                                except Exception as e_quit:
+                                    print(f"Aviso: erro ao fechar Chrome: {e_quit}")
+
+                                break
+                            except Exception as e:
+                                print(f"Erro ao exibir alerta: {e}")
+                        else:
+                            print(f"Erro ao salvar: {msg}")
+
+                time.sleep(1)
+        else:
+            print("--- FGTS: monitoramento pulado (PDF gerado via CDP) ---")
 
     except Exception as e:
         print(f"!!!!!!!!!! ERRO NO SELENIUM !!!!!!!!!!\n{e}")
