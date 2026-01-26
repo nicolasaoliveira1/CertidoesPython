@@ -240,9 +240,10 @@
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
       <div class="modal-body">
-        <p>O sistema encontrou/calculou uma nova validade para a certidão <strong id="displayTipoCertidao" class="text-uppercase">---</strong>:</p>
-        <h2 class="text-center text-primary" id="displayDataEncontrada">--/--/----</h2>
-        <p class="text-muted text-center mt-2">Deseja salvar esta data no banco de dados?</p>
+                <p class="small text-muted mb-3" id="displayArquivoInfo" style="display: none;"></p>
+                <p class="mb-2">Nova validade para <strong id="displayTipoCertidao" class="text-uppercase">---</strong>:</p>
+                <h2 class="text-center text-primary" id="displayDataEncontrada">--/--/----</h2>
+                <p class="text-muted text-center mt-2 mb-0">Salvar esta data no banco?</p>
       </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
@@ -306,7 +307,6 @@
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     
-    // --- TOAST (Notificações) ---
     const toastEl = document.getElementById('liveToast');
     const toastBody = document.getElementById('toastMessage');
     
@@ -323,7 +323,6 @@ document.addEventListener('DOMContentLoaded', function() {
         toastBootstrap.show();
     }
 
-    // --- MODAIS GLOBAIS ---
     const confirmModalElement = document.getElementById('confirmarDataModal');
     let confirmModal = confirmModalElement ? new bootstrap.Modal(confirmModalElement) : null;
     
@@ -338,50 +337,68 @@ document.addEventListener('DOMContentLoaded', function() {
     const editModalEl = document.getElementById('editModal');
     let editModal = editModalEl ? new bootstrap.Modal(editModalEl) : null;
 
-    // ELEMENTOS DA TELA
     const displayData = document.getElementById('displayDataEncontrada');
     const displayTipo = document.getElementById('displayTipoCertidao');
+    const displayArquivoInfo = document.getElementById('displayArquivoInfo');
     const displayTipoPendente = document.getElementById('displayTipoPendente');
     const btnSalvar = document.getElementById('btnConfirmarSalvar');
     const btnConfirmarPendente = document.getElementById('btnConfirmarPendente');
     
-    // Edição Manual
-    // ATENÇÃO: Seletor ajustado para o novo botão 'outline'
+
     const btnsEditar = document.querySelectorAll('.btn-outline-warning'); 
     const btnPendenteManual = document.getElementById('btnPendenteManual');
     const btnSalvarManual = document.getElementById('btnSalvarManual');
     const editFormInput = document.getElementById('nova_validade');
 
-    // VARIÁVEIS DE ESTADO
+
     let dadosParaSalvar = {}; 
     let linhaAtualTabela = null; 
     let certidaoIdPendente = null; 
     let certidaoIdManual = null;
 
-    // Variáveis temporárias para o fluxo "Abrir Site"
+
     let urlParaAbrir = null;
     let tipoParaAbrir = null;
     let idParaMonitorar = null;
+    let caminhoArquivoParaModal = null;
 
-    // =================================================================
-    // [NOVO] FUNÇÃO AUXILIAR: ATUALIZAR UI DA LINHA COM BADGES
-    // =================================================================
+    function atualizarInfoArquivoModal(mensagemArquivo) {
+        if (!displayArquivoInfo) return;
+
+        const msg = (mensagemArquivo || '').toString().trim();
+        const caminho = msg.replace(/^Arquivo\s+salvo\s+no\s+servidor:\s*/i, '')
+                           .replace(/^Arquivo\s+salvo\s+em:\s*/i, '')
+                           .trim();
+
+        if (caminho) {
+            displayArquivoInfo.innerHTML = `PDF salvo na pasta correta.<br>Destino: <code>${caminho}</code>`;
+            displayArquivoInfo.style.display = 'block';
+        } else {
+            displayArquivoInfo.textContent = 'PDF salvo na pasta correta.';
+            displayArquivoInfo.style.display = 'block';
+        }
+    }
+
+    function limparInfoArquivoModal() {
+        if (!displayArquivoInfo) return;
+        displayArquivoInfo.textContent = '';
+        displayArquivoInfo.style.display = 'none';
+    }
+
+
     function atualizarLinhaUI(linha, classeStatusAntiga, novoTexto) {
-        // Encontra a Badge (Pílula) dentro da linha atual
         const badge = linha.querySelector('.badge');
         if (!badge) return;
 
         let novaClasseBadge = 'text-bg-secondary';
         let novoIcone = 'bi-question-circle-fill';
 
-        // Mapeia o status do backend (verde/vermelho) para classes do Bootstrap
         if (classeStatusAntiga === 'status-verde') {
             novaClasseBadge = 'text-bg-success';
             novoIcone = 'bi-check-circle-fill';
         } else if (classeStatusAntiga === 'status-vermelho') {
             novaClasseBadge = 'text-bg-danger';
             novoIcone = 'bi-x-circle-fill';
-            // Se for Pendente, usa ícone de exclamação
             if (novoTexto && novoTexto.toLowerCase().includes('pendente')) {
                  novoIcone = 'bi-exclamation-circle-fill';
             }
@@ -393,10 +410,8 @@ document.addEventListener('DOMContentLoaded', function() {
             novoIcone = 'bi-question-circle-fill';
         }
 
-        // 1. Aplica a nova cor na Badge
         badge.className = `badge rounded-pill ${novaClasseBadge} fs-6 fw-normal px-3 py-2 d-inline-flex align-items-center gap-2`;
         
-        // 2. Atualiza o texto e o ícone
         badge.innerHTML = `<i class="bi ${novoIcone}"></i> ${novoTexto}`;
     }
 
@@ -441,12 +456,14 @@ document.addEventListener('DOMContentLoaded', function() {
                 
                 if (tipoParaAbrir === 'FEDERAL') {
                     let arquivoSalvo = false;
+                    caminhoArquivoParaModal = null;
                     
                     fetch(`/certidao/monitorar_download_federal/${idParaMonitorar}`)
                         .then(response => response.json())
                         .then(data => { 
                             if (data.status === 'success') {
                                 arquivoSalvo = true;
+                                caminhoArquivoParaModal = data.mensagem || null;
                                 showToast("Arquivo salvo no servidor!", "success");
                             }
                         });
@@ -465,6 +482,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
                                     if (displayData) displayData.textContent = dataFormatada;
                                     if (displayTipo) displayTipo.textContent = "FEDERAL";
+                                    atualizarInfoArquivoModal(caminhoArquivoParaModal);
                                     dadosParaSalvar = { certidao_id: idParaMonitorar, nova_validade: dataBanco };
                                     if (confirmModal) confirmModal.show();
                                 } else {
@@ -513,18 +531,22 @@ document.addEventListener('DOMContentLoaded', function() {
                     if (data.status === 'success_file_saved') {
                         if (displayData) displayData.textContent = data.data_formatada;
                         if (displayTipo) displayTipo.textContent = data.tipo_certidao;
+                        atualizarInfoArquivoModal(data.mensagem_arquivo);
                         dadosParaSalvar = { certidao_id: data.certidao_id, nova_validade: data.nova_data };
                         if (confirmModal) confirmModal.show();
                     
                     } else if (data.status === 'window_closed_no_file') {
+                        limparInfoArquivoModal();
                         if (displayTipoPendente) displayTipoPendente.textContent = data.tipo_certidao;
                         certidaoIdPendente = data.certidao_id;
                         if (pendenteModal) pendenteModal.show();
 
                     } else if (data.status === 'success_file_saved_no_date') {
+                        limparInfoArquivoModal();
                         showToast("Arquivo salvo! Sem regra de data.", "primary");
                         setTimeout(() => location.reload(), 2000);
                     } else {
+                        limparInfoArquivoModal();
                         showToast('Aviso: ' + (data.message || 'Erro desconhecido'), 'error');
                     }
                 })
