@@ -234,7 +234,7 @@ def baixar_certidao(certidao_id):
         driver.get(info_site.get('url'))
 
         if tipo_certidao_chave == 'MUNICIPAL':
-            if certidao.empresa.cidade or ''.upper() in ['SAO PAULO', 'SÃO PAULO']:
+            if certidao.empresa.cidade.upper() in ['SAO PAULO', 'SÃO PAULO']:
                 return jsonify({
                 "status": "manual_required",
                 "message": "Para São Paulo, use o botão 'Abrir Site'."
