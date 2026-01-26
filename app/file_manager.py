@@ -182,7 +182,6 @@ def verificar_novo_arquivo(tempo_inicio, termos_ignorar=None):
     arquivo_mais_recente = max(arquivos, key=os.path.getctime)
     tempo_criacao = os.path.getctime(arquivo_mais_recente)
 
-    # Debug: Vamos ver o que ele encontrou
     nome_arquivo = os.path.basename(arquivo_mais_recente).lower()
 
     if tempo_criacao > tempo_inicio:
