@@ -149,6 +149,9 @@
                                     {% set data_url_final = sites_urls.get(certidao.tipo.name, {}).get('url', '#') %}
                                 {% endif %}
 
+                                {% set cidade_upper = (empresa.cidade or '') | upper %}
+                                {% set sp_municipal_manual = (certidao.tipo.name == 'MUNICIPAL') and (cidade_upper in ['SAO PAULO', 'SÃO PAULO']) %}
+
                                 <tr>
                                     <td class="ps-4 fw-medium">{{ certidao.tipo.value }}</td>
                                     
@@ -183,7 +186,8 @@
                                             <button class="btn btn-sm btn-outline-primary border-0 btn-baixar-certidao"
                                                     title="Baixar"
                                                     data-href="{{ url_for('main.baixar_certidao', certidao_id=certidao.id) }}"
-                                                    data-tipo="{{ certidao.tipo.name }}">
+                                                    data-tipo="{{ certidao.tipo.name }}"
+                                                    data-manual-only="{{ '1' if sp_municipal_manual else '0' }}">
                                                 <i class="bi bi-download fs-5"></i>
                                             </button>
                                         </div>
@@ -517,6 +521,13 @@ document.addEventListener('DOMContentLoaded', function() {
 
             if (btn.dataset.tipo === 'FEDERAL') {
                 showToast("Para Federal, use o botão 'Abrir Site'.", "primary");
+                btn.innerHTML = originalHTML;
+                btn.disabled = false;
+                return;
+            }
+
+            if (btn.dataset.manualOnly === '1') {
+                showToast("Para São Paulo, use o botão 'Abrir Site'.", "primary");
                 btn.innerHTML = originalHTML;
                 btn.disabled = false;
                 return;
