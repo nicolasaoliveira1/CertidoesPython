@@ -246,9 +246,10 @@
         <h5 class="modal-title">Confirmar Atualização</h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
-      <div class="modal-body">
-                <p class="small text-muted mb-3" id="displayArquivoInfo" style="display: none;"></p>
-                <p class="mb-2">Nova validade para <strong id="displayTipoCertidao" class="text-uppercase">---</strong>:</p>
+    <div class="modal-body">
+            <p class="mb-1" id="displayArquivoInfo" style="display: none;"></p>
+            <p class="mb-3" id="displayEmpresaInfo" style="display: none;"></p>
+            <p class="mb-2">Nova validade para <strong id="displayTipoCertidao" class="text-uppercase">---</strong>:</p>
                 <h2 class="text-center text-primary" id="displayDataEncontrada">--/--/----</h2>
                 <p class="text-muted text-center mt-2 mb-0">Salvar esta data no banco?</p>
       </div>
@@ -358,6 +359,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const displayData = document.getElementById('displayDataEncontrada');
     const displayTipo = document.getElementById('displayTipoCertidao');
     const displayArquivoInfo = document.getElementById('displayArquivoInfo');
+    const displayEmpresaInfo = document.getElementById('displayEmpresaInfo');
     const displayTipoPendente = document.getElementById('displayTipoPendente');
     const btnSalvar = document.getElementById('btnConfirmarSalvar');
     const btnConfirmarPendente = document.getElementById('btnConfirmarPendente');
@@ -404,12 +406,35 @@ document.addEventListener('DOMContentLoaded', function() {
             displayArquivoInfo.textContent = 'PDF salvo na pasta correta.';
             displayArquivoInfo.style.display = 'block';
         }
+
+        if (displayEmpresaInfo) {
+            let empresaNome = '';
+            if (linhaAtualTabela) {
+                const card = linhaAtualTabela.closest('.company-card');
+                if (card && card.dataset.nomeEmpresa) {
+                    empresaNome = card.dataset.nomeEmpresa;
+                }
+            }
+
+            if (empresaNome) {
+                displayEmpresaInfo.textContent = `Empresa: ${empresaNome}`;
+                displayEmpresaInfo.style.display = 'block';
+            } else {
+                displayEmpresaInfo.textContent = '';
+                displayEmpresaInfo.style.display = 'none';
+            }
+        }
     }
 
     function limparInfoArquivoModal() {
-        if (!displayArquivoInfo) return;
-        displayArquivoInfo.textContent = '';
-        displayArquivoInfo.style.display = 'none';
+        if (displayArquivoInfo) {
+            displayArquivoInfo.textContent = '';
+            displayArquivoInfo.style.display = 'none';
+        }
+        if (displayEmpresaInfo) {
+            displayEmpresaInfo.textContent = '';
+            displayEmpresaInfo.style.display = 'none';
+        }
     }
 
 
