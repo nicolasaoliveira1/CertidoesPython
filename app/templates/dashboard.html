@@ -307,6 +307,17 @@
   </div>
 </div>
 
+<div id="loading-overlay" class="loading-overlay d-none">
+  <div class="loading-box text-center">
+    <div class="spinner-border text-light" role="status">
+      <span class="visually-hidden">Carregando...</span>
+    </div>
+    <div class="mt-3 text-light fw-semibold">
+      Executando automação, aguarde...
+    </div>
+  </div>
+</div>
+
 {% block scripts %}
 <script>
 document.addEventListener('DOMContentLoaded', function() {
@@ -366,6 +377,15 @@ document.addEventListener('DOMContentLoaded', function() {
     let idParaMonitorar = null;
     let caminhoArquivoParaModal = null;
 
+    const loadingOverlay = document.getElementById('loading-overlay');
+
+    function showLoading() {
+        if (loadingOverlay) loadingOverlay.classList.remove('d-none');
+    }
+    function hideLoading() {
+        if (loadingOverlay) loadingOverlay.classList.add('d-none');
+    }
+
     function atualizarInfoArquivoModal(mensagemArquivo) {
         if (!displayArquivoInfo) return;
 
@@ -419,9 +439,7 @@ document.addEventListener('DOMContentLoaded', function() {
         badge.innerHTML = `<i class="bi ${novoIcone}"></i> ${novoTexto}`;
     }
 
-    // =================================================================
-    // 1. BOTÃO "ABRIR SITE"
-    // =================================================================
+// BOTAO ABRIR SITE
     const btnsAbrirSite = document.querySelectorAll('.btn-abrir-site');
     btnsAbrirSite.forEach(function(btn) {
         btn.addEventListener('click', function(event) {
@@ -477,7 +495,6 @@ document.addEventListener('DOMContentLoaded', function() {
                             if (novaAba.closed) {
                                 clearInterval(timer);
                                 if (arquivoSalvo) {
-                                    // SUCESSO - MOSTRAR MODAL DE DATA
                                     const hoje = new Date();
                                     const validade = new Date(hoje);
                                     validade.setDate(hoje.getDate() + 180);
@@ -490,7 +507,6 @@ document.addEventListener('DOMContentLoaded', function() {
                                     dadosParaSalvar = { certidao_id: idParaMonitorar, nova_validade: dataBanco };
                                     if (confirmModal) confirmModal.show();
                                 } else {
-                                    // FALHA - SUGERIR PENDENTE
                                     if (displayTipoPendente) displayTipoPendente.textContent = "FEDERAL";
                                     certidaoIdPendente = idParaMonitorar;
                                     if (pendenteModal) pendenteModal.show();
@@ -503,16 +519,13 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    // =================================================================
-    // 2. BOTÃO "BAIXAR" (AUTOMAÇÃO)
-    // =================================================================
+// BOTAO BAIXAR (AUTOMAÇÃO)
     const btnsBaixar = document.querySelectorAll('.btn-baixar-certidao');
     btnsBaixar.forEach(function(btn) {
         btn.addEventListener('click', function(event) {
             event.preventDefault();
             linhaAtualTabela = btn.closest('tr');
             
-            // Troca ícone para loading (feedback visual)
             const originalHTML = btn.innerHTML;
             btn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>';
             btn.disabled = true;
@@ -532,11 +545,13 @@ document.addEventListener('DOMContentLoaded', function() {
                 btn.disabled = false;
                 return;
             }
+            showLoading();
 
             fetch(pythonUrl)
                 .then(response => response.json())
                 .then(data => {
-                    btn.innerHTML = originalHTML; // Restaura ícone original
+                    hideLoading();
+                    btn.innerHTML = originalHTML;
                     btn.disabled = false;
 
                     if (data.status === 'success_file_saved') {
@@ -562,6 +577,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     }
                 })
                 .catch(error => {
+                    hideLoading();
                     console.error('Erro:', error);
                     btn.innerHTML = originalHTML;
                     btn.disabled = false;
@@ -570,9 +586,7 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
 
-    // =================================================================
-    // 3. AÇÕES DE SALVAR E PENDENTE (COM ATUALIZAÇÃO VISUAL CORRETA)
-    // =================================================================
+// ações de salvar e pendente modais
 
     // Salvar Data (Modal Verde)
     if (btnSalvar) {
@@ -589,7 +603,6 @@ document.addEventListener('DOMContentLoaded', function() {
                         if (confirmModal) confirmModal.hide();
                         
                         if (linhaAtualTabela) {
-                            // CHAMA A NOVA FUNÇÃO DE UI
                             atualizarLinhaUI(linhaAtualTabela, data.nova_classe, data.nova_data_formatada);
                         }
                         showToast(data.message, "success");
@@ -612,7 +625,6 @@ document.addEventListener('DOMContentLoaded', function() {
                         if (pendenteModal) pendenteModal.hide();
                         
                         if (linhaAtualTabela) {
-                            // ATUALIZA UI PARA PENDENTE
                             atualizarLinhaUI(linhaAtualTabela, 'status-vermelho', 'PENDENTE');
                         }
                         showToast("Certidão marcada como Pendente.", "success");
@@ -624,11 +636,8 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    // =================================================================
-    // 4. EDIÇÃO MANUAL (BOTÃO AMARELO)
-    // =================================================================
+// Botao editar status certidao (amarelo)
     
-    // Atualizado seletor para .btn-outline-warning (novo visual)
     btnsEditar.forEach(function(btn) {
         btn.addEventListener('click', function() {
             linhaAtualTabela = btn.closest('tr');
@@ -669,7 +678,7 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    // Marcar Pendente Manual
+    // marcar pendente manual
     if (btnPendenteManual) {
         btnPendenteManual.addEventListener('click', function() {
             if (certidaoIdManual) {
@@ -692,25 +701,22 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    // =================================================================
-    // 5. FILTRO DE PESQUISA POR NOME (Atualizado para Cards)
-    // =================================================================
+// filtro de pesquisa nome
     const filtroInput = document.getElementById('filtroEmpresa');
     if (filtroInput) {
         filtroInput.addEventListener('input', () => { 
             const termoBusca = filtroInput.value.toLowerCase().trim();
-            const cardsEmpresa = document.querySelectorAll('.company-card'); // Pega todos os cards
+            const cardsEmpresa = document.querySelectorAll('.company-card');
             
             cardsEmpresa.forEach(card => {
-                // O nome da empresa está no atributo data-nome-empresa da div do card
                 if (card.dataset.nomeEmpresa) {
                     const nomeEmpresa = card.dataset.nomeEmpresa.toLowerCase();
                     
                     if (nomeEmpresa.includes(termoBusca)) {
-                        card.style.display = ''; // Mostra o card
+                        card.style.display = '';
                         card.classList.remove('d-none');
                     } else {
-                        card.style.display = 'none'; // Esconde o card inteiro
+                        card.style.display = 'none'; 
                         card.classList.add('d-none');
                     }
                 }
@@ -721,7 +727,6 @@ document.addEventListener('DOMContentLoaded', function() {
     const formFiltro = document.getElementById('filtro-form');
     const todasCheckbox = document.getElementById('status-todas');
     
-    // Lista de checkboxes de status específicos
     const statusCheckboxes = [
         document.getElementById('status-validas'),
         document.getElementById('status-a-vencer'),
@@ -730,24 +735,19 @@ document.addEventListener('DOMContentLoaded', function() {
         document.getElementById('status-nao-definida')
     ];
 
-    // Função para submeter o formulário automaticamente
     function autoSubmit() {
         if (formFiltro) {
-            // Pequeno delay para a animação do clique acontecer antes do reload
             setTimeout(() => {
                 formFiltro.submit();
             }, 100);
         }
     }
 
-    // 1. Lógica do botão "Todas"
     if (todasCheckbox) {
         todasCheckbox.addEventListener('change', function() {
             if (todasCheckbox.checked) {
-                // Se marcou todas, desmarca as outras
                 statusCheckboxes.forEach(cb => { if (cb) cb.checked = false; });
             } else {
-                // Se desmarcou todas e não tem nada marcado, remarca todas (evita filtro vazio)
                 const algumMarcado = statusCheckboxes.some(cb => cb && cb.checked);
                 if (!algumMarcado) todasCheckbox.checked = true;
             }
@@ -755,15 +755,12 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    // 2. Lógica dos outros botões
     statusCheckboxes.forEach(cb => {
         if (cb) {
             cb.addEventListener('change', function() {
                 if (cb.checked) {
-                    // Se marcou algum específico, desmarca o "Todas"
                     if (todasCheckbox) todasCheckbox.checked = false;
                 } else {
-                    // Se desmarcou e sobrou zero marcados, volta para "Todas"
                     const algumMarcado = statusCheckboxes.some(other => other && other.checked);
                     if (!algumMarcado && todasCheckbox) todasCheckbox.checked = true;
                 }
