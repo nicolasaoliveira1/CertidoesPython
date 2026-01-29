@@ -210,9 +210,16 @@ def baixar_certidao(certidao_id):
             info_site = SITES_CERTIDOES.get(tipo_certidao_chave, {}).copy()
 
     else:
-        cidade_empresa = certidao.empresa.cidade
-        regra_municipio = Municipio.query.filter_by(
-            nome=cidade_empresa).first()
+        cidade_empresa = certidao.empresa.cidade or ''
+        cidade_norm = _sem_acento(cidade_empresa).upper()
+        regra_municipio = None
+        
+        for m in Municipio.query.all():
+            nome_norm = _sem_acento(m.nome or '').upper()
+            if nome_norm == cidade_norm:
+                regra_municipio = m
+                break
+        
         if regra_municipio:
             info_site = {
                 'url': regra_municipio.url_certidao,
