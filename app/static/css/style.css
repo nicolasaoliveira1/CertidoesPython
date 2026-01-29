@@ -21,7 +21,20 @@ footer {
 }
 
 
-   /* NAVBAR E LOGOS */
+.loading-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.45);
+    z-index: 2000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.loading-box {
+    padding: 2rem 3rem;
+    border-radius: .5rem;
+    background: rgba(0,0,0,0.6);
+}
 
 
 .logo-full {
