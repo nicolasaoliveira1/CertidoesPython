@@ -3,7 +3,6 @@ import time
 import string
 import random
 import base64
-import unicodedata
 from datetime import date, datetime, timedelta
 
 from flask import (Blueprint, flash, jsonify, redirect, render_template,
@@ -25,12 +24,6 @@ from app.models import (Certidao, Empresa, Municipio, StatusEspecial,
                         TipoCertidao)
 
 bp = Blueprint('main', __name__)
-
-def _sem_acento(texto: str) -> str:
-    if not texto:
-        return ''
-    nfkd = unicodedata.normalize('NFKD', texto)
-    return ''.join(c for c in nfkd if not unicodedata.combining(c))
 
 @bp.route('/')
 def dashboard():
@@ -78,7 +71,7 @@ def dashboard():
     empresas = query.order_by(Empresa.id).all()
 
     municipios = Municipio.query.all()
-    
+
     urls_municipais = {}
     for m in municipios:
         if not m.url_certidao:
@@ -87,7 +80,7 @@ def dashboard():
         url = m.url_certidao
         
         urls_municipais[nome] = url
-        nome_sem = _sem_acento(nome)
+        nome_sem = file_manager.remover_acentos(nome)
         urls_municipais[nome_sem] = url
         
     return render_template(
@@ -211,11 +204,11 @@ def baixar_certidao(certidao_id):
 
     else:
         cidade_empresa = certidao.empresa.cidade or ''
-        cidade_norm = _sem_acento(cidade_empresa).upper()
+        cidade_norm = file_manager.remover_acentos(cidade_empresa).upper()
         regra_municipio = None
         
         for m in Municipio.query.all():
-            nome_norm = _sem_acento(m.nome or '').upper()
+            nome_norm = file_manager.remover_acentos(m.nome or '').upper()
             if nome_norm == cidade_norm:
                 regra_municipio = m
                 break
