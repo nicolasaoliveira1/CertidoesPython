@@ -3,6 +3,7 @@ import time
 import string
 import random
 import base64
+import unicodedata
 from datetime import date, datetime, timedelta
 
 from flask import (Blueprint, flash, jsonify, redirect, render_template,
@@ -25,6 +26,11 @@ from app.models import (Certidao, Empresa, Municipio, StatusEspecial,
 
 bp = Blueprint('main', __name__)
 
+def _sem_acento(texto: str) -> str:
+    if not texto:
+        return ''
+    nfkd = unicodedata.normalize('NFKD', texto)
+    return ''.join(c for c in nfkd if not unicodedata.combining(c))
 
 @bp.route('/')
 def dashboard():
@@ -71,16 +77,26 @@ def dashboard():
 
     empresas = query.order_by(Empresa.id).all()
 
-    urls_municipais_db = {
-        m.nome: m.url_certidao for m in Municipio.query.all()}
-
+    municipios = Municipio.query.all()
+    
+    urls_municipais = {}
+    for m in municipios:
+        if not m.url_certidao:
+            continue
+        nome = (m.nome or '').strip()
+        url = m.url_certidao
+        
+        urls_municipais[nome] = url
+        nome_sem = _sem_acento(nome)
+        urls_municipais[nome_sem] = url
+        
     return render_template(
         'dashboard.html',
         empresas=empresas,
         status_filtros=status_filtros,
         hoje=hoje,
         sites_urls=SITES_CERTIDOES,
-        urls_municipais=urls_municipais_db
+        urls_municipais=urls_municipais
     )
 
 
@@ -207,6 +223,11 @@ def baixar_certidao(certidao_id):
                 'inscricao_field_id': regra_municipio.inscricao_field_id,
                 'inscricao_field_by': regra_municipio.inscricao_field_by
             }
+            #temporario
+            cidade_upper = (certidao.empresa.cidade or '').upper()
+            if cidade_upper in ['CAPAO DA CANOA', 'CAPÃO DA CANOA']:
+                info_site['slow_typing'] = True
+            
         else:
             return jsonify({'status': 'error', 'message': 'Regra municipal não encontrada'})
 
@@ -232,6 +253,76 @@ def baixar_certidao(certidao_id):
         wait = WebDriverWait(driver, 20)
         print(f"1. Acessando a URL: {info_site.get('url')}")
         driver.get(info_site.get('url'))
+        
+        if tipo_certidao_chave == 'MUNICIPAL':
+            if certidao.empresa.cidade.upper() in ['CAPAO DA CANOA', 'CAPÃO DA CANOA']:
+                print("--- NAVEGAÇÃO PORTAL CAPÃO DA CANOA ---")
+                try:
+                    select_estados_el = wait.until(
+                        EC.element_to_be_clickable((By.ID, "mainForm:estados"))
+                    )
+                    select_estados = Select(select_estados_el)
+                    select_estados.select_by_visible_text("RS - Rio Grande do Sul")
+                    time.sleep(1)
+
+                    def _municipio_capao_carregado(d):
+                        try:
+                            sel = Select(d.find_element(By.ID, "mainForm:municipios"))
+                            return any(
+                                "CAPÃO DA CANOA" in opt.text.upper()
+                                for opt in sel.options
+                            )
+                        except Exception:
+                            return False
+
+                    WebDriverWait(driver, 5).until(_municipio_capao_carregado)
+
+                    select_municipios_el = driver.find_element(By.ID, "mainForm:municipios")
+                    select_municipios = Select(select_municipios_el)
+                    for opt in select_municipios.options:
+                        if "CAPÃO DA CANOA" in opt.text.upper():
+                            select_municipios.select_by_visible_text(opt.text)
+                            print(f"Município selecionado: {opt.text}")
+                            break
+
+                    time.sleep(1)
+
+                    btn_acessar = wait.until(
+                        EC.element_to_be_clickable((By.ID, "mainForm:selecionar"))
+                    )
+                    driver.execute_script("arguments[0].click();", btn_acessar)
+                    print("Botão Acessar clicado.")
+                    time.sleep(1)
+                    
+                    link_certidao = wait.until(EC.element_to_be_clickable((
+                    By.XPATH,
+                    "//a[contains(@class,'boxMenu') and .//span[normalize-space()='Certidão negativa de contribuinte']]"
+                    )))
+                    link_certidao.click()
+                    time.sleep(1)
+
+                except Exception as e:
+                    print(f"Erro na navegação do portal para Capão da Canoa: {e}")
+        
+        if info_site.get('pre_fill_click_id'):
+            click_by_map = {
+                'id': By.ID,
+                'css_selector': By.CSS_SELECTOR,
+                'xpath': By.XPATH,
+                'name': By.NAME
+            }
+            click_by = click_by_map.get(info_site.get('pre_fill_click_by'))
+            if click_by:
+                try:
+                    elemento_inicial = wait.until(
+                        EC.element_to_be_clickable(
+                            (click_by, info_site['pre_fill_click_id'])
+                        )
+                    )
+                    elemento_inicial.click()
+                    time.sleep(2)
+                except Exception:
+                    pass
 
         if tipo_certidao_chave == 'MUNICIPAL':
             if certidao.empresa.cidade.upper() in ['SAO PAULO', 'SÃO PAULO']:
@@ -245,8 +336,6 @@ def baixar_certidao(certidao_id):
                 time.sleep(2)
                 driver.refresh()
                 print("Refresh realizado.")
-
-                wait = WebDriverWait(driver, 20)
 
                 try:
                     print("Clicando no menu 'Emitir Certidões'...")
@@ -263,13 +352,19 @@ def baixar_certidao(certidao_id):
                 except Exception as e:
                     print(f"Erro na navegação de {certidao.empresa.cidade.upper()}: {e}")
 
-            elif certidao.empresa.cidade.upper() in ['GRAVATAI', 'GRAVATAÍ']:
-                print("--- GRAVATAÍ DETECTADA ---")
-
-                print(
-                    "Aguardando campo de opção aparecer (Resolva o Captcha se necessário)...")
-
+            elif certidao.empresa.cidade.upper() in ['GRAVATAI', 'GRAVATAÍ', 'OSORIO', 'OSÓRIO', 'NOVO HAMBURGO']:
+                print(f"--- {certidao.empresa.cidade.upper()} DETECTADA ---")
                 try:
+                    print("Aguardando o usuário resolver o captcha...")
+                    while True:
+                        try:
+                            campo_aguardando = WebDriverWait(driver, 10).until(
+                                EC.element_to_be_clickable((By.NAME, "opcaoEmissao")))
+                            print("captcha resolvido.")
+                            break
+                        except TimeoutException:
+                            pass
+                    
                     select_emissao_el = wait.until(
                         EC.element_to_be_clickable((By.NAME, "opcaoEmissao")))
 
@@ -291,12 +386,22 @@ def baixar_certidao(certidao_id):
                     select_finalidade_el = wait.until(EC.element_to_be_clickable(
                         (By.NAME, "FinalidadeCertidaoDebito.codigo")))
                     select_finalidade = Select(select_finalidade_el)
-                    for option in select_finalidade.options:
-                        if "CONTRIBUINTE" in option.text.upper():
-                            select_finalidade.select_by_visible_text(
-                                option.text)
-                            print("Finalidade Contribuinte selecionada.")
-                            break
+                    
+                    cidade_upper = certidao.empresa.cidade.upper()
+                    
+                    if cidade_upper == 'NOVO HAMBURGO':
+                        for opt in select_finalidade.options:
+                            print(opt.text)
+                            if 'PMNH' in opt.text.upper():
+                                select_finalidade.select_by_visible_text(
+                                opt.text)
+                            print("Finalidade correta selecionada.")
+                    else:
+                        for opt in select_finalidade.options:
+                            if "CONTRIBUINTE" in opt.text.upper():
+                                select_finalidade.select_by_visible_text(
+                                    opt.text)
+                                print("Finalidade Contribuinte selecionada.")
 
                     time.sleep(1)
 
@@ -307,53 +412,7 @@ def baixar_certidao(certidao_id):
                     info_site['cnpj_field_id'] = None
 
                 except Exception as e:
-                    print(f"Erro na navegação de Gravataí: {e}")
-                
-            elif certidao.empresa.cidade.upper() in ['OSORIO', 'OSÓRIO']:
-                print("--- OSORIO DETECTADA ---")
-
-                print(
-                    "Aguardando campo de opção aparecer (Resolva o Captcha se necessário)...")
-
-                try:
-                    select_emissao_el = wait.until(
-                        EC.element_to_be_clickable((By.NAME, "opcaoEmissao")))
-
-                    select_emissao = Select(select_emissao_el)
-                    for option in select_emissao.options:
-                        if "CNPJ" in option.text.upper():
-                            select_emissao.select_by_visible_text(option.text)
-                            print("Opção CNPJ selecionada.")
-                            break
-
-                    time.sleep(1)
-
-                    campo_cnpj = wait.until(
-                        EC.element_to_be_clickable((By.NAME, "cpfCnpj")))
-                    campo_cnpj.clear()
-                    campo_cnpj.send_keys(cnpj_limpo)
-                    print("CNPJ preenchido.")
-
-                    select_finalidade_el = wait.until(EC.element_to_be_clickable(
-                        (By.NAME, "FinalidadeCertidaoDebito.codigo")))
-                    select_finalidade = Select(select_finalidade_el)
-                    for option in select_finalidade.options:
-                        if "CONTRIBUINTE" in option.text.upper():
-                            select_finalidade.select_by_visible_text(
-                                option.text)
-                            print("Finalidade Contribuinte selecionada.")
-                            break
-
-                    time.sleep(1)
-
-                    btn_confirmar = driver.find_element(By.NAME, "confirmar")
-                    btn_confirmar.click()
-                    print("Botão Confirmar clicado.")
-
-                    info_site['cnpj_field_id'] = None
-
-                except Exception as e:
-                    print(f"Erro na navegação de Osorio: {e}")
+                    print(f"Erro na navegação de {certidao.empresa.cidade.upper()}: {e}")
 
             elif certidao.empresa.cidade.upper() in ['XANGRI-LA', 'XANGRI-LÁ', 'XANGRILA']:
                 print("--- XANGRI-LÁ DETECTADA ---")
@@ -388,19 +447,6 @@ def baixar_certidao(certidao_id):
 
                 except Exception as e:
                     print(f"Erro na navegação de Xangri-Lá: {e}")
-
-        if info_site.get('pre_fill_click_id'):
-            click_by_map = {'id': By.ID,
-                            'css_selector': By.CSS_SELECTOR, 'xpath': By.XPATH}
-            click_by = click_by_map.get(info_site['pre_fill_click_by'])
-            if click_by:
-                try:
-                    elemento_inicial = wait.until(EC.element_to_be_clickable(
-                        (click_by, info_site['pre_fill_click_id'])))
-                    elemento_inicial.click()
-                    time.sleep(2)
-                except:
-                    pass
 
         if info_site.get('cnpj_field_id'):
             field_by_map = {'id': By.ID, 'name': By.NAME,
@@ -596,6 +642,44 @@ def baixar_certidao(certidao_id):
                                 time.sleep(2)
                             except Exception as e:
                                 print(f"Erro ao clicar no botão Imprimir: {e}")
+                        elif cidade_upper == 'SORRISO':
+                            print(f"Clicando em Imprimir para {cidade_upper}...")
+                            try:
+                                btn_imprimir = wait.until(EC.element_to_be_clickable(
+                                    (By.ID, "btnImprimirCertidaoDebitos")))
+                                btn_imprimir.click()
+                                print("Botão Imprimir clicado com sucesso!")
+                                time.sleep(2)
+                            except Exception as e:
+                                print(f"Erro ao clicar no botão Imprimir: {e}")
+                        elif cidade_upper in ['TRAMANDAI', 'TRAMANDAÍ']:
+                            print(f"Clicando em Pesquisar para {cidade_upper}...")
+                            try:
+                                btn_pesquisar = wait.until(EC.element_to_be_clickable(
+                                        (By.NAME, "pesquisa")))
+                                btn_pesquisar.click()
+                                print("Botão Imprimir clicado com sucesso!")
+                                time.sleep(0.6)
+                                btn_emitir = wait.until(EC.element_to_be_clickable(
+                                        (By.XPATH, "//a[contains(@class,'links') and contains(normalize-space(.), 'Emitir Certidão por Nome')]")))
+                                btn_emitir.click()
+                                time.sleep(1)
+                            except Exception as e:
+                                print(f"Erro ao clicar nos botões: {e}")
+                        elif cidade_upper == 'CAPAO DA CANOA':
+                            print(f"Clicando em Emitir para {cidade_upper}...")
+                            try:
+                                btn_continuar = wait.until(EC.element_to_be_clickable(
+                                        (By.ID, "mainForm:btCnpj")))
+                                btn_continuar.click()
+                                time.sleep(0.5)
+                                
+                                btn_emitir = wait.until(EC.element_to_be_clickable(
+                                        (By.CSS_SELECTOR, "img[title='Emite a CND para este contribuinte']")))
+                                btn_emitir.click()
+                                time.sleep(0.5)
+                            except Exception as e:
+                                print(f"Erro ao clicar em Emitir: {e}")
                 except:
                     pass
 
@@ -739,12 +823,18 @@ def baixar_certidao(certidao_id):
                 elif cidade == "SAPUCAIA DO SUL":
                     data_calc = date.today() + timedelta(days=120)
                 elif cidade in ['GRAVATAI', 'GRAVATAÍ']:
-                    data_calc = date.today() + timedelta(days=91)
+                    data_calc = date.today() + timedelta(days=90)
+                elif cidade == "NOVO HAMBURGO":
+                    data_calc = date.today() + timedelta(days=60)
                 elif cidade in ['OSORIO', 'OSÓRIO']:
                     data_calc = date.today() + timedelta(days=90)
                 elif cidade == 'CANOAS':
                     data_calc = date.today() + timedelta(days=90)
+                elif cidade == 'SORRISO':
+                    data_calc = date.today() + timedelta(days=60)
                 elif cidade in ['XANGRI-LA', 'XANGRI-LÁ', 'XANGRILA']:
+                    data_calc = date.today() + timedelta(days=30)
+                elif cidade in ['CAPAO DA CANOA', 'CAPÃO DA CANOA']:
                     data_calc = date.today() + timedelta(days=30)
                 else:
                     data_calc = None
