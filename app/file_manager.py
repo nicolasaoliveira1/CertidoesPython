@@ -169,7 +169,7 @@ def limpar_versoes_antigas(pasta_destino, novo_nome_padrao, tipo_certidao):
         print(f"Erro ao tentar limpar versões antigas: {e}")
 
 
-def verificar_novo_arquivo(tempo_inicio, termos_ignorar=None):
+def verificar_novo_arquivo(tempo_inicio, termos_ignorar=None, extensoes_permitidas=('.pdf',)):
     pasta_downloads = os.path.join(os.path.expanduser("~"), "Downloads")
     padrao_busca = os.path.join(pasta_downloads, "*")
 
@@ -179,31 +179,41 @@ def verificar_novo_arquivo(tempo_inicio, termos_ignorar=None):
     if not arquivos:
         return None
 
-    arquivo_mais_recente = max(arquivos, key=os.path.getctime)
-    tempo_criacao = os.path.getctime(arquivo_mais_recente)
+    candidatos = []
 
-    nome_arquivo = os.path.basename(arquivo_mais_recente).lower()
+    for caminho in arquivos:
+        try:
+            tempo_criacao = os.path.getctime(caminho)
+        except OSError:
+            continue
 
-    if tempo_criacao > tempo_inicio:
-        # Debug
-        print(f"[DEBUG] Arquivo novo encontrado: {nome_arquivo}")
+        if tempo_criacao <= tempo_inicio:
+            continue
 
-        if nome_arquivo.endswith('.crdownload') or nome_arquivo.endswith('.tmp'):
-            # Debug
-            print(f"[DEBUG] Ignorado pois é temporário: {nome_arquivo}")
-            return None
+        nome_arquivo = os.path.basename(caminho).lower()
 
-        if termos_ignorar:
-            for termo in termos_ignorar:
-                if termo.lower() in nome_arquivo:
-                    print(
-                        f"Arquivo ignorado pelo filtro '{termo}': {nome_arquivo}")
-                    return None
+        # ignora temp
+        if nome_arquivo.endswith(('.crdownload', '.tmp')):
+            print(f"[DEBUG] arquivo temporario ignorado: {nome_arquivo}")
+            continue
 
-        print(f"[SUCESSO] Arquivo aceito: {nome_arquivo}")
-        return arquivo_mais_recente
+        # apenas pdf
+        if extensoes_permitidas and not nome_arquivo.endswith(extensoes_permitidas):
+            continue
 
-    return None
+        if termos_ignorar and any(termo.lower() in nome_arquivo for termo in termos_ignorar):
+            print(f"arquivo ignorado pelo filtro '{termos_ignorar}': {nome_arquivo}")
+            continue
+
+        candidatos.append((tempo_criacao, caminho))
+
+    if not candidatos:
+        return None
+
+    # pega o mais recente
+    _, arquivo_mais_recente = max(candidatos, key=lambda x: x[0])
+    print(f"[SUCESSO] Arquivo aceito: {os.path.basename(arquivo_mais_recente).lower()}")
+    return arquivo_mais_recente
 
 
 def mover_e_renomear(caminho_arquivo_origem, nome_empresa, tipo_certidao):
