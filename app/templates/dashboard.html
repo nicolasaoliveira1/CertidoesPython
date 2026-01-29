@@ -145,6 +145,9 @@
                                 {% set data_url_final = '#' %}
                                 {% if certidao.tipo.name == 'MUNICIPAL' %}
                                     {% set data_url_final = urls_municipais.get(certidao.empresa.cidade, '#') %}
+                                {% elif certidao.tipo.name == 'ESTADUAL' %}
+                                    {% set uf = (certidao.empresa.estado or '').strip().upper() %}
+                                    {% set data_url_final = sites_urls.get('ESTADUAL', {}).get(uf, {}).get('url', '#') %}
                                 {% else %}
                                     {% set data_url_final = sites_urls.get(certidao.tipo.name, {}).get('url', '#') %}
                                 {% endif %}
