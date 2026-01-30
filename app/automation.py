@@ -30,6 +30,14 @@ SITES_CERTIDOES = {
             'cnpj_field_id': 'numeroDocumento',
             'by': 'name',
             'slow_typing': True
+        },
+        'MS': {
+            'url': 'https://servicos.efazenda.ms.gov.br/pndfis/home/emissao',
+            'cnpj_field_id':'Numero',
+            'by':'id',
+            'tipo_select_id': 'Tipo',
+            'tipo_select_by': 'id',
+            'tipo_select_value': 'CNPJ'
         }
     },
     
