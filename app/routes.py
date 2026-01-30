@@ -303,16 +303,21 @@ def baixar_certidao(certidao_id):
 
                 except Exception as e:
                     print(f"Erro na navegação do portal para Capão da Canoa: {e}")
-        
-        if info_site.get('pre_fill_click_id'):
-            click_by_map = {
-                'id': By.ID,
-                'css_selector': By.CSS_SELECTOR,
-                'xpath': By.XPATH,
-                'name': By.NAME
-            }
-            click_by = click_by_map.get(info_site.get('pre_fill_click_by'))
-            if click_by:
+
+        def executar_acao_aux(nome_acao):
+            # 1 pre click inicial
+            if nome_acao == 'pre_fill':
+                if not info_site.get('pre_fill_click_id'):
+                    return
+                click_by_map = {
+                    'id': By.ID,
+                    'css_selector': By.CSS_SELECTOR,
+                    'xpath': By.XPATH,
+                    'name': By.NAME
+                }
+                click_by = click_by_map.get(info_site.get('pre_fill_click_by'))
+                if not click_by:
+                    return
                 try:
                     elemento_inicial = wait.until(
                         EC.element_to_be_clickable(
@@ -323,6 +328,50 @@ def baixar_certidao(certidao_id):
                     time.sleep(2)
                 except Exception:
                     pass
+
+            # 2 select de tipo
+            elif nome_acao == 'select_tipo':
+                if not info_site.get('tipo_select_id'):
+                    return
+                select_by_map = {
+                    'id': By.ID,
+                    'css_selector': By.CSS_SELECTOR,
+                    'xpath': By.XPATH,
+                    'name': By.NAME
+                }
+                select_by = select_by_map.get(
+                    info_site.get('tipo_select_by', 'id'),
+                    By.ID
+                )
+                try:
+                    select_el = wait.until(
+                        EC.element_to_be_clickable(
+                            (select_by, info_site['tipo_select_id']))
+                    )
+                    select_obj = Select(select_el)
+
+                    value = info_site.get('tipo_select_value')
+                    if value is not None:
+                        select_obj.select_by_value(value)
+                    else:
+                        text = info_site.get('tipo_select_text')
+                        if text:
+                            select_obj.select_by_visible_text(text)
+
+                    time.sleep(1)
+                    print("Select de tipo configurado com sucesso.")
+                except Exception as e:
+                    print(f"Aviso: não foi possível configurar select de tipo: {e}")
+
+        # ordem das ações antes do cnpj
+        steps_before_cnpj = info_site.get('steps_before_cnpj')
+        if steps_before_cnpj is None:
+            # padrão atual: pre_fill depois select_tipo
+            steps_before_cnpj = ['pre_fill', 'select_tipo']
+
+        for step in steps_before_cnpj:
+            executar_acao_aux(step)
+
 
         if tipo_certidao_chave == 'MUNICIPAL':
             if certidao.empresa.cidade.upper() in ['SAO PAULO', 'SÃO PAULO']:
@@ -683,6 +732,10 @@ def baixar_certidao(certidao_id):
                 except:
                     pass
 
+        steps_after_cnpj = info_site.get('steps_after_cnpj', [])
+        for step in steps_after_cnpj:
+            executar_acao_aux(step)
+
         if info_site.get('inscricao_field_id'):
             field_by_map = {'id': By.ID, 'name': By.NAME,
                             'css_selector': By.CSS_SELECTOR, 'xpath': By.XPATH}
@@ -810,6 +863,8 @@ def baixar_certidao(certidao_id):
                     data_calc = date.today() + timedelta(days=180)
                 elif estado == "MT":
                     data_calc = date.today() + timedelta(days=59)
+                elif estado == "MS":
+                    data_calc = date.today() + timedelta(days=60)
                 else:
                     data_calc = None
             elif tipo_certidao_chave == 'MUNICIPAL':
