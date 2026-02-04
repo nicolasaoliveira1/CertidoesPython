@@ -7,7 +7,9 @@ SITES_CERTIDOES = {
     'FGTS': {
         'url': 'https://consulta-crf.caixa.gov.br/consultacrf/pages/consultaEmpregador.jsf',
         'cnpj_field_id': 'mainForm:txtInscricao1',
-        'by': 'id' 
+        'by': 'id',
+        # passos executados depois de preencher o CNPJ
+        'steps_after_cnpj': ['fgts_emitir_pdf']
     },
     
     'ESTADUAL': {
@@ -47,5 +49,34 @@ SITES_CERTIDOES = {
         'pre_fill_click_by': 'css_selector',                  
         'cnpj_field_id': 'gerarCertidaoForm:cpfCnpj',
         'by': 'id'
+    }
+}
+
+
+VALIDADES_CERTIDOES = {
+    # federal nao tem automatizacao - deixar aqui para futuro
+    'FEDERAL': {
+        'validade_dias_padrao': None
+    },
+    'FGTS': {
+        # atualmente sistema usa scraping para pegar validade
+        'validade_dias_padrao': None
+    },
+    'TRABALHISTA': {
+        'validade_dias_padrao': 180
+    },
+    'ESTADUAL': {
+        'RS': {
+            'validade_dias_padrao': 59
+        },
+        'SP': {
+            'validade_dias_padrao': 180
+        },
+        'MT': {
+            'validade_dias_padrao': 59
+        },
+        'MS': {
+            'validade_dias_padrao': 60
+        }
     }
 }
