@@ -19,11 +19,40 @@ from sqlalchemy import or_
 from webdriver_manager.chrome import ChromeDriverManager
 
 from app import db, file_manager
-from app.automation import SITES_CERTIDOES
+from app.automation import SITES_CERTIDOES, VALIDADES_CERTIDOES
 from app.models import (Certidao, Empresa, Municipio, StatusEspecial,
                         TipoCertidao)
 
 bp = Blueprint('main', __name__)
+
+
+def calcular_validade_padrao(certidao, data_encontrada=None):
+    if data_encontrada is not None:
+        return data_encontrada
+
+    tipo_chave = certidao.tipo.name
+    hoje = date.today()
+
+    if tipo_chave == 'MUNICIPAL':
+        return None
+
+    if tipo_chave in ['TRABALHISTA', 'FGTS', 'FEDERAL']:
+        cfg = VALIDADES_CERTIDOES.get(tipo_chave) or {}
+        dias = cfg.get('validade_dias_padrao')
+        if dias:
+            return hoje + timedelta(days=dias)
+        return None
+
+    if tipo_chave == 'ESTADUAL':
+        estado = (certidao.empresa.estado or '').strip().upper()
+        estadual_cfg = VALIDADES_CERTIDOES.get('ESTADUAL', {})
+        uf_cfg = estadual_cfg.get(estado) or {}
+        dias = uf_cfg.get('validade_dias_padrao')
+        if dias:
+            return hoje + timedelta(days=dias)
+        return None
+
+    return None
 
 @bp.route('/')
 def dashboard():
@@ -177,9 +206,161 @@ def marcar_pendente(certidao_id):
 
     return redirect(url_for('main.dashboard'))
 
+def _automatizar_fgts(contexto, driver, wait, certidao):
+
+    try:
+        btn_consultar = wait.until(EC.element_to_be_clickable(
+            (By.ID, "mainForm:btnConsultar")))
+        print("clicando em Consultar")
+        btn_consultar.click()
+        time.sleep(1)
+
+        btn_certificado = wait.until(EC.element_to_be_clickable(
+            (By.ID, "mainForm:j_id51")))
+        print("clicando em Certificado")
+        btn_certificado.click()
+        time.sleep(1)
+
+        # tentar localizar data de validade na página
+        if not contexto.get('data_encontrada'):
+            try:
+                elemento = driver.find_element(
+                    By.XPATH, "//p[contains(., 'Validade:')]")
+                texto = elemento.text
+                if " a " in texto:
+                    parte_data = texto.split(" a ")[-1].strip()[:10]
+                    data_val = datetime.strptime(
+                        parte_data, '%d/%m/%Y').date()
+                    contexto['data_encontrada'] = data_val
+            except Exception as e:
+                print(f"erro ao encontrar data fgts: {e}")
+
+        btn_visualizar = wait.until(EC.element_to_be_clickable(
+            (By.ID, "mainForm:btnVisualizar")))
+        print("clicando em Visualizar")
+        btn_visualizar.click()
+        time.sleep(1)
+
+        # gerar pdf automaticamente com CDP
+        def _gerar_nome_pdf_aleatorio(tamanho: int = 10) -> str:
+            return ''.join(random.choices(string.ascii_letters + string.digits, k=tamanho))
+
+        def _caminho_pdf_downloads_unico() -> str:
+            pasta_downloads = os.path.join(os.path.expanduser("~"), "Downloads")
+            for _ in range(50):
+                nome = f"{_gerar_nome_pdf_aleatorio(10)}.pdf"
+                caminho = os.path.join(pasta_downloads, nome)
+                if not os.path.exists(caminho):
+                    return caminho
+            return os.path.join(pasta_downloads, f"{int(time.time())}_{_gerar_nome_pdf_aleatorio(6)}.pdf")
+
+        def _aguardar_pagina_certidao_fgts():
+            try:
+                WebDriverWait(driver, 20).until(
+                    lambda d: (
+                        d.execute_script("return document.readyState") == "complete"
+                        and (
+                            len(d.find_elements(By.XPATH, "//button[contains(., 'Imprimir')] | //input[@value='Imprimir']")) > 0
+                            or "CERTIFICADO" in (d.page_source or "").upper()
+                        )
+                    )
+                )
+            except Exception as _e:
+                print(f"[FGTS] aviso: não confimou âncora da página: {_e}")
+
+        def _gerar_pdf_da_pagina() -> str:
+            try:
+                try:
+                    driver.execute_cdp_cmd('Page.enable', {})
+                except Exception:
+                    pass
+
+                result = driver.execute_cdp_cmd('Page.printToPDF', {
+                    'printBackground': True,
+                    'preferCSSPageSize': True
+                })
+                data = (result or {}).get('data')
+                if data:
+                    return data
+            except Exception as e_cdp:
+                print(f"[FGTS] CDP printToPDF falhou, tentando print_page: {e_cdp}")
+
+            return driver.print_page()
+
+        try:
+            _aguardar_pagina_certidao_fgts()
+
+            pdf_b64 = _gerar_pdf_da_pagina()
+            if not pdf_b64:
+                raise ValueError("PDF base64 vazio")
+
+            caminho_pdf = _caminho_pdf_downloads_unico()
+            with open(caminho_pdf, 'wb') as f:
+                f.write(base64.b64decode(pdf_b64))
+
+            print(f"[FGTS] PDF gerado em Downloads: {caminho_pdf}")
+
+            sucesso, msg = file_manager.mover_e_renomear(
+                caminho_pdf,
+                certidao.empresa.nome,
+                certidao.tipo.value
+            )
+
+            if sucesso:
+                contexto['arquivo_salvo_msg'] = f"Arquivo salvo em: {msg}"
+                contexto['pular_monitoramento'] = True
+                print(contexto['arquivo_salvo_msg'])
+
+                try:
+                    janelas_abertas = driver.window_handles
+                    if janelas_abertas:
+                        driver.switch_to.window(janelas_abertas[-1])
+
+                    caminho_certidao = msg.replace("\\", "\\\\")
+
+                    mensagem_alerta = (
+                        "PDF salvo no servidor com sucesso!\n"
+                        f"Salvo em: {caminho_certidao}\n\n"
+                        "Após fechar este alerta, a janela do Chrome será fechada automaticamente."
+                    )
+
+                    driver.execute_script(
+                        "var msg = arguments[0]; setTimeout(function(){ alert(msg); }, 50);",
+                        mensagem_alerta
+                    )
+
+                    try:
+                        WebDriverWait(driver, 10).until(EC.alert_is_present())
+                    except TimeoutException:
+                        print("[FGTS] Aviso: alerta não apareceu; seguindo para fechar Chrome.")
+                    else:
+                        def _alert_fechado(_d):
+                            try:
+                                _d.switch_to.alert
+                                return False
+                            except NoAlertPresentException:
+                                return True
+
+                        try:
+                            WebDriverWait(driver, 600).until(_alert_fechado)
+                        except TimeoutException:
+                            print("[FGTS] Aviso: timeout esperando usuário fechar o alerta.")
+
+                    time.sleep(1)
+                    try:
+                        driver.quit()
+                    except Exception as e_quit:
+                        print(f"[FGTS] Aviso: erro ao fechar Chrome: {e_quit}")
+                except Exception as e_alert:
+                    print(f"[FGTS] Erro ao exibir alerta/fechar Chrome: {e_alert}")
+        except Exception as e_pdf:
+            print(f"[FGTS] Erro ao gerar PDF automaticamente: {e_pdf}")
+    except Exception as e:
+        print(f"erro automação emissao FGTS: {e}")
+
+
 # baixar certidao com automacao salvamento ||||
 # VVVV
-
 
 @bp.route('/certidao/baixar/<int:certidao_id>')
 def baixar_certidao(certidao_id):
@@ -238,6 +419,13 @@ def baixar_certidao(certidao_id):
     data_encontrada = None
     arquivo_salvo_msg = None
     pular_monitoramento = False
+
+    # contexto compartilhado com helpers de steps
+    contexto = {
+        'arquivo_salvo_msg': None,
+        'pular_monitoramento': False,
+        'data_encontrada': None
+    }
 
     tempo_inicio = time.time()
 
@@ -362,6 +550,13 @@ def baixar_certidao(certidao_id):
                     print("Select de tipo configurado com sucesso.")
                 except Exception as e:
                     print(f"Aviso: não foi possível configurar select de tipo: {e}")
+
+            #3 ação específica para FGTS: emitir e salvar PDF
+            elif nome_acao == 'fgts_emitir_pdf':
+                try:
+                    _automatizar_fgts(contexto, driver, wait, certidao)
+                except Exception as e:
+                    print(f"[FGTS] Erro na ação fgts_emitir_pdf: {e}")
 
         # ordem das ações antes do cnpj
         steps_before_cnpj = info_site.get('steps_before_cnpj')
@@ -518,156 +713,6 @@ def baixar_certidao(certidao_id):
                             'cnpj_field_id') == 'inscricao' else cnpj_limpo
                         campo1.send_keys(dado_a_preencher)
                     
-                    if tipo_certidao_chave == 'FGTS':
-                        try:
-                            btn_consultar = wait.until(EC.element_to_be_clickable(
-                                (By.ID, "mainForm:btnConsultar")))
-                            print("clicando em Consultar")
-                            btn_consultar.click()
-                            time.sleep(1)
-                            
-                            btn_certificado = wait.until(EC.element_to_be_clickable(
-                                (By.ID, "mainForm:j_id51")))
-                            print("clicando em Certificado")
-                            btn_certificado.click()
-                            time.sleep(1)
-                            
-                            if not data_encontrada:
-                                try:
-                                    elemento = driver.find_element(
-                                        By.XPATH, "//p[contains(., 'Validade:')]")
-                                    texto = elemento.text
-                                    if " a " in texto:
-                                        parte_data = texto.split(" a ")[-1].strip()[:10]
-                                        data_encontrada = datetime.strptime(
-                                            parte_data, '%d/%m/%Y').date()
-                                except Exception as e:
-                                    print(f"erro ao encontrar data fgts: {e}")
-                            
-                            btn_visualizar = wait.until(EC.element_to_be_clickable(
-                                (By.ID, "mainForm:btnVisualizar")))
-                            print("clicando em Visualizar")
-                            btn_visualizar.click()
-                            time.sleep(1)
-
-                            #gerar pdf automaticamente com CDP - novo
-                            def _gerar_nome_pdf_aleatorio(tamanho: int = 10) -> str:
-                                return ''.join(random.choices(string.ascii_letters + string.digits, k=tamanho))
-
-                            def _caminho_pdf_downloads_unico() -> str:
-                                pasta_downloads = os.path.join(os.path.expanduser("~"), "Downloads")
-                                for _ in range(50):
-                                    nome = f"{_gerar_nome_pdf_aleatorio(10)}.pdf"
-                                    caminho = os.path.join(pasta_downloads, nome)
-                                    if not os.path.exists(caminho):
-                                        return caminho
-                                return os.path.join(pasta_downloads, f"{int(time.time())}_{_gerar_nome_pdf_aleatorio(6)}.pdf")
-
-                            def _aguardar_pagina_certidao_fgts():
-                                try:
-                                    WebDriverWait(driver, 20).until(
-                                        lambda d: (
-                                            d.execute_script("return document.readyState") == "complete"
-                                            and (
-                                                len(d.find_elements(By.XPATH, "//button[contains(., 'Imprimir')] | //input[@value='Imprimir']")) > 0
-                                                or "CERTIFICADO" in (d.page_source or "").upper()
-                                            )
-                                        )
-                                    )
-                                except Exception as _e:
-                                    print(f"[FGTS] aviso: não confimou âncora da página: {_e}")
-
-                            def _gerar_pdf_da_pagina() -> str:
-                                try:
-                                    try:
-                                        driver.execute_cdp_cmd('Page.enable', {})
-                                    except Exception:
-                                        pass
-
-                                    result = driver.execute_cdp_cmd('Page.printToPDF', {
-                                        'printBackground': True,
-                                        'preferCSSPageSize': True
-                                    })
-                                    data = (result or {}).get('data')
-                                    if data:
-                                        return data
-                                except Exception as e_cdp:
-                                    print(f"[FGTS] CDP printToPDF falhou, tentando print_page: {e_cdp}")
-
-                                return driver.print_page()
-
-                            try:
-                                _aguardar_pagina_certidao_fgts()
-
-                                pdf_b64 = _gerar_pdf_da_pagina()
-                                if not pdf_b64:
-                                    raise ValueError("PDF base64 vazio")
-
-                                caminho_pdf = _caminho_pdf_downloads_unico()
-                                with open(caminho_pdf, 'wb') as f:
-                                    f.write(base64.b64decode(pdf_b64))
-
-                                print(f"[FGTS] PDF gerado em Downloads: {caminho_pdf}")
-
-                                sucesso, msg = file_manager.mover_e_renomear(
-                                    caminho_pdf,
-                                    certidao.empresa.nome,
-                                    certidao.tipo.value
-                                )
-
-                                if sucesso:
-                                    arquivo_salvo_msg = f"Arquivo salvo em: {msg}"
-                                    pular_monitoramento = True
-                                    print(arquivo_salvo_msg)
-
-                                    try:
-                                        janelas_abertas = driver.window_handles
-                                        if janelas_abertas:
-                                            driver.switch_to.window(janelas_abertas[-1])
-
-                                        caminho_certidao = msg.replace("\\", "\\\\")
-
-                                        mensagem_alerta = (
-                                            "PDF salvo no servidor com sucesso!\n"
-                                            f"Salvo em: {caminho_certidao}\n\n"
-                                            "Após fechar este alerta, a janela do Chrome será fechada automaticamente."
-                                        )
-
-                                        # Dispara o alert de forma assíncrona e espera o usuário fechar (OK)
-                                        driver.execute_script(
-                                            "var msg = arguments[0]; setTimeout(function(){ alert(msg); }, 50);",
-                                            mensagem_alerta
-                                        )
-
-                                        try:
-                                            WebDriverWait(driver, 10).until(EC.alert_is_present())
-                                        except TimeoutException:
-                                            print("[FGTS] Aviso: alerta não apareceu; seguindo para fechar Chrome.")
-                                        else:
-                                            def _alert_fechado(_d):
-                                                try:
-                                                    _d.switch_to.alert
-                                                    return False
-                                                except NoAlertPresentException:
-                                                    return True
-
-                                            try:
-                                                WebDriverWait(driver, 600).until(_alert_fechado)
-                                            except TimeoutException:
-                                                print("[FGTS] Aviso: timeout esperando usuário fechar o alerta.")
-
-                                        time.sleep(1)
-                                        try:
-                                            driver.quit()
-                                        except Exception as e_quit:
-                                            print(f"[FGTS] Aviso: erro ao fechar Chrome: {e_quit}")
-                                    except Exception as e_alert:
-                                        print(f"[FGTS] Erro ao exibir alerta/fechar Chrome: {e_alert}")
-                            except Exception as e_pdf:
-                                print(f"[FGTS] Erro ao gerar PDF automaticamente: {e_pdf}")
-                            
-                        except Exception as e:
-                            print(f"erro automação emissao FGTS: {e}")
 
                     if tipo_certidao_chave == 'MUNICIPAL':   
                         cidade_upper = certidao.empresa.cidade.upper()
@@ -732,9 +777,20 @@ def baixar_certidao(certidao_id):
                 except:
                     pass
 
-        steps_after_cnpj = info_site.get('steps_after_cnpj', [])
+        # ordem das ações depois do cnpj
+        steps_after_cnpj = info_site.get('steps_after_cnpj')
+        if steps_after_cnpj is None:
+            steps_after_cnpj = []
         for step in steps_after_cnpj:
             executar_acao_aux(step)
+
+        # sincroniza variaves ja usadas
+        if contexto.get('pular_monitoramento'):
+            pular_monitoramento = True
+        if contexto.get('arquivo_salvo_msg'):
+            arquivo_salvo_msg = contexto['arquivo_salvo_msg']
+        if contexto.get('data_encontrada'):
+            data_encontrada = contexto['data_encontrada']
 
         if info_site.get('inscricao_field_id'):
             field_by_map = {'id': By.ID, 'name': By.NAME,
@@ -853,21 +909,9 @@ def baixar_certidao(certidao_id):
                 '%d/%m/%Y')
         else:
             data_calc = None
-            if tipo_certidao_chave == 'TRABALHISTA':
-                data_calc = date.today() + timedelta(days=180)
-            elif tipo_certidao_chave == 'ESTADUAL':
-                estado = certidao.empresa.estado.strip().upper()
-                if estado == "RS":
-                    data_calc = date.today() + timedelta(days=59)
-                elif estado == "SP":
-                    data_calc = date.today() + timedelta(days=180)
-                elif estado == "MT":
-                    data_calc = date.today() + timedelta(days=59)
-                elif estado == "MS":
-                    data_calc = date.today() + timedelta(days=60)
-                else:
-                    data_calc = None
-            elif tipo_certidao_chave == 'MUNICIPAL':
+
+            if tipo_certidao_chave == 'MUNICIPAL':
+                # municipal ainda esta como antes
                 cidade = certidao.empresa.cidade.strip().upper()
                 if cidade in ['IMBÉ', 'IMBE']:
                     data_calc = date.today() + timedelta(days=90)
@@ -893,6 +937,9 @@ def baixar_certidao(certidao_id):
                     data_calc = date.today() + timedelta(days=30)
                 else:
                     data_calc = None
+            else:
+                # helper centralizado
+                data_calc = calcular_validade_padrao(certidao, None)
 
             if data_calc:
                 print(
