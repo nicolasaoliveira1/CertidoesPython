@@ -684,7 +684,17 @@ def baixar_certidao(certidao_id):
                     btn_validar = wait.until(EC.element_to_be_clickable(
                         (By.ID, "compInformarContribuinte:formNumero:btnValidar")))
                     btn_validar.click()
-
+                    time.sleep(0.5)
+                    btn_certidao = wait.until(EC.element_to_be_clickable(
+                        (By.ID, "formContribuinte:repeat:1:clLinkImobiliario")))
+                    btn_certidao.click()
+                    print("Clicou em certidão negativa..")
+                    time.sleep(0.5)
+                    btn_imprimir = wait.until(EC.element_to_be_clickable(
+                        (By.XPATH, "//span[contains(@class, 'ui-button-text') and contains(text(), 'Imprimir')]")))
+                    btn_imprimir.click()
+                    print("Clicou em imprimir certidão")
+                    
                     info_site['cnpj_field_id'] = None
 
                     print("Aguardando geração do PDF...")
@@ -723,7 +733,13 @@ def baixar_certidao(certidao_id):
                                     (By.ID, "btn_buscar_cadastros")))
                                 btn_buscar.click()
                                 print("Botão Buscar clicado com sucesso!")
-                                time.sleep(2)
+                                time.sleep(0.2)
+                                btn_imprimir = wait.until(EC.element_to_be_clickable(
+                                    (By.CSS_SELECTOR, "button[data-tipo='1'].btn-info")
+                                ))
+                                btn_imprimir.click()
+                                print("Botão Imprimir clicado com sucesso!")
+                                time.sleep(1)
                             except Exception as e:
                                 print(f"Erro ao clicar no botão Buscar: {e}")
                         elif cidade_upper == 'CANOAS':
@@ -752,10 +768,10 @@ def baixar_certidao(certidao_id):
                                 btn_pesquisar = wait.until(EC.element_to_be_clickable(
                                         (By.NAME, "pesquisa")))
                                 btn_pesquisar.click()
-                                print("Botão Imprimir clicado com sucesso!")
+                                print("Botão Pesquisar clicado com sucesso!")
                                 time.sleep(0.6)
                                 btn_emitir = wait.until(EC.element_to_be_clickable(
-                                        (By.XPATH, "//a[contains(@class,'links') and contains(normalize-space(.), 'Emitir Certidão por Nome')]")))
+                                        (By.XPATH, "//a[contains(@class,'links') and contains(normalize-space(.), 'Emitir Certidão')]")))
                                 btn_emitir.click()
                                 time.sleep(1)
                             except Exception as e:
