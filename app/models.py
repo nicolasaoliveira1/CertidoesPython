@@ -64,6 +64,11 @@ class Municipio(db.Model):
     nome = db.Column(db.String(100), unique=True, nullable=False)
     url_certidao = db.Column(db.String(300), nullable=False)
 
+    automacao_ativa = db.Column(db.Boolean, nullable=False, default=True)
+    validade_dias = db.Column(db.Integer, nullable=True)
+    usar_slow_typing = db.Column(db.Boolean, nullable=False, default=False)
+    config_automacao = db.Column(db.Text, nullable=True)
+
     cnpj_field_id = db.Column(db.String(100), nullable=True)
     by = db.Column(db.String(20), nullable=True)
 
