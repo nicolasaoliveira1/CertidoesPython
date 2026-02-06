@@ -1,4 +1,5 @@
 import os
+import json
 import time
 import string
 import random
@@ -359,6 +360,106 @@ def _automatizar_fgts(contexto, driver, wait, certidao):
         print(f"erro automação emissao FGTS: {e}")
 
 
+def _carregar_config_municipio(regra_municipio):
+    if not regra_municipio:
+        return None
+    raw = regra_municipio.config_automacao
+    if not raw:
+        return None
+    try:
+        return json.loads(raw)
+    except (TypeError, ValueError) as exc:
+        print(f"[MUNICIPAL] Config inválida para {regra_municipio.nome}: {exc}")
+        return None
+
+
+def _executar_steps_municipio(driver, wait, steps, cnpj_limpo, inscricao_limpa):
+    if not steps:
+        return
+
+    by_map = {
+        'id': By.ID,
+        'name': By.NAME,
+        'css_selector': By.CSS_SELECTOR,
+        'xpath': By.XPATH,
+        'class_name': By.CLASS_NAME
+    }
+
+    for step in steps:
+        tipo = (step or {}).get('tipo')
+        if not tipo:
+            continue
+
+        if tipo == 'sleep':
+            time.sleep(float(step.get('seconds', 1)))
+            continue
+
+        if tipo == 'refresh':
+            driver.refresh()
+            time.sleep(float(step.get('sleep', 1)))
+            continue
+
+        if tipo == 'wait_for':
+            by = by_map.get(step.get('by'))
+            locator = step.get('locator')
+            if not by or not locator:
+                continue
+            timeout = step.get('timeout', 10)
+            state = step.get('state', 'clickable')
+            cond = EC.element_to_be_clickable if state == 'clickable' else EC.presence_of_element_located
+            WebDriverWait(driver, timeout).until(cond((by, locator)))
+            continue
+
+        if tipo in ['click', 'click_js', 'select', 'fill']:
+            by = by_map.get(step.get('by'))
+            locator = step.get('locator')
+            if not by or not locator:
+                continue
+
+            elemento = wait.until(EC.element_to_be_clickable((by, locator)))
+
+            if tipo == 'click':
+                elemento.click()
+                time.sleep(float(step.get('sleep', 0.5)))
+                continue
+
+            if tipo == 'click_js':
+                driver.execute_script("arguments[0].click();", elemento)
+                time.sleep(float(step.get('sleep', 0.5)))
+                continue
+
+            if tipo == 'select':
+                select_obj = Select(elemento)
+                value = step.get('value')
+                text = step.get('text')
+                contains = step.get('text_contains')
+                if value is not None:
+                    select_obj.select_by_value(value)
+                elif text:
+                    select_obj.select_by_visible_text(text)
+                elif contains:
+                    for opt in select_obj.options:
+                        if contains.upper() in opt.text.upper():
+                            select_obj.select_by_visible_text(opt.text)
+                            break
+                time.sleep(float(step.get('sleep', 0.5)))
+                continue
+
+            if tipo == 'fill':
+                value = step.get('value')
+                if value == 'cnpj':
+                    value = cnpj_limpo
+                elif value == 'inscricao':
+                    value = inscricao_limpa
+                if value is None:
+                    continue
+                elemento.clear()
+                elemento.click()
+                elemento.send_keys(value)
+                time.sleep(float(step.get('sleep', 0.5)))
+                continue
+
+
 # baixar certidao com automacao salvamento ||||
 # VVVV
 
@@ -367,6 +468,10 @@ def baixar_certidao(certidao_id):
     file_manager.criar_chave_interrupcao()
     certidao = Certidao.query.get_or_404(certidao_id)
     tipo_certidao_chave = certidao.tipo.name
+
+    regra_municipio = None
+    config_municipal = None
+    usar_config_municipal = False
 
     if tipo_certidao_chave == 'FEDERAL':
         return redirect("https://servicos.receitafederal.gov.br/servico/certidoes/#/home/cnpj")
@@ -386,7 +491,6 @@ def baixar_certidao(certidao_id):
     else:
         cidade_empresa = certidao.empresa.cidade or ''
         cidade_norm = file_manager.remover_acentos(cidade_empresa).upper()
-        regra_municipio = None
         
         for m in Municipio.query.all():
             nome_norm = file_manager.remover_acentos(m.nome or '').upper()
@@ -404,10 +508,19 @@ def baixar_certidao(certidao_id):
                 'inscricao_field_id': regra_municipio.inscricao_field_id,
                 'inscricao_field_by': regra_municipio.inscricao_field_by
             }
-            #temporario
-            cidade_upper = (certidao.empresa.cidade or '').upper()
-            if cidade_upper in ['CAPAO DA CANOA', 'CAPÃO DA CANOA']:
+            if regra_municipio.usar_slow_typing:
                 info_site['slow_typing'] = True
+
+            if regra_municipio.automacao_ativa is False:
+                return jsonify({
+                    "status": "manual_required",
+                    "message": "Automação desativada para este município. Use o botão 'Abrir Site'."
+                })
+
+            config_municipal = _carregar_config_municipio(regra_municipio)
+            usar_config_municipal = bool(config_municipal)
+            if usar_config_municipal and config_municipal.get('skip_cnpj_fill'):
+                info_site['cnpj_field_id'] = None
             
         else:
             return jsonify({'status': 'error', 'message': 'Regra municipal não encontrada'})
@@ -443,54 +556,64 @@ def baixar_certidao(certidao_id):
         driver.get(info_site.get('url'))
         
         if tipo_certidao_chave == 'MUNICIPAL':
-            if certidao.empresa.cidade.upper() in ['CAPAO DA CANOA', 'CAPÃO DA CANOA']:
-                print("--- NAVEGAÇÃO PORTAL CAPÃO DA CANOA ---")
-                try:
-                    select_estados_el = wait.until(
-                        EC.element_to_be_clickable((By.ID, "mainForm:estados"))
-                    )
-                    select_estados = Select(select_estados_el)
-                    select_estados.select_by_visible_text("RS - Rio Grande do Sul")
-                    time.sleep(1)
+            if usar_config_municipal:
+                steps_before = config_municipal.get('before_cnpj', []) if config_municipal else []
+                _executar_steps_municipio(
+                    driver,
+                    wait,
+                    steps_before,
+                    cnpj_limpo,
+                    inscricao_limpa
+                )
+            else:
+                if certidao.empresa.cidade.upper() in ['CAPAO DA CANOA', 'CAPÃO DA CANOA']:
+                    print("--- NAVEGAÇÃO PORTAL CAPÃO DA CANOA ---")
+                    try:
+                        select_estados_el = wait.until(
+                            EC.element_to_be_clickable((By.ID, "mainForm:estados"))
+                        )
+                        select_estados = Select(select_estados_el)
+                        select_estados.select_by_visible_text("RS - Rio Grande do Sul")
+                        time.sleep(1)
 
-                    def _municipio_capao_carregado(d):
-                        try:
-                            sel = Select(d.find_element(By.ID, "mainForm:municipios"))
-                            return any(
-                                "CAPÃO DA CANOA" in opt.text.upper()
-                                for opt in sel.options
-                            )
-                        except Exception:
-                            return False
+                        def _municipio_capao_carregado(d):
+                            try:
+                                sel = Select(d.find_element(By.ID, "mainForm:municipios"))
+                                return any(
+                                    "CAPÃO DA CANOA" in opt.text.upper()
+                                    for opt in sel.options
+                                )
+                            except Exception:
+                                return False
 
-                    WebDriverWait(driver, 5).until(_municipio_capao_carregado)
+                        WebDriverWait(driver, 5).until(_municipio_capao_carregado)
 
-                    select_municipios_el = driver.find_element(By.ID, "mainForm:municipios")
-                    select_municipios = Select(select_municipios_el)
-                    for opt in select_municipios.options:
-                        if "CAPÃO DA CANOA" in opt.text.upper():
-                            select_municipios.select_by_visible_text(opt.text)
-                            print(f"Município selecionado: {opt.text}")
-                            break
+                        select_municipios_el = driver.find_element(By.ID, "mainForm:municipios")
+                        select_municipios = Select(select_municipios_el)
+                        for opt in select_municipios.options:
+                            if "CAPÃO DA CANOA" in opt.text.upper():
+                                select_municipios.select_by_visible_text(opt.text)
+                                print(f"Município selecionado: {opt.text}")
+                                break
 
-                    time.sleep(1)
+                        time.sleep(1)
 
-                    btn_acessar = wait.until(
-                        EC.element_to_be_clickable((By.ID, "mainForm:selecionar"))
-                    )
-                    driver.execute_script("arguments[0].click();", btn_acessar)
-                    print("Botão Acessar clicado.")
-                    time.sleep(1)
-                    
-                    link_certidao = wait.until(EC.element_to_be_clickable((
-                    By.XPATH,
-                    "//a[contains(@class,'boxMenu') and .//span[normalize-space()='Certidão negativa de contribuinte']]"
-                    )))
-                    link_certidao.click()
-                    time.sleep(1)
+                        btn_acessar = wait.until(
+                            EC.element_to_be_clickable((By.ID, "mainForm:selecionar"))
+                        )
+                        driver.execute_script("arguments[0].click();", btn_acessar)
+                        print("Botão Acessar clicado.")
+                        time.sleep(1)
+                        
+                        link_certidao = wait.until(EC.element_to_be_clickable((
+                        By.XPATH,
+                        "//a[contains(@class,'boxMenu') and .//span[normalize-space()='Certidão negativa de contribuinte']]"
+                        )))
+                        link_certidao.click()
+                        time.sleep(1)
 
-                except Exception as e:
-                    print(f"Erro na navegação do portal para Capão da Canoa: {e}")
+                    except Exception as e:
+                        print(f"Erro na navegação do portal para Capão da Canoa: {e}")
 
         def executar_acao_aux(nome_acao):
             # 1 pre click inicial
@@ -568,7 +691,7 @@ def baixar_certidao(certidao_id):
             executar_acao_aux(step)
 
 
-        if tipo_certidao_chave == 'MUNICIPAL':
+        if tipo_certidao_chave == 'MUNICIPAL' and not usar_config_municipal:
             if certidao.empresa.cidade.upper() in ['SAO PAULO', 'SÃO PAULO']:
                 return jsonify({
                 "status": "manual_required",
@@ -724,7 +847,7 @@ def baixar_certidao(certidao_id):
                         campo1.send_keys(dado_a_preencher)
                     
 
-                    if tipo_certidao_chave == 'MUNICIPAL':   
+                    if tipo_certidao_chave == 'MUNICIPAL' and not usar_config_municipal:   
                         cidade_upper = certidao.empresa.cidade.upper()
                         if cidade_upper in ['CIDREIRA', 'SAPUCAIA DO SUL']:
                             print(f"Clicando no botão Buscar para {cidade_upper}...")
@@ -792,6 +915,16 @@ def baixar_certidao(certidao_id):
                                 print(f"Erro ao clicar em Emitir: {e}")
                 except:
                     pass
+
+        if tipo_certidao_chave == 'MUNICIPAL' and usar_config_municipal:
+            steps_after = config_municipal.get('after_cnpj', []) if config_municipal else []
+            _executar_steps_municipio(
+                driver,
+                wait,
+                steps_after,
+                cnpj_limpo,
+                inscricao_limpa
+            )
 
         # ordem das ações depois do cnpj
         steps_after_cnpj = info_site.get('steps_after_cnpj')
@@ -928,31 +1061,34 @@ def baixar_certidao(certidao_id):
 
             if tipo_certidao_chave == 'MUNICIPAL':
                 # municipal ainda esta como antes
-                cidade = certidao.empresa.cidade.strip().upper()
-                if cidade in ['IMBÉ', 'IMBE']:
-                    data_calc = date.today() + timedelta(days=90)
-                elif cidade in ['TRAMANDAÍ', 'TRAMANDAI', 'TRAMANDAI/RS']:
-                    data_calc = date.today() + timedelta(days=30)
-                elif cidade == "CIDREIRA":
-                    data_calc = date.today() + timedelta(days=30)
-                elif cidade == "SAPUCAIA DO SUL":
-                    data_calc = date.today() + timedelta(days=120)
-                elif cidade in ['GRAVATAI', 'GRAVATAÍ']:
-                    data_calc = date.today() + timedelta(days=90)
-                elif cidade == "NOVO HAMBURGO":
-                    data_calc = date.today() + timedelta(days=60)
-                elif cidade in ['OSORIO', 'OSÓRIO']:
-                    data_calc = date.today() + timedelta(days=90)
-                elif cidade == 'CANOAS':
-                    data_calc = date.today() + timedelta(days=90)
-                elif cidade == 'SORRISO':
-                    data_calc = date.today() + timedelta(days=60)
-                elif cidade in ['XANGRI-LA', 'XANGRI-LÁ', 'XANGRILA']:
-                    data_calc = date.today() + timedelta(days=30)
-                elif cidade in ['CAPAO DA CANOA', 'CAPÃO DA CANOA']:
-                    data_calc = date.today() + timedelta(days=30)
+                if regra_municipio and regra_municipio.validade_dias:
+                    data_calc = date.today() + timedelta(days=regra_municipio.validade_dias)
                 else:
-                    data_calc = None
+                    cidade = certidao.empresa.cidade.strip().upper()
+                    if cidade in ['IMBÉ', 'IMBE']:
+                        data_calc = date.today() + timedelta(days=90)
+                    elif cidade in ['TRAMANDAÍ', 'TRAMANDAI', 'TRAMANDAI/RS']:
+                        data_calc = date.today() + timedelta(days=30)
+                    elif cidade == "CIDREIRA":
+                        data_calc = date.today() + timedelta(days=30)
+                    elif cidade == "SAPUCAIA DO SUL":
+                        data_calc = date.today() + timedelta(days=120)
+                    elif cidade in ['GRAVATAI', 'GRAVATAÍ']:
+                        data_calc = date.today() + timedelta(days=90)
+                    elif cidade == "NOVO HAMBURGO":
+                        data_calc = date.today() + timedelta(days=60)
+                    elif cidade in ['OSORIO', 'OSÓRIO']:
+                        data_calc = date.today() + timedelta(days=90)
+                    elif cidade == 'CANOAS':
+                        data_calc = date.today() + timedelta(days=90)
+                    elif cidade == 'SORRISO':
+                        data_calc = date.today() + timedelta(days=60)
+                    elif cidade in ['XANGRI-LA', 'XANGRI-LÁ', 'XANGRILA']:
+                        data_calc = date.today() + timedelta(days=30)
+                    elif cidade in ['CAPAO DA CANOA', 'CAPÃO DA CANOA']:
+                        data_calc = date.today() + timedelta(days=30)
+                    else:
+                        data_calc = None
             else:
                 # helper centralizado
                 data_calc = calcular_validade_padrao(certidao, None)
