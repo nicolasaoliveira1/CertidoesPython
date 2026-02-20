@@ -226,7 +226,11 @@ def mover_e_renomear(caminho_arquivo_origem, nome_empresa, tipo_certidao):
     destino_final = encontrar_caminho_final(caminho_empresa)
 
     extensao = os.path.splitext(caminho_arquivo_origem)[1]
-    novo_nome = f"CERTIDAO {tipo_certidao.upper()}{extensao}"
+    tipo_certidao_limpo = (tipo_certidao or '').strip().upper()
+    if tipo_certidao_limpo.startswith('CERTIDAO '):
+        novo_nome = f"{tipo_certidao_limpo}{extensao}"
+    else:
+        novo_nome = f"CERTIDAO {tipo_certidao_limpo}{extensao}"
 
     limpar_versoes_antigas(destino_final, novo_nome, tipo_certidao)
 

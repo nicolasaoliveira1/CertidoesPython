@@ -11,6 +11,11 @@ class TipoCertidao(enum.Enum):
     TRABALHISTA = "Trabalhista"
 
 
+class SubtipoCertidao(enum.Enum):
+    GERAL = "Geral"
+    MOBILIARIO = "Mobiliário"
+
+
 class StatusEspecial(enum.Enum):
     PENDENTE = "Pendente"
 
@@ -33,6 +38,14 @@ class Empresa(db.Model):
 class Certidao(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     tipo = db.Column(db.Enum(TipoCertidao), nullable=False)
+    subtipo = db.Column(
+        db.Enum(
+            SubtipoCertidao,
+            values_callable=lambda enum_cls: [e.value for e in enum_cls],
+            name='subtipocertidao'
+        ),
+        nullable=True
+    )
 
     data_validade = db.Column(db.Date, nullable=True)
     empresa_id = db.Column(db.Integer, db.ForeignKey(
@@ -40,6 +53,8 @@ class Certidao(db.Model):
     status_especial = db.Column(db.Enum(StatusEspecial), nullable=True)
 
     def __repr__(self):
+        if self.subtipo:
+            return f'<Certidao {self.tipo.value} - {self.subtipo.value} - {self.empresa.nome}>'
         return f'<Certidao {self.tipo.value} - {self.empresa.nome}>'
 
     @property
@@ -57,6 +72,23 @@ class Certidao(db.Model):
             return 'amarelo'
         else:
             return 'verde'
+
+    @property
+    def ordem_exibicao(self):
+        ordem_tipo = {
+            TipoCertidao.FEDERAL: 1,
+            TipoCertidao.FGTS: 2,
+            TipoCertidao.ESTADUAL: 3,
+            TipoCertidao.MUNICIPAL: 4,
+            TipoCertidao.TRABALHISTA: 5,
+        }
+        subtipo_ordem = 0
+        if self.tipo == TipoCertidao.MUNICIPAL and self.subtipo:
+            if self.subtipo == SubtipoCertidao.GERAL:
+                subtipo_ordem = 1
+            elif self.subtipo == SubtipoCertidao.MOBILIARIO:
+                subtipo_ordem = 2
+        return (ordem_tipo.get(self.tipo, 99), subtipo_ordem, self.id or 0)
 
 
 class Municipio(db.Model):

@@ -22,7 +22,7 @@ from webdriver_manager.chrome import ChromeDriverManager
 from app import db, file_manager
 from app.automation import SITES_CERTIDOES, VALIDADES_CERTIDOES
 from app.models import (Certidao, Empresa, Municipio, StatusEspecial,
-                        TipoCertidao)
+                        SubtipoCertidao, TipoCertidao)
 
 bp = Blueprint('main', __name__)
 
@@ -153,10 +153,37 @@ def adicionar_empresa():
     )
     db.session.add(nova_empresa)
 
+    cidade_norm = file_manager.remover_acentos(cidade or '').upper()
+    is_imbe = cidade_norm == 'IMBE'
+
     for tipo in TipoCertidao:
-        nova_certidao = Certidao(
-            tipo=tipo, empresa=nova_empresa, data_validade=None)
-        db.session.add(nova_certidao)
+        if tipo == TipoCertidao.MUNICIPAL:
+            if is_imbe:
+                db.session.add(Certidao(
+                    tipo=tipo,
+                    subtipo=SubtipoCertidao.GERAL,
+                    empresa=nova_empresa,
+                    data_validade=None
+                ))
+                db.session.add(Certidao(
+                    tipo=tipo,
+                    subtipo=SubtipoCertidao.MOBILIARIO,
+                    empresa=nova_empresa,
+                    data_validade=None
+                ))
+            else:
+                db.session.add(Certidao(
+                    tipo=tipo,
+                    empresa=nova_empresa,
+                    data_validade=None
+                ))
+            continue
+
+        db.session.add(Certidao(
+            tipo=tipo,
+            empresa=nova_empresa,
+            data_validade=None
+        ))
 
     # Salva no banco
     try:
@@ -469,9 +496,65 @@ def baixar_certidao(certidao_id):
     certidao = Certidao.query.get_or_404(certidao_id)
     tipo_certidao_chave = certidao.tipo.name
 
+    by_map = {
+        'id': By.ID,
+        'css_selector': By.CSS_SELECTOR,
+        'xpath': By.XPATH,
+        'name': By.NAME
+    }
+
+    def _get_by(key):
+        return by_map.get(key)
+
+    def _calcular_validade_sem_data(tipo_chave, regra):
+        if tipo_chave == 'MUNICIPAL':
+            if regra and regra.validade_dias:
+                return date.today() + timedelta(days=regra.validade_dias)
+            return None
+        return calcular_validade_padrao(certidao, None)
+
+    def _aplicar_variantes_imbe(info_site_cfg, config_cfg, tipo_escolhido):
+        if tipo_escolhido != 'geral':
+            return
+        cfg_geral = (((config_cfg or {}).get('imbe_variantes') or {}).get('geral') or {})
+        info_site_cfg['url'] = cfg_geral.get(
+            'url',
+            'https://grp.imbe.rs.gov.br/grp/acessoexterno/programaAcessoExterno.faces?codigo=684509'
+        )
+        info_site_cfg['cnpj_field_id'] = cfg_geral.get('cnpj_field_id', 'form:cnpjD')
+        info_site_cfg['by'] = cfg_geral.get('by', 'name')
+        info_site_cfg['pre_fill_click_id'] = cfg_geral.get(
+            'pre_fill_click_id',
+            info_site_cfg.get('pre_fill_click_id')
+        )
+        info_site_cfg['pre_fill_click_by'] = cfg_geral.get(
+            'pre_fill_click_by',
+            info_site_cfg.get('pre_fill_click_by')
+        )
+        info_site_cfg['inscricao_field_id'] = None
+        info_site_cfg['inscricao_field_by'] = None
+
+    def _nome_certidao_imbe(nome_padrao, tipo_escolhido):
+        if tipo_escolhido == 'geral':
+            return 'CERTIDAO MUNICIPAL'
+        if tipo_escolhido == 'mobiliario':
+            return 'CERTIDAO MOBILIARIO'
+        return nome_padrao
+
+    def _resolve_imbe_tipo(cert_subtipo):
+        if cert_subtipo == SubtipoCertidao.GERAL:
+            return 'geral'
+        if cert_subtipo == SubtipoCertidao.MOBILIARIO:
+            return 'mobiliario'
+        return ''
+
     regra_municipio = None
     config_municipal = None
     usar_config_municipal = False
+    imbe_tipo = (request.args.get('imbe_tipo') or '').strip().lower()
+
+    if not imbe_tipo and certidao.subtipo:
+        imbe_tipo = _resolve_imbe_tipo(certidao.subtipo)
 
     if tipo_certidao_chave == 'FEDERAL':
         return redirect("https://servicos.receitafederal.gov.br/servico/certidoes/#/home/cnpj")
@@ -519,6 +602,17 @@ def baixar_certidao(certidao_id):
 
             config_municipal = _carregar_config_municipio(regra_municipio)
             usar_config_municipal = bool(config_municipal)
+
+            cidade_regra_norm = file_manager.remover_acentos(regra_municipio.nome or '').upper()
+            if cidade_regra_norm == 'IMBE':
+                if imbe_tipo not in ['mobiliario', 'geral']:
+                    return jsonify({
+                        'status': 'manual_required',
+                        'message': 'Para Imbé, selecione no modal: Certidão Municipal Mobiliário ou Geral.'
+                    })
+
+                _aplicar_variantes_imbe(info_site, config_municipal, imbe_tipo)
+
             if usar_config_municipal and config_municipal.get('skip_cnpj_fill'):
                 info_site['cnpj_field_id'] = None
             
@@ -533,6 +627,12 @@ def baixar_certidao(certidao_id):
 
     cnpj_limpo = ''.join(filter(str.isdigit, certidao.empresa.cnpj))
     inscricao_limpa = certidao.empresa.inscricao_mobiliaria or ''
+
+    nome_certidao_arquivo = certidao.tipo.value
+    if tipo_certidao_chave == 'MUNICIPAL' and regra_municipio:
+        cidade_regra_norm = file_manager.remover_acentos(regra_municipio.nome or '').upper()
+        if cidade_regra_norm == 'IMBE':
+            nome_certidao_arquivo = _nome_certidao_imbe(nome_certidao_arquivo, imbe_tipo)
 
     driver = None
     data_encontrada = None
@@ -578,13 +678,7 @@ def baixar_certidao(certidao_id):
             if nome_acao == 'pre_fill':
                 if not info_site.get('pre_fill_click_id'):
                     return
-                click_by_map = {
-                    'id': By.ID,
-                    'css_selector': By.CSS_SELECTOR,
-                    'xpath': By.XPATH,
-                    'name': By.NAME
-                }
-                click_by = click_by_map.get(info_site.get('pre_fill_click_by'))
+                click_by = _get_by(info_site.get('pre_fill_click_by'))
                 if not click_by:
                     return
                 try:
@@ -602,16 +696,7 @@ def baixar_certidao(certidao_id):
             elif nome_acao == 'select_tipo':
                 if not info_site.get('tipo_select_id'):
                     return
-                select_by_map = {
-                    'id': By.ID,
-                    'css_selector': By.CSS_SELECTOR,
-                    'xpath': By.XPATH,
-                    'name': By.NAME
-                }
-                select_by = select_by_map.get(
-                    info_site.get('tipo_select_by', 'id'),
-                    By.ID
-                )
+                select_by = _get_by(info_site.get('tipo_select_by', 'id')) or By.ID
                 try:
                     select_el = wait.until(
                         EC.element_to_be_clickable(
@@ -649,9 +734,7 @@ def baixar_certidao(certidao_id):
             executar_acao_aux(step)
 
         if info_site.get('cnpj_field_id'):
-            field_by_map = {'id': By.ID, 'name': By.NAME,
-                            'css_selector': By.CSS_SELECTOR, 'xpath': By.XPATH}
-            field_by = field_by_map.get(info_site.get('by'))
+            field_by = _get_by(info_site.get('by'))
             if field_by:
                 try:
                     campo1 = wait.until(EC.element_to_be_clickable(
@@ -697,9 +780,7 @@ def baixar_certidao(certidao_id):
             data_encontrada = contexto['data_encontrada']
 
         if info_site.get('inscricao_field_id'):
-            field_by_map = {'id': By.ID, 'name': By.NAME,
-                            'css_selector': By.CSS_SELECTOR, 'xpath': By.XPATH}
-            field_by = field_by_map.get(info_site.get('inscricao_field_by'))
+            field_by = _get_by(info_site.get('inscricao_field_by'))
             if field_by:
                 try:
                     campo2 = wait.until(EC.element_to_be_clickable(
@@ -732,7 +813,7 @@ def baixar_certidao(certidao_id):
                         sucesso, msg = file_manager.mover_e_renomear(
                             novo_arquivo,
                             certidao.empresa.nome,
-                            certidao.tipo.value
+                            nome_certidao_arquivo
                         )
 
                         if sucesso:
@@ -803,7 +884,7 @@ def baixar_certidao(certidao_id):
         response_data['status'] = 'success_file_saved'
         response_data['mensagem_arquivo'] = arquivo_salvo_msg
         response_data['certidao_id'] = certidao_id
-        response_data['tipo_certidao'] = certidao.tipo.value
+        response_data['tipo_certidao'] = nome_certidao_arquivo
 
         if data_encontrada:
             print(
@@ -814,12 +895,7 @@ def baixar_certidao(certidao_id):
         else:
             data_calc = None
 
-            if tipo_certidao_chave == 'MUNICIPAL':
-                if regra_municipio and regra_municipio.validade_dias:
-                    data_calc = date.today() + timedelta(days=regra_municipio.validade_dias)
-            else:
-                # helper centralizado
-                data_calc = calcular_validade_padrao(certidao, None)
+            data_calc = _calcular_validade_sem_data(tipo_certidao_chave, regra_municipio)
 
             if data_calc:
                 print(
@@ -833,7 +909,7 @@ def baixar_certidao(certidao_id):
     else:
         response_data['status'] = 'window_closed_no_file'
         response_data['certidao_id'] = certidao_id
-        response_data['tipo_certidao'] = certidao.tipo.value
+        response_data['tipo_certidao'] = nome_certidao_arquivo
 
     return jsonify(response_data)
 

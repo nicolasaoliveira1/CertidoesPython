@@ -1,5 +1,47 @@
 {% extends "base.html" %}
 
+{% macro render_badge(certidao, hoje) -%}
+    {%- set badge_class = 'text-bg-success' -%}
+    {%- set icone_status = 'bi-check-circle-fill' -%}
+    {%- if certidao.status_especial and certidao.status_especial.value == 'Pendente' -%}
+        {%- set badge_class = 'text-bg-danger' -%}
+        {%- set icone_status = 'bi-exclamation-circle-fill' -%}
+    {%- elif not certidao.data_validade -%}
+        {%- set badge_class = 'text-bg-secondary' -%}
+        {%- set icone_status = 'bi-question-circle-fill' -%}
+    {%- elif certidao.data_validade < hoje -%}
+        {%- set badge_class = 'text-bg-danger' -%}
+        {%- set icone_status = 'bi-x-circle-fill' -%}
+    {%- elif (certidao.data_validade - hoje).days <= 7 -%}
+        {%- set badge_class = 'text-bg-warning text-dark' -%}
+        {%- set icone_status = 'bi-exclamation-triangle-fill' -%}
+    {%- endif -%}
+    <span class="badge rounded-pill {{ badge_class }} fs-6 fw-normal px-3 py-2 d-inline-flex align-items-center gap-2">
+        <i class="bi {{ icone_status }}"></i>
+        {%- if certidao.status_especial and certidao.status_especial.value == 'Pendente' -%}
+            PENDENTE
+        {%- else -%}
+            {{ certidao.data_validade.strftime('%d/%m/%Y') if certidao.data_validade else 'Não definida' }}
+        {%- endif -%}
+    </span>
+{%- endmacro %}
+
+{% macro resolve_data_url(certidao, sites_urls, urls_municipais) -%}
+    {%- if certidao.tipo.name == 'MUNICIPAL' -%}
+        {{ urls_municipais.get(certidao.empresa.cidade, '#') }}
+    {%- elif certidao.tipo.name == 'ESTADUAL' -%}
+        {%- set uf = (certidao.empresa.estado or '').strip().upper() -%}
+        {{ sites_urls.get('ESTADUAL', {}).get(uf, {}).get('url', '#') }}
+    {%- else -%}
+        {{ sites_urls.get(certidao.tipo.name, {}).get('url', '#') }}
+    {%- endif -%}
+{%- endmacro %}
+
+{% macro resolve_tipo_exibicao(certidao) -%}
+    {%- set subtipo_label = certidao.subtipo.value if certidao.subtipo else '' -%}
+    {{ certidao.tipo.value ~ (' - ' ~ subtipo_label if subtipo_label else '') }}
+{%- endmacro %}
+
 {% block content %}
 
 
@@ -94,10 +136,12 @@
             {% endif %}
         {% endfor %}
 
+        {% set certidoes_filtradas = certidoes_filtradas | sort(attribute='ordem_exibicao') %}
+
         {# SÓ MOSTRA O CARD SE HOUVER CERTIDÕES NO FILTRO #}
         {% if certidoes_filtradas | length > 0 %}
         
-        <div class="card mb-4 shadow-sm border-0 company-card" data-nome-empresa="{{ empresa.nome }}">
+        <div class="card mb-4 shadow-sm border-0 company-card" data-nome-empresa="{{ empresa.nome }}" data-cidade-empresa="{{ empresa.cidade }}">
             
             <div class="card-header bg-white border-bottom py-3 d-flex flex-wrap justify-content-between align-items-center">
                 <div class="d-flex align-items-center gap-3">
@@ -129,44 +173,18 @@
                         </thead>
                         <tbody>
                             {% for certidao in certidoes_filtradas %}
-                                {# ... Lógica de Cores da Badge (Igual a anterior) ... #}
-                                {% set badge_class = 'text-bg-success' %}
-                                {% set icone_status = 'bi-check-circle-fill' %}
-                                {% if certidao.status_especial and certidao.status_especial.value == 'Pendente' %}
-                                    {% set badge_class = 'text-bg-danger' %} {% set icone_status = 'bi-exclamation-circle-fill' %}
-                                {% elif not certidao.data_validade %}
-                                    {% set badge_class = 'text-bg-secondary' %} {% set icone_status = 'bi-question-circle-fill' %}
-                                {% elif certidao.data_validade < hoje %}
-                                    {% set badge_class = 'text-bg-danger' %} {% set icone_status = 'bi-x-circle-fill' %}
-                                {% elif (certidao.data_validade - hoje).days <= 7 %}
-                                    {% set badge_class = 'text-bg-warning text-dark' %} {% set icone_status = 'bi-exclamation-triangle-fill' %}
-                                {% endif %}
-
-                                {% set data_url_final = '#' %}
-                                {% if certidao.tipo.name == 'MUNICIPAL' %}
-                                    {% set data_url_final = urls_municipais.get(certidao.empresa.cidade, '#') %}
-                                {% elif certidao.tipo.name == 'ESTADUAL' %}
-                                    {% set uf = (certidao.empresa.estado or '').strip().upper() %}
-                                    {% set data_url_final = sites_urls.get('ESTADUAL', {}).get(uf, {}).get('url', '#') %}
-                                {% else %}
-                                    {% set data_url_final = sites_urls.get(certidao.tipo.name, {}).get('url', '#') %}
-                                {% endif %}
+                                {% set data_url_final = resolve_data_url(certidao, sites_urls, urls_municipais) %}
 
                                 {% set cidade_upper = (empresa.cidade or '') | upper %}
                                 {% set sp_municipal_manual = (certidao.tipo.name == 'MUNICIPAL') and (cidade_upper in ['SAO PAULO', 'SÃO PAULO']) %}
 
+                                {% set tipo_exibicao = resolve_tipo_exibicao(certidao) %}
+
                                 <tr>
-                                    <td class="ps-4 fw-medium">{{ certidao.tipo.value }}</td>
+                                    <td class="ps-4 fw-medium">{{ tipo_exibicao }}</td>
                                     
                                     <td class="text-center">
-                                        <span class="badge rounded-pill {{ badge_class }} fs-6 fw-normal px-3 py-2 d-inline-flex align-items-center gap-2">
-                                            <i class="bi {{ icone_status }}"></i>
-                                            {% if certidao.status_especial and certidao.status_especial.value == 'Pendente' %}
-                                                PENDENTE
-                                            {% else %}
-                                                {{ certidao.data_validade.strftime('%d/%m/%Y') if certidao.data_validade else 'Não definida' }}
-                                            {% endif %}
-                                        </span>
+                                        {{ render_badge(certidao, hoje) }}
                                     </td>
 
                                     <td class="text-center pe-4">
@@ -178,18 +196,19 @@
                                                 <i class="bi bi-box-arrow-up-right fs-5"></i>
                                             </a>
 
-                                            <button class="btn btn-sm btn-outline-warning border-0"
+                                                <button class="btn btn-sm btn-outline-warning border-0"
                                                     title="Editar"
                                                     data-bs-toggle="modal" data-bs-target="#editModal"
                                                     data-certidao-id="{{ certidao.id }}"
-                                                    data-certidao-info="{{ certidao.tipo.value }} - {{ certidao.empresa.nome }}">
+                                                    data-certidao-info="{{ tipo_exibicao }} - {{ certidao.empresa.nome }}">
                                                 <i class="bi bi-pencil-square fs-5"></i>
                                             </button>
 
-                                            <button class="btn btn-sm btn-outline-primary border-0 btn-baixar-certidao"
+                                                <button class="btn btn-sm btn-outline-primary border-0 btn-baixar-certidao"
                                                     title="Baixar"
                                                     data-href="{{ url_for('main.baixar_certidao', certidao_id=certidao.id) }}"
                                                     data-tipo="{{ certidao.tipo.name }}"
+                                                    data-subtipo="{{ certidao.subtipo.name | lower if certidao.subtipo else '' }}"
                                                     data-manual-only="{{ '1' if sp_municipal_manual else '0' }}">
                                                 <i class="bi bi-download fs-5"></i>
                                             </button>
@@ -343,6 +362,12 @@ document.addEventListener('DOMContentLoaded', function() {
         toastBootstrap.show();
     }
 
+    function resetDownloadButton(button, originalHTML) {
+        delete button.dataset.imbeTipoEscolhido;
+        button.innerHTML = originalHTML;
+        button.disabled = false;
+    }
+
     const confirmModalElement = document.getElementById('confirmarDataModal');
     let confirmModal = confirmModalElement ? new bootstrap.Modal(confirmModalElement) : null;
     
@@ -382,7 +407,6 @@ document.addEventListener('DOMContentLoaded', function() {
     let tipoParaAbrir = null;
     let idParaMonitorar = null;
     let caminhoArquivoParaModal = null;
-
     const loadingOverlay = document.getElementById('loading-overlay');
     const loadingDetalhes = document.getElementById('loading-detalhes');
 
@@ -482,6 +506,35 @@ document.addEventListener('DOMContentLoaded', function() {
         badge.innerHTML = `<i class="bi ${novoIcone}"></i> ${novoTexto}`;
     }
 
+    function handleDownloadResponse(data) {
+        if (data.status === 'success_file_saved') {
+            if (displayData) displayData.textContent = data.data_formatada;
+            if (displayTipo) displayTipo.textContent = data.tipo_certidao;
+            atualizarInfoArquivoModal(data.mensagem_arquivo);
+            dadosParaSalvar = { certidao_id: data.certidao_id, nova_validade: data.nova_data };
+            if (confirmModal) confirmModal.show();
+            return;
+        }
+
+        if (data.status === 'window_closed_no_file') {
+            limparInfoArquivoModal();
+            if (displayTipoPendente) displayTipoPendente.textContent = data.tipo_certidao;
+            certidaoIdPendente = data.certidao_id;
+            if (pendenteModal) pendenteModal.show();
+            return;
+        }
+
+        if (data.status === 'success_file_saved_no_date') {
+            limparInfoArquivoModal();
+            showToast("Arquivo salvo! Sem regra de data.", "primary");
+            setTimeout(() => location.reload(), 2000);
+            return;
+        }
+
+        limparInfoArquivoModal();
+        showToast('Aviso: ' + (data.message || 'Erro desconhecido'), 'error');
+    }
+
 // BOTAO ABRIR SITE
     const btnsAbrirSite = document.querySelectorAll('.btn-abrir-site');
     btnsAbrirSite.forEach(function(btn) {
@@ -577,16 +630,27 @@ document.addEventListener('DOMContentLoaded', function() {
 
             if (btn.dataset.tipo === 'FEDERAL') {
                 showToast("Para Federal, use o botão 'Abrir Site'.", "primary");
-                btn.innerHTML = originalHTML;
-                btn.disabled = false;
+                resetDownloadButton(btn, originalHTML);
                 return;
             }
 
             if (btn.dataset.manualOnly === '1') {
                 showToast("Para São Paulo, use o botão 'Abrir Site'.", "primary");
-                btn.innerHTML = originalHTML;
-                btn.disabled = false;
+                resetDownloadButton(btn, originalHTML);
                 return;
+            }
+
+            const cardDaLinha = btn.closest('.company-card');
+            const cidadeEmpresaRaw = (cardDaLinha && cardDaLinha.dataset.cidadeEmpresa) ? cardDaLinha.dataset.cidadeEmpresa : '';
+            const cidadeEmpresaNorm = cidadeEmpresaRaw
+                .normalize('NFD')
+                .replace(/[\u0300-\u036f]/g, '')
+                .toUpperCase();
+            const isMunicipalImbe = btn.dataset.tipo === 'MUNICIPAL' && cidadeEmpresaNorm === 'IMBE';
+            const subtipoFixado = btn.dataset.subtipo || '';
+
+            if (isMunicipalImbe && !btn.dataset.imbeTipoEscolhido) {
+                btn.dataset.imbeTipoEscolhido = subtipoFixado;
             }
 
             // pega empresa e tipo para mostrar no overlay
@@ -597,42 +661,27 @@ document.addEventListener('DOMContentLoaded', function() {
             }
             const tipoCert = btn.dataset.tipo || '';
 
+            const imbeTipoEscolhido = btn.dataset.imbeTipoEscolhido || '';
+            let pythonUrlComParams = pythonUrl;
+            if (imbeTipoEscolhido) {
+                const sep = pythonUrlComParams.includes('?') ? '&' : '?';
+                pythonUrlComParams += `${sep}imbe_tipo=${encodeURIComponent(imbeTipoEscolhido)}`;
+            }
+
             showLoading(empresaNome, tipoCert);
 
-            fetch(pythonUrl)
+            fetch(pythonUrlComParams)
                 .then(response => response.json())
                 .then(data => {
                     hideLoading();
-                    btn.innerHTML = originalHTML;
-                    btn.disabled = false;
+                    resetDownloadButton(btn, originalHTML);
 
-                    if (data.status === 'success_file_saved') {
-                        if (displayData) displayData.textContent = data.data_formatada;
-                        if (displayTipo) displayTipo.textContent = data.tipo_certidao;
-                        atualizarInfoArquivoModal(data.mensagem_arquivo);
-                        dadosParaSalvar = { certidao_id: data.certidao_id, nova_validade: data.nova_data };
-                        if (confirmModal) confirmModal.show();
-                    
-                    } else if (data.status === 'window_closed_no_file') {
-                        limparInfoArquivoModal();
-                        if (displayTipoPendente) displayTipoPendente.textContent = data.tipo_certidao;
-                        certidaoIdPendente = data.certidao_id;
-                        if (pendenteModal) pendenteModal.show();
-
-                    } else if (data.status === 'success_file_saved_no_date') {
-                        limparInfoArquivoModal();
-                        showToast("Arquivo salvo! Sem regra de data.", "primary");
-                        setTimeout(() => location.reload(), 2000);
-                    } else {
-                        limparInfoArquivoModal();
-                        showToast('Aviso: ' + (data.message || 'Erro desconhecido'), 'error');
-                    }
+                    handleDownloadResponse(data);
                 })
                 .catch(error => {
                     hideLoading();
                     console.error('Erro:', error);
-                    btn.innerHTML = originalHTML;
-                    btn.disabled = false;
+                    resetDownloadButton(btn, originalHTML);
                     showToast("Erro de comunicação.", "error");
                 });
         });
