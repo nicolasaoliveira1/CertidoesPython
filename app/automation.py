@@ -15,6 +15,7 @@ SITES_CERTIDOES = {
     'ESTADUAL': {
         'RS': {
             'url': 'https://www.sefaz.rs.gov.br/sat/CertidaoSitFiscalSolic.aspx',
+            'login_cert_url': 'https://www.sefaz.rs.gov.br/Login/LoginEcacCert.aspx',
             'cnpj_field_id': 'campoCnpj',
             'by': 'name'
         },

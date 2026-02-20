@@ -55,6 +55,21 @@ def calcular_validade_padrao(certidao, data_encontrada=None):
 
     return None
 
+def _login_certificado_rs(driver, login_url, cert_url, timeout=120):
+    driver.get(login_url)
+
+    try:
+        ok_btn = WebDriverWait(driver, 2).until(
+            EC.element_to_be_clickable((By.CSS_SELECTOR, "input[name='Action'][value='OK']"))
+        )
+        ok_btn.click()
+    except Exception:
+        pass
+
+    time.sleep(2)
+    driver.get(cert_url)
+
+
 @bp.route('/')
 def dashboard():
     status_filtros = request.args.getlist('status')
@@ -658,8 +673,19 @@ def baixar_certidao(certidao_id):
             ChromeDriverManager().install()), options=chrome_options)
         
         wait = WebDriverWait(driver, 20)
-        print(f"1. Acessando a URL: {info_site.get('url')}")
-        driver.get(info_site.get('url'))
+        
+        estado_emp = (certidao.empresa.estado or '').strip().upper()
+        if tipo_certidao_chave == 'ESTADUAL' and estado_emp == 'RS' and info_site.get('login_cert_url'):
+            print("1. Acessando login com certificado (RS)")
+            _login_certificado_rs(
+                driver,
+                info_site.get('login_cert_url'),
+                info_site.get('url')
+            )
+            print('pronto')
+        else:
+            print(f"1. Acessando a URL: {info_site.get('url')}")
+            driver.get(info_site.get('url'))
         
         if tipo_certidao_chave == 'MUNICIPAL':
             if usar_config_municipal:
