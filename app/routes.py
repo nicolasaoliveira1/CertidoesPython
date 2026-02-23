@@ -385,7 +385,7 @@ def _automatizar_fgts(contexto, driver, wait, certidao):
                                 return True
 
                         try:
-                            WebDriverWait(driver, 600).until(_alert_fechado)
+                            WebDriverWait(driver, 30).until(_alert_fechado)
                         except TimeoutException:
                             print("[FGTS] Aviso: timeout esperando usuário fechar o alerta.")
 
@@ -844,12 +844,8 @@ def baixar_certidao(certidao_id):
 
                         if sucesso:
                             arquivo_salvo_msg = f"Arquivo salvo em: {msg}"
-                            print(arquivo_salvo_msg)
+                            print(arquivo_salvo_msg)                        
                             try:
-                                janelas_abertas = driver.window_handles
-                                if janelas_abertas:
-                                    driver.switch_to.window(janelas_abertas[-1])
-                                
                                 caminho_certidao = msg.replace("\\", "\\\\")
                                 mensagem_alerta = (
                                     "PDF salvo no servidor com sucesso!\n"
@@ -857,27 +853,65 @@ def baixar_certidao(certidao_id):
                                     "Após fechar este alerta, a janela do Chrome será fechada automaticamente."
                                 )
 
-                                driver.execute_script(
-                                    "var msg = arguments[0]; setTimeout(function(){ alert(msg); }, 50);",
-                                    mensagem_alerta
-                                )
+                                try:
+                                    janelas_abertas = list(driver.window_handles)
+                                except Exception:
+                                    janelas_abertas = []
+
+                                def _is_blank(url):
+                                    url = (url or '').lower()
+                                    return url == 'about:blank' or url == ''
+
+                                urls_por_handle = {}
+                                for h in janelas_abertas:
+                                    try:
+                                        driver.switch_to.window(h)
+                                        urls_por_handle[h] = driver.current_url or ''
+                                    except Exception:
+                                        urls_por_handle[h] = ''
+
+                                for h, url in urls_por_handle.items():
+                                    if _is_blank(url):
+                                        try:
+                                            driver.switch_to.window(h)
+                                            driver.close()
+                                        except Exception:
+                                            pass
 
                                 try:
-                                    WebDriverWait(driver, 10).until(EC.alert_is_present())
-                                except TimeoutException:
-                                    print("Aviso: alerta não apareceu; seguindo para fechar Chrome.")
-                                else:
-                                    def _alert_fechado(_d):
-                                        try:
-                                            _d.switch_to.alert
-                                            return False
-                                        except NoAlertPresentException:
-                                            return True
+                                    janelas_abertas = list(driver.window_handles)
+                                except Exception:
+                                    janelas_abertas = []
+
+                                if janelas_abertas:
+                                    alvo = janelas_abertas[-1]
+                                    try:
+                                        driver.switch_to.window(alvo)
+                                        driver.execute_script(
+                                            "var msg = arguments[0]; setTimeout(function(){ alert(msg); }, 50);",
+                                            mensagem_alerta
+                                        )
+                                    except Exception:
+                                        pass
 
                                     try:
-                                        WebDriverWait(driver, 600).until(_alert_fechado)
+                                        WebDriverWait(driver, 10).until(EC.alert_is_present())
                                     except TimeoutException:
-                                        print("Aviso: timeout esperando usuário fechar o alerta.")
+                                        print("Aviso: alerta não apareceu; seguindo para fechar Chrome.")
+                                    else:
+                                        def _alert_fechado(_d):
+                                            try:
+                                                _d.switch_to.alert
+                                                return False
+                                            except NoAlertPresentException:
+                                                return True
+
+                                        try:
+                                            WebDriverWait(driver, 30).until(_alert_fechado)
+                                        except TimeoutException:
+                                            print("Aviso: timeout esperando usuário fechar o alerta.")
+                                else:
+                                    print("Aviso: nenhuma janela ativa para exibir alerta.")
 
                                 time.sleep(1)
                                 try:
