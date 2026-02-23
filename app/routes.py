@@ -4,6 +4,7 @@ import time
 import string
 import random
 import base64
+import re
 from datetime import date, datetime, timedelta
 
 from flask import (Blueprint, flash, jsonify, redirect, render_template,
@@ -18,6 +19,7 @@ from selenium.webdriver.support.ui import Select, WebDriverWait
 from selenium.webdriver.common.keys import Keys
 from sqlalchemy import or_
 from webdriver_manager.chrome import ChromeDriverManager
+import pdfplumber
 
 from app import db, file_manager
 from app.automation import SITES_CERTIDOES, VALIDADES_CERTIDOES
@@ -54,6 +56,27 @@ def calcular_validade_padrao(certidao, data_encontrada=None):
         return None
 
     return None
+
+
+def _extrair_validade_pdf_federal(caminho_pdf):
+    if not caminho_pdf:
+        return None
+
+    try:
+        with pdfplumber.open(caminho_pdf) as pdf:
+            texto = "\n".join(page.extract_text() or "" for page in pdf.pages)
+    except Exception as exc:
+        print(f"[FEDERAL] Erro ao ler PDF: {exc}")
+        return None
+
+    match = re.search(r"Válida\s+até\s+(\d{2}/\d{2}/\d{4})", texto, re.IGNORECASE)
+    if not match:
+        return None
+
+    try:
+        return datetime.strptime(match.group(1), "%d/%m/%Y").date()
+    except ValueError:
+        return None
 
 def _login_certificado_rs(driver, login_url, cert_url, timeout=120):
     driver.get(login_url)
@@ -862,21 +885,13 @@ def baixar_certidao(certidao_id):
                                     url = (url or '').lower()
                                     return url == 'about:blank' or url == ''
 
-                                urls_por_handle = {}
-                                for h in janelas_abertas:
+                                if len(janelas_abertas) > 1:
+                                    ultima = janelas_abertas[-1]
                                     try:
-                                        driver.switch_to.window(h)
-                                        urls_por_handle[h] = driver.current_url or ''
+                                        driver.switch_to.window(ultima)
+                                        driver.close()
                                     except Exception:
-                                        urls_por_handle[h] = ''
-
-                                for h, url in urls_por_handle.items():
-                                    if _is_blank(url):
-                                        try:
-                                            driver.switch_to.window(h)
-                                            driver.close()
-                                        except Exception:
-                                            pass
+                                        pass
 
                                 try:
                                     janelas_abertas = list(driver.window_handles)
@@ -1052,6 +1067,14 @@ def monitorar_download_federal(certidao_id):
             )
 
             if sucesso:
+                validade_pdf = _extrair_validade_pdf_federal(msg)
+                if validade_pdf:
+                    return jsonify({
+                        'status': 'success',
+                        'mensagem': f"Arquivo salvo no servidor: {msg}",
+                        'data_validade': validade_pdf.strftime('%Y-%m-%d'),
+                        'data_validade_formatada': validade_pdf.strftime('%d/%m/%Y')
+                    })
                 return jsonify({
                     'status': 'success',
                     'mensagem': f"Arquivo salvo no servidor: {msg}"

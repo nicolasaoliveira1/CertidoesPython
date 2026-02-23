@@ -581,7 +581,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         .then(data => { 
                             if (data.status === 'success') {
                                 arquivoSalvo = true;
-                                caminhoArquivoParaModal = data.mensagem || null;
+                                caminhoArquivoParaModal = data;
                                 showToast("Arquivo salvo no servidor!", "success");
                             }
                         });
@@ -591,15 +591,23 @@ document.addEventListener('DOMContentLoaded', function() {
                             if (novaAba.closed) {
                                 clearInterval(timer);
                                 if (arquivoSalvo) {
-                                    const hoje = new Date();
-                                    const validade = new Date(hoje);
-                                    validade.setDate(hoje.getDate() + 180);
-                                    const dataBanco = validade.toISOString().split('T')[0];
-                                    const dataFormatada = `${validade.getDate().toString().padStart(2, '0')}/${(validade.getMonth() + 1).toString().padStart(2, '0')}/${validade.getFullYear()}`;
+                                    let dataBanco = null;
+                                    let dataFormatada = null;
 
-                                    if (displayData) displayData.textContent = dataFormatada;
+                                    if (caminhoArquivoParaModal && caminhoArquivoParaModal.data_validade) {
+                                        dataBanco = caminhoArquivoParaModal.data_validade;
+                                        dataFormatada = caminhoArquivoParaModal.data_validade_formatada || null;
+                                    } else {
+                                        const hoje = new Date();
+                                        const validade = new Date(hoje);
+                                        validade.setDate(hoje.getDate() + 180);
+                                        dataBanco = validade.toISOString().split('T')[0];
+                                        dataFormatada = `${validade.getDate().toString().padStart(2, '0')}/${(validade.getMonth() + 1).toString().padStart(2, '0')}/${validade.getFullYear()}`;
+                                    }
+
+                                    if (displayData && dataFormatada) displayData.textContent = dataFormatada;
                                     if (displayTipo) displayTipo.textContent = "FEDERAL";
-                                    atualizarInfoArquivoModal(caminhoArquivoParaModal);
+                                    atualizarInfoArquivoModal(caminhoArquivoParaModal && caminhoArquivoParaModal.mensagem ? caminhoArquivoParaModal.mensagem : caminhoArquivoParaModal);
                                     dadosParaSalvar = { certidao_id: idParaMonitorar, nova_validade: dataBanco };
                                     if (confirmModal) confirmModal.show();
                                 } else {
