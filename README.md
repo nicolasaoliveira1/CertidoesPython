@@ -62,6 +62,12 @@ Este sistema foi criado para resolver o problema de controle manual de centenas 
   - Identifica o PDF da certidão (com filtro inteligente de nomes para evitar conflitos).
   - Renomeia e Move automaticamente para a pasta da empresa na rede (ex: Z:\PASTAS EMPRESAS\Cliente X\CERTIDOES\CERTIDAO FGTS.pdf).
   - Evita duplicação de pastas (reconhece CERTIDOES e CERTIDÕES).
+  - Salva o caminho do arquivo no banco para visualização posterior.
+
+**👁️ Visualização de Certidão**
+  - Botão **Visualizar** abre o PDF no navegador.
+  - Link protegido por **token assinado e expirável** (evita IDs previsíveis).
+  - Se o arquivo não existir, o sistema mostra um aviso.
 
 **🔍 Filtros Avançados**
 - **Busca Instantânea**: Filtre empresas por nome digitando poucas letras.
@@ -96,15 +102,18 @@ python -m venv venv
 pip install -r requirements.txt
 ```
 
-4. **Configure as variáveis de ambiente** (opcional)
+4. **Configure as variáveis de ambiente**
 
 Crie um arquivo `.env` na raiz do projeto:
 ```env
+# Obrigatória
+SECRET_KEY=uma_chave_segura
+
 # Para MySQL (Recomendado)
-# SQLALCHEMY_DATABASE_URI = 'mysql+pymysql://usuario:senha@IP_DO_SERVIDOR/sistema_certidoes'
+# DATABASE_URL = 'mysql+pymysql://usuario:senha@IP_DO_SERVIDOR/sistema_certidoes'
 
 # Para SQLite (Desenvolvimento)
-# SQLALCHEMY_DATABASE_URI = 'sqlite:///instance/database.db'
+# DATABASE_URL = 'sqlite:///instance/database.db'
 ```
 
 5. **Inicialize o banco de dados**
@@ -205,10 +214,15 @@ CertidoesPython/
 4. Feche o site e volte ao sistema para confirmar validade da certidão
 
 ### Emitir Certidão Automaticamente
-1. Clique no botão "Baixar" na certidão desejada
+1. Clique no botão "Emitir" na certidão desejada
 2. O sistema abre uma janela anônima no site desejado e preenche os dados automaticamente
 3. Baixe o PDF em Download e ele será movido para a pasta configurada
 4. Feche a janela do Chrome que foi aberta e volte ao sistema para confirmar a validade da certidão
+
+### Visualizar Certidão (PDF no navegador)
+1. Clique no botão "Visualizar" na certidão desejada
+2. O sistema abre o PDF em uma nova aba
+3. Se o arquivo não existir, um aviso será exibido
 
 ### Atualizar Validade
 1. Clique no botão "Editar" na certidão desejada
@@ -269,6 +283,8 @@ Edite em `app/templates/base.html`:
 2. **233660c7e937** - Cria tabela Município para automação
 3. **9d46bcffc7cb** - Adiciona status_especial (Pendente)
 4. **a4a53448d4b5** - Adiciona segundo campo de preenchimento automático
+5. **b1c8f6b2a1d9** - Adiciona subtipo para certidões municipais (Imbé)
+6. **e2f7c1a9f2b4** - Adiciona caminho do arquivo da certidão
 
 ---
 
