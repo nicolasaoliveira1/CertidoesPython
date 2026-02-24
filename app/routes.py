@@ -8,7 +8,8 @@ import re
 from datetime import date, datetime, timedelta
 
 from flask import (Blueprint, flash, jsonify, redirect, render_template,
-                   request, url_for)
+                   request, url_for, send_file, current_app)
+from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
 from selenium import webdriver
 from selenium.common.exceptions import NoAlertPresentException, TimeoutException
 from selenium.webdriver.chrome.options import Options
@@ -27,6 +28,28 @@ from app.models import (Certidao, Empresa, Municipio, StatusEspecial,
                         SubtipoCertidao, TipoCertidao)
 
 bp = Blueprint('main', __name__)
+
+
+def _get_visualizar_serializer():
+    secret = current_app.config.get('SECRET_KEY') or 'certidoes-secret'
+    return URLSafeTimedSerializer(secret, salt='visualizar-certidao')
+
+
+def _gerar_visualizar_token(certidao_id):
+    return _get_visualizar_serializer().dumps({'cid': certidao_id})
+
+
+def _carregar_visualizar_token(token, max_age=60 * 60 * 24):
+    try:
+        data = _get_visualizar_serializer().loads(token, max_age=max_age)
+    except (BadSignature, SignatureExpired):
+        return None
+    return data.get('cid') if isinstance(data, dict) else None
+
+
+@bp.app_template_global()
+def visualizar_token(certidao_id):
+    return _gerar_visualizar_token(certidao_id)
 
 
 def calcular_validade_padrao(certidao, data_encontrada=None):
@@ -376,6 +399,12 @@ def _automatizar_fgts(contexto, driver, wait, certidao):
                 contexto['arquivo_salvo_msg'] = f"Arquivo salvo em: {msg}"
                 contexto['pular_monitoramento'] = True
                 print(contexto['arquivo_salvo_msg'])
+                try:
+                    certidao.caminho_arquivo = msg
+                    db.session.commit()
+                except Exception as e_db:
+                    db.session.rollback()
+                    print(f"[FGTS] Aviso: não foi possível salvar caminho no banco: {e_db}")
 
                 try:
                     janelas_abertas = driver.window_handles
@@ -867,7 +896,13 @@ def baixar_certidao(certidao_id):
 
                         if sucesso:
                             arquivo_salvo_msg = f"Arquivo salvo em: {msg}"
-                            print(arquivo_salvo_msg)                        
+                            print(arquivo_salvo_msg)
+                            try:
+                                certidao.caminho_arquivo = msg
+                                db.session.commit()
+                            except Exception as e_db:
+                                db.session.rollback()
+                                print(f"Aviso: não foi possível salvar caminho no banco: {e_db}")
                             try:
                                 caminho_certidao = msg.replace("\\", "\\\\")
                                 mensagem_alerta = (
@@ -960,6 +995,7 @@ def baixar_certidao(certidao_id):
         response_data['mensagem_arquivo'] = arquivo_salvo_msg
         response_data['certidao_id'] = certidao_id
         response_data['tipo_certidao'] = nome_certidao_arquivo
+        response_data['visualizar_token'] = _gerar_visualizar_token(certidao_id)
 
         if data_encontrada:
             print(
@@ -1067,17 +1103,25 @@ def monitorar_download_federal(certidao_id):
             )
 
             if sucesso:
+                try:
+                    certidao.caminho_arquivo = msg
+                    db.session.commit()
+                except Exception as e_db:
+                    db.session.rollback()
+                    print(f"[FEDERAL] Aviso: não foi possível salvar caminho no banco: {e_db}")
                 validade_pdf = _extrair_validade_pdf_federal(msg)
                 if validade_pdf:
                     return jsonify({
                         'status': 'success',
                         'mensagem': f"Arquivo salvo no servidor: {msg}",
+                        'visualizar_token': _gerar_visualizar_token(certidao_id),
                         'data_validade': validade_pdf.strftime('%Y-%m-%d'),
                         'data_validade_formatada': validade_pdf.strftime('%d/%m/%Y')
                     })
                 return jsonify({
                     'status': 'success',
-                    'mensagem': f"Arquivo salvo no servidor: {msg}"
+                    'mensagem': f"Arquivo salvo no servidor: {msg}",
+                    'visualizar_token': _gerar_visualizar_token(certidao_id)
                 })
             else:
                 return jsonify({
@@ -1090,6 +1134,39 @@ def monitorar_download_federal(certidao_id):
     # limpeza final por segurança
     file_manager.remover_chave_interrupcao()
     return jsonify({'status': 'timeout', 'mensagem': 'Tempo esgotado sem download.'})
+
+
+@bp.route('/certidao/visualizar/<token>')
+def visualizar_certidao(token):
+    certidao_id = _carregar_visualizar_token(token)
+    if not certidao_id:
+        return 'Token inválido ou expirado.', 404
+
+    certidao = Certidao.query.get_or_404(certidao_id)
+    caminho = certidao.caminho_arquivo
+
+    if not caminho or not os.path.exists(caminho):
+        caminho = file_manager.localizar_certidao_existente(
+            certidao.empresa.nome,
+            certidao.tipo.value,
+            certidao.subtipo.value if certidao.subtipo else None
+        )
+        if caminho:
+            certidao.caminho_arquivo = caminho
+            try:
+                db.session.commit()
+            except Exception:
+                db.session.rollback()
+
+    if not caminho or not os.path.exists(caminho):
+        return 'Arquivo não encontrado para esta certidão.', 404
+
+    return send_file(
+        caminho,
+        mimetype='application/pdf',
+        as_attachment=False,
+        download_name=os.path.basename(caminho)
+    )
 
 
 @bp.route('/certidao/marcar_pendente_json/<int:certidao_id>', methods=['POST'])

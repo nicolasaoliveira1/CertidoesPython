@@ -48,6 +48,7 @@ class Certidao(db.Model):
     )
 
     data_validade = db.Column(db.Date, nullable=True)
+    caminho_arquivo = db.Column(db.String(500), nullable=True)
     empresa_id = db.Column(db.Integer, db.ForeignKey(
         'empresa.id'), nullable=False)
     status_especial = db.Column(db.Enum(StatusEspecial), nullable=True)

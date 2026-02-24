@@ -246,3 +246,59 @@ def mover_e_renomear(caminho_arquivo_origem, nome_empresa, tipo_certidao):
             return True, caminho_destino_completo
         except (OSError, PermissionError) as e2:
             return False, str(e2)
+
+
+def _normalizar_nome(texto):
+    return remover_acentos(str(texto or '')).upper().strip()
+
+
+def localizar_certidao_existente(nome_empresa, tipo_certidao, subtipo=None):
+    caminho_empresa = encontrar_pasta_empresa(nome_empresa)
+    if not caminho_empresa:
+        return None
+
+    pasta_certidoes = encontrar_caminho_final(caminho_empresa)
+    if not os.path.exists(pasta_certidoes):
+        return None
+
+    arquivos = [
+        nome for nome in os.listdir(pasta_certidoes)
+        if os.path.isfile(os.path.join(pasta_certidoes, nome))
+        and nome.lower().endswith('.pdf')
+    ]
+
+    if not arquivos:
+        return None
+
+    tipo_norm = _normalizar_nome(tipo_certidao)
+    subtipo_norm = _normalizar_nome(subtipo)
+
+    partes = ['CERTIDAO']
+    if tipo_norm:
+        partes.append(tipo_norm)
+    if tipo_norm == 'MUNICIPAL' and subtipo_norm and subtipo_norm != 'GERAL':
+        partes.append(subtipo_norm)
+
+    frase = ' '.join([p for p in partes if p]).strip()
+
+    melhor = None
+    for nome in arquivos:
+        nome_sem_ext = os.path.splitext(nome)[0]
+        nome_norm = _normalizar_nome(nome_sem_ext)
+        score = fuzz.token_set_ratio(frase, nome_norm) if frase else 0
+        if all(p in nome_norm for p in partes if p):
+            score = max(score, 100)
+
+        caminho = os.path.join(pasta_certidoes, nome)
+        try:
+            mtime = os.path.getmtime(caminho)
+        except OSError:
+            mtime = 0
+
+        if melhor is None or score > melhor[0] or (score == melhor[0] and mtime > melhor[2]):
+            melhor = (score, caminho, mtime)
+
+    if melhor and melhor[0] >= 80:
+        return melhor[1]
+
+    return None

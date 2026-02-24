@@ -4,16 +4,33 @@ venv/
 # Arquivos de cache do Python
 __pycache__/
 *.pyc
+*.pyo
+*.pyd
+
+# Logs
+*.log
 
 # Pasta de instância do Flask
 instance/
 
 # Arquivos de ambiente
 .env
+.env.*
+!.env.example
 
 # Configurações do editor de código
 .vscode/
 .idea/
+
+# Ferramentas/testes
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Build/empacotamento
+build/
+dist/
+*.egg-info/
 
 # Comandos do flask que serao sempre rodados
 .flaskenv
@@ -23,3 +40,7 @@ docs/todo.txt
 # Arquivo de contexto do sistema (sensível)
 docs/context.json
 docs/MAPEAMENTO_MUNICIPIOS.md
+
+# Bancos locais
+*.sqlite3
+*.db

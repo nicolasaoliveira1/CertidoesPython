@@ -196,6 +196,12 @@
                                                 <i class="bi bi-box-arrow-up-right fs-5"></i>
                                             </a>
 
+                                                          <a href="#"
+                                                              class="btn btn-sm btn-outline-secondary border-0 btn-visualizar-certidao"
+                                                              title="Visualizar" data-url="{{ url_for('main.visualizar_certidao', token=visualizar_token(certidao.id)) }}">
+                                                <i class="bi bi-eye fs-5"></i>
+                                            </a>
+
                                                 <button class="btn btn-sm btn-outline-warning border-0"
                                                     title="Editar"
                                                     data-bs-toggle="modal" data-bs-target="#editModal"
@@ -205,7 +211,7 @@
                                             </button>
 
                                                 <button class="btn btn-sm btn-outline-primary border-0 btn-baixar-certidao"
-                                                    title="Baixar"
+                                                    title="Emitir"
                                                     data-href="{{ url_for('main.baixar_certidao', certidao_id=certidao.id) }}"
                                                     data-tipo="{{ certidao.tipo.name }}"
                                                     data-subtipo="{{ certidao.subtipo.name | lower if certidao.subtipo else '' }}"
@@ -274,6 +280,7 @@
       </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <a class="btn btn-outline-primary d-none btn-visualizar-certidao" id="btnVisualizarPdf">Visualizar</a>
         <button type="button" class="btn btn-success" id="btnConfirmarSalvar">Confirmar e Salvar</button>
       </div>
     </div>
@@ -389,6 +396,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const displayTipoPendente = document.getElementById('displayTipoPendente');
     const btnSalvar = document.getElementById('btnConfirmarSalvar');
     const btnConfirmarPendente = document.getElementById('btnConfirmarPendente');
+    const btnVisualizarPdf = document.getElementById('btnVisualizarPdf');
     
 
     const btnsEditar = document.querySelectorAll('.btn-outline-warning'); 
@@ -474,6 +482,24 @@ document.addEventListener('DOMContentLoaded', function() {
             displayEmpresaInfo.textContent = '';
             displayEmpresaInfo.style.display = 'none';
         }
+        if (btnVisualizarPdf) {
+            btnVisualizarPdf.removeAttribute('href');
+            btnVisualizarPdf.removeAttribute('data-url');
+            btnVisualizarPdf.classList.add('d-none');
+        }
+    }
+
+    function atualizarBotaoVisualizar(token) {
+        if (!btnVisualizarPdf) return;
+        if (token) {
+            const url = `/certidao/visualizar/${token}`;
+            btnVisualizarPdf.setAttribute('data-url', url);
+            btnVisualizarPdf.classList.remove('d-none');
+        } else {
+            btnVisualizarPdf.removeAttribute('href');
+            btnVisualizarPdf.removeAttribute('data-url');
+            btnVisualizarPdf.classList.add('d-none');
+        }
     }
 
 
@@ -511,6 +537,7 @@ document.addEventListener('DOMContentLoaded', function() {
             if (displayData) displayData.textContent = data.data_formatada;
             if (displayTipo) displayTipo.textContent = data.tipo_certidao;
             atualizarInfoArquivoModal(data.mensagem_arquivo);
+            atualizarBotaoVisualizar(data.visualizar_token);
             dadosParaSalvar = { certidao_id: data.certidao_id, nova_validade: data.nova_data };
             if (confirmModal) confirmModal.show();
             return;
@@ -608,6 +635,7 @@ document.addEventListener('DOMContentLoaded', function() {
                                     if (displayData && dataFormatada) displayData.textContent = dataFormatada;
                                     if (displayTipo) displayTipo.textContent = "FEDERAL";
                                     atualizarInfoArquivoModal(caminhoArquivoParaModal && caminhoArquivoParaModal.mensagem ? caminhoArquivoParaModal.mensagem : caminhoArquivoParaModal);
+                                    atualizarBotaoVisualizar(caminhoArquivoParaModal && caminhoArquivoParaModal.visualizar_token);
                                     dadosParaSalvar = { certidao_id: idParaMonitorar, nova_validade: dataBanco };
                                     if (confirmModal) confirmModal.show();
                                 } else {
@@ -809,6 +837,33 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     }
+
+    function prepararVisualizarClicks() {
+        const btnsVisualizar = document.querySelectorAll('.btn-visualizar-certidao');
+        btnsVisualizar.forEach(function(btn) {
+            btn.addEventListener('click', function(event) {
+                event.preventDefault();
+                const url = btn.dataset.url;
+                if (!url) {
+                    showToast('Arquivo não encontrado para esta certidão.', 'error');
+                    return;
+                }
+                fetch(url, { method: 'HEAD' })
+                    .then(resp => {
+                        if (resp.ok) {
+                            window.open(url, '_blank');
+                        } else {
+                            showToast('Arquivo não encontrado para esta certidão.', 'error');
+                        }
+                    })
+                    .catch(() => {
+                        showToast('Erro ao localizar o arquivo.', 'error');
+                    });
+            });
+        });
+    }
+
+    prepararVisualizarClicks();
 
 // filtro de pesquisa nome
     const filtroInput = document.getElementById('filtroEmpresa');
