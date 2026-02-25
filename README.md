@@ -63,11 +63,15 @@ Este sistema foi criado para resolver o problema de controle manual de centenas 
   - Renomeia e Move automaticamente para a pasta da empresa na rede (ex: Z:\PASTAS EMPRESAS\Cliente X\CERTIDOES\CERTIDAO FGTS.pdf).
   - Evita duplicação de pastas (reconhece CERTIDOES e CERTIDÕES).
   - Salva o caminho do arquivo no banco para visualização posterior.
+  - Ao visualizar, o sistema tenta localizar PDFs já existentes na pasta CERTIDOES.
 
 **👁️ Visualização de Certidão**
   - Botão **Visualizar** abre o PDF no navegador.
   - Link protegido por **token assinado e expirável** (evita IDs previsíveis).
   - Se o arquivo não existir, o sistema mostra um aviso.
+
+**📄 Validade Federal por PDF**
+  - Quando possível, o sistema lê a data de validade diretamente do PDF da Receita.
 
 **🔍 Filtros Avançados**
 - **Busca Instantânea**: Filtre empresas por nome digitando poucas letras.
@@ -120,7 +124,7 @@ SECRET_KEY=uma_chave_segura
 ```powershell
 flask db upgrade
 ```
-6. ** Configurar Caminhos de Rede (app/file_manager.py)
+6. **Configurar Caminhos de Rede (`app/file_manager.py`)**
 ```powershell
 CAMINHO_REDE = r"Z:\PASTAS EMPRESAS"  # Ajuste para o seu servidor
 ```
@@ -136,27 +140,13 @@ python run.py
 
 ### 📂 Caminho de Salvamento das Certidões
 
-⚠️ **IMPORTANTE**: Você deve configurar o caminho onde as certidões serão salvas.
-
-Edite o arquivo `app/file_manager.py` ou `app/routes.py` e defina o caminho base:
+⚠️ **IMPORTANTE**: O caminho base é definido em `app/file_manager.py`.
 
 ```python
-# Exemplo: caminho para servidor local ou rede
-CERTIDOES_BASE_PATH = r"C:\CaminhoDoServidor\CERTIDOES"
-# ou
-CERTIDOES_BASE_PATH = r"\\ServidorRede\Compartilhado\CERTIDOES"
+CAMINHO_REDE = r"Z:\PASTAS EMPRESAS"  # Ajuste para o seu servidor
 ```
 
-**Estrutura de pastas criada automaticamente:**
-```
-CERTIDOES/
-├── Empresa 1/
-│   ├── Federal_CNPJ_20250101.pdf
-│   ├── FGTS_CNPJ_20250101.pdf
-│   └── ...
-├── Empresa 2/
-│   └── ...
-```
+O sistema localiza a pasta da empresa, encontra a pasta de documentos e usa/cria a subpasta `CERTIDOES`.
 
 ### 🏛️ Configuração de Municípios
 
@@ -323,9 +313,16 @@ Contribuições são bem-vindas! Sinta-se à vontade para:
 
 ---
 
-## 📄 Licença
+## 📄 Licença (Source-Available)
 
-Este projeto é de uso interno/privado. Consulte o autor para permissões de uso.
+Este repositório é público para fins de estudo e utilização no escritório onde trabalho, porém **não** é um projeto open-source.
+
+**Termos de uso:**
+- É permitido visualizar e estudar o código.
+- É **proibido** usar em produção/comercial fora desse contexto sem autorização.
+- É **proibido** redistribuir ou vender sem autorização.
+
+Para uso comercial, entre em contato com o autor.
 
 ---
 
