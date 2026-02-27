@@ -610,6 +610,9 @@ document.addEventListener('DOMContentLoaded', function() {
                                 arquivoSalvo = true;
                                 caminhoArquivoParaModal = data;
                                 showToast("Arquivo salvo no servidor!", "success");
+                                if (novaAba && !novaAba.closed) {
+                                    novaAba.close();
+                                }
                             }
                         });
 

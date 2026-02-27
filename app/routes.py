@@ -407,47 +407,13 @@ def _automatizar_fgts(contexto, driver, wait, certidao):
                     print(f"[FGTS] Aviso: não foi possível salvar caminho no banco: {e_db}")
 
                 try:
-                    janelas_abertas = driver.window_handles
-                    if janelas_abertas:
-                        driver.switch_to.window(janelas_abertas[-1])
-
-                    caminho_certidao = msg.replace("\\", "\\\\")
-
-                    mensagem_alerta = (
-                        "PDF salvo no servidor com sucesso!\n"
-                        f"Salvo em: {caminho_certidao}\n\n"
-                        "Após fechar este alerta, a janela do Chrome será fechada automaticamente."
-                    )
-
-                    driver.execute_script(
-                        "var msg = arguments[0]; setTimeout(function(){ alert(msg); }, 50);",
-                        mensagem_alerta
-                    )
-
-                    try:
-                        WebDriverWait(driver, 10).until(EC.alert_is_present())
-                    except TimeoutException:
-                        print("[FGTS] Aviso: alerta não apareceu; seguindo para fechar Chrome.")
-                    else:
-                        def _alert_fechado(_d):
-                            try:
-                                _d.switch_to.alert
-                                return False
-                            except NoAlertPresentException:
-                                return True
-
-                        try:
-                            WebDriverWait(driver, 30).until(_alert_fechado)
-                        except TimeoutException:
-                            print("[FGTS] Aviso: timeout esperando usuário fechar o alerta.")
-
                     time.sleep(1)
                     try:
                         driver.quit()
                     except Exception as e_quit:
                         print(f"[FGTS] Aviso: erro ao fechar Chrome: {e_quit}")
                 except Exception as e_alert:
-                    print(f"[FGTS] Erro ao exibir alerta/fechar Chrome: {e_alert}")
+                    print(f"[FGTS] Erro ao fechar Chrome: {e_alert}")
         except Exception as e_pdf:
             print(f"[FGTS] Erro ao gerar PDF automaticamente: {e_pdf}")
     except Exception as e:
@@ -904,13 +870,6 @@ def baixar_certidao(certidao_id):
                                 db.session.rollback()
                                 print(f"Aviso: não foi possível salvar caminho no banco: {e_db}")
                             try:
-                                caminho_certidao = msg.replace("\\", "\\\\")
-                                mensagem_alerta = (
-                                    "PDF salvo no servidor com sucesso!\n"
-                                    f"Salvo em: {caminho_certidao}\n\n"
-                                    "Após fechar este alerta, a janela do Chrome será fechada automaticamente."
-                                )
-
                                 try:
                                     janelas_abertas = list(driver.window_handles)
                                 except Exception:
@@ -928,41 +887,6 @@ def baixar_certidao(certidao_id):
                                     except Exception:
                                         pass
 
-                                try:
-                                    janelas_abertas = list(driver.window_handles)
-                                except Exception:
-                                    janelas_abertas = []
-
-                                if janelas_abertas:
-                                    alvo = janelas_abertas[-1]
-                                    try:
-                                        driver.switch_to.window(alvo)
-                                        driver.execute_script(
-                                            "var msg = arguments[0]; setTimeout(function(){ alert(msg); }, 50);",
-                                            mensagem_alerta
-                                        )
-                                    except Exception:
-                                        pass
-
-                                    try:
-                                        WebDriverWait(driver, 10).until(EC.alert_is_present())
-                                    except TimeoutException:
-                                        print("Aviso: alerta não apareceu; seguindo para fechar Chrome.")
-                                    else:
-                                        def _alert_fechado(_d):
-                                            try:
-                                                _d.switch_to.alert
-                                                return False
-                                            except NoAlertPresentException:
-                                                return True
-
-                                        try:
-                                            WebDriverWait(driver, 30).until(_alert_fechado)
-                                        except TimeoutException:
-                                            print("Aviso: timeout esperando usuário fechar o alerta.")
-                                else:
-                                    print("Aviso: nenhuma janela ativa para exibir alerta.")
-
                                 time.sleep(1)
                                 try:
                                     driver.quit()
@@ -971,7 +895,7 @@ def baixar_certidao(certidao_id):
 
                                 break
                             except Exception as e:
-                                print(f"Erro ao exibir alerta: {e}")
+                                print(f"Erro ao fechar Chrome: {e}")
                         else:
                             print(f"Erro ao salvar: {msg}")
 
