@@ -5,6 +5,7 @@ import string
 import random
 import base64
 import re
+from threading import Thread, Lock
 from datetime import date, datetime, timedelta
 
 from flask import (Blueprint, flash, jsonify, redirect, render_template,
@@ -28,6 +29,459 @@ from app.models import (Certidao, Empresa, Municipio, StatusEspecial,
                         SubtipoCertidao, TipoCertidao)
 
 bp = Blueprint('main', __name__)
+
+FGTS_BATCH_LOCK = Lock()
+FGTS_BATCH_STATE = {
+    'status': 'idle',
+    'ids': [],
+    'index': 0,
+    'total': 0,
+    'vencidas': 0,
+    'a_vencer': 0,
+    'falhas': 0,
+    'current_id': None,
+    'message': None,
+    'stop_requested': False,
+    'stop_action': None,
+    'driver': None,
+    'last_completed': None,
+    'started_at': None,
+    'finished_at': None,
+    'success': 0,
+}
+
+
+def _reset_fgts_batch_state():
+    FGTS_BATCH_STATE.update({
+        'status': 'idle',
+        'ids': [],
+        'index': 0,
+        'total': 0,
+        'vencidas': 0,
+        'a_vencer': 0,
+        'falhas': 0,
+        'current_id': None,
+        'message': None,
+        'stop_requested': False,
+        'stop_action': None,
+        'driver': None,
+        'last_completed': None,
+        'started_at': None,
+        'finished_at': None,
+        'success': 0,
+    })
+
+
+def _fgts_stop_requested():
+    return FGTS_BATCH_STATE.get('stop_requested')
+
+
+def _fgts_stop_action():
+    return FGTS_BATCH_STATE.get('stop_action')
+
+
+def _fgts_status_por_data(nova_data):
+    if not nova_data:
+        return 'status-cinza'
+
+    hoje = date.today()
+    diferenca = (nova_data - hoje).days
+    if diferenca < 0:
+        return 'status-vermelho'
+    if diferenca <= 7:
+        return 'status-amarelo'
+    return 'status-verde'
+
+
+def _fgts_quit_driver_async(driver):
+    if not driver:
+        return
+
+    def _close():
+        try:
+            driver.quit()
+        except Exception:
+            pass
+
+    Thread(target=_close, daemon=True).start()
+
+
+def _criar_driver_fgts():
+    chrome_options = Options()
+    chrome_options.add_argument("--incognito")
+    chrome_options.add_argument("--start-maximized")
+    return webdriver.Chrome(service=ChromeService(
+        ChromeDriverManager().install()), options=chrome_options)
+
+
+def _preparar_pagina_fgts(driver, url, cnpj_field_id):
+    if not driver or not url or not cnpj_field_id:
+        return False
+
+    try:
+        driver.set_page_load_timeout(30)
+    except Exception:
+        pass
+
+    try:
+        driver.delete_all_cookies()
+    except Exception:
+        pass
+
+    try:
+        driver.get("about:blank")
+    except Exception:
+        pass
+
+    try:
+        driver.get(url)
+    except TimeoutException:
+        try:
+            driver.execute_script("window.stop();")
+        except Exception:
+            pass
+
+    deadline = time.time() + 20
+    while time.time() < deadline:
+        if _fgts_stop_requested():
+            return False
+        try:
+            WebDriverWait(driver, 1).until(
+                EC.element_to_be_clickable((By.ID, cnpj_field_id))
+            )
+            return True
+        except TimeoutException:
+            continue
+
+    return True
+
+
+def _calc_fgts_targets(start_certidao_id):
+    hoje = date.today()
+    limite = hoje + timedelta(days=7)
+
+    certidoes = (Certidao.query
+                 .filter(Certidao.tipo == TipoCertidao.FGTS)
+                 .filter(Certidao.data_validade != None)
+                 .filter(Certidao.data_validade <= limite)
+                 .order_by(Certidao.id)
+                 .all())
+
+    ids = [c.id for c in certidoes if c.data_validade]
+    vencidas = sum(1 for c in certidoes if c.data_validade and c.data_validade < hoje)
+    a_vencer = sum(1 for c in certidoes if c.data_validade and hoje <= c.data_validade <= limite)
+
+    if start_certidao_id in ids:
+        ids.remove(start_certidao_id)
+        ids.insert(0, start_certidao_id)
+
+    return {
+        'ids': ids,
+        'total': len(ids),
+        'vencidas': vencidas,
+        'a_vencer': a_vencer,
+    }
+
+
+def _emitir_fgts_certidao(certidao_id, driver=None):
+    if _fgts_stop_requested():
+        return False, False, 'Lote interrompido.'
+
+    certidao = Certidao.query.get(certidao_id)
+    if not certidao:
+        return False, False, 'Certidão não encontrada.'
+
+    info_site = SITES_CERTIDOES.get('FGTS', {})
+    if not info_site.get('url'):
+        return False, True, 'Configuração FGTS ausente.'
+
+    local_driver = driver
+    criado_localmente = False
+    try:
+        if _fgts_stop_requested():
+            return False, False, 'Lote interrompido.'
+
+        if local_driver is None:
+            local_driver = _criar_driver_fgts()
+            criado_localmente = True
+
+        FGTS_BATCH_STATE['driver'] = local_driver
+
+        pagina_ok = _preparar_pagina_fgts(
+            local_driver,
+            info_site.get('url'),
+            info_site.get('cnpj_field_id')
+        )
+
+        if not pagina_ok:
+            return False, True, 'Erro ao carregar página FGTS.'
+
+        wait = WebDriverWait(local_driver, 20)
+
+        field_by = By.ID
+        campo_cnpj = wait.until(EC.element_to_be_clickable(
+            (field_by, info_site.get('cnpj_field_id'))))
+        if _fgts_stop_requested():
+            return False, False, 'Lote interrompido.'
+        campo_cnpj.click()
+        cnpj_limpo = ''.join(filter(str.isdigit, certidao.empresa.cnpj or ''))
+        campo_cnpj.send_keys(cnpj_limpo)
+
+        contexto = {
+            'arquivo_salvo_msg': None,
+            'pular_monitoramento': False,
+            'data_encontrada': None
+        }
+
+        _automatizar_fgts(contexto, local_driver, wait, certidao)
+
+        if _fgts_stop_requested():
+            return False, False, 'Lote interrompido.'
+
+        if contexto.get('arquivo_salvo_msg'):
+            nova_data = calcular_validade_padrao(certidao, contexto.get('data_encontrada'))
+            if nova_data:
+                try:
+                    certidao.data_validade = nova_data
+                    certidao.status_especial = None
+                    db.session.commit()
+                except Exception as e_db:
+                    db.session.rollback()
+                    print(f"[FGTS] Aviso: não foi possível salvar validade no banco: {e_db}")
+
+            with FGTS_BATCH_LOCK:
+                FGTS_BATCH_STATE['last_completed'] = {
+                    'certidao_id': certidao.id,
+                    'data_formatada': nova_data.strftime('%d/%m/%Y') if nova_data else None,
+                    'nova_classe': _fgts_status_por_data(nova_data)
+                }
+            return True, False, None
+        return False, False, 'Falha ao gerar PDF FGTS.'
+    except Exception as exc:
+        return False, True, f'Erro grave no FGTS: {exc}'
+    finally:
+        if criado_localmente:
+            FGTS_BATCH_STATE['driver'] = None
+        if criado_localmente and local_driver:
+            try:
+                local_driver.quit()
+            except Exception:
+                pass
+
+
+def _fgts_batch_worker(app):
+    with app.app_context():
+        driver = None
+        print("[FGTS-LOTE] Worker iniciado.")
+        while True:
+            with FGTS_BATCH_LOCK:
+                if FGTS_BATCH_STATE['stop_requested']:
+                    if FGTS_BATCH_STATE.get('stop_action') == 'stop':
+                        FGTS_BATCH_STATE['status'] = 'stopped'
+                        print("[FGTS-LOTE] Interrompido por parada solicitada.")
+                    else:
+                        FGTS_BATCH_STATE['status'] = 'paused'
+                        print("[FGTS-LOTE] Pausado por solicitação.")
+                    break
+
+                if FGTS_BATCH_STATE['index'] >= FGTS_BATCH_STATE['total']:
+                    FGTS_BATCH_STATE['status'] = 'completed'
+                    FGTS_BATCH_STATE['current_id'] = None
+                    FGTS_BATCH_STATE['finished_at'] = datetime.utcnow()
+                    print("[FGTS-LOTE] Finalizado com sucesso.")
+                    break
+
+                certidao_id = FGTS_BATCH_STATE['ids'][FGTS_BATCH_STATE['index']]
+                FGTS_BATCH_STATE['current_id'] = certidao_id
+                print(f"[FGTS-LOTE] Iniciando emissão ID={certidao_id} ({FGTS_BATCH_STATE['index'] + 1}/{FGTS_BATCH_STATE['total']}).")
+
+            if driver is None:
+                driver = _criar_driver_fgts()
+
+            sucesso, grave, mensagem = _emitir_fgts_certidao(certidao_id, driver=driver)
+
+            if grave and mensagem == 'Erro ao carregar página FGTS.':
+                try:
+                    driver.quit()
+                except Exception:
+                    pass
+                driver = _criar_driver_fgts()
+                print("[FGTS-LOTE] Recriando driver após falha de carregamento.")
+                sucesso, grave, mensagem = _emitir_fgts_certidao(certidao_id, driver=driver)
+
+            with FGTS_BATCH_LOCK:
+                if FGTS_BATCH_STATE['stop_requested']:
+                    if FGTS_BATCH_STATE.get('stop_action') == 'stop':
+                        FGTS_BATCH_STATE['status'] = 'stopped'
+                        print("[FGTS-LOTE] Interrompido durante execução.")
+                    else:
+                        FGTS_BATCH_STATE['status'] = 'paused'
+                        print("[FGTS-LOTE] Pausado durante execução.")
+                    break
+
+                if grave:
+                    FGTS_BATCH_STATE['status'] = 'error'
+                    FGTS_BATCH_STATE['message'] = mensagem or 'Erro grave.'
+                    print(f"[FGTS-LOTE] Erro grave: {FGTS_BATCH_STATE['message']}")
+                    break
+
+                if not sucesso:
+                    FGTS_BATCH_STATE['falhas'] += 1
+                    print(f"[FGTS-LOTE] Falha na emissão ID={certidao_id}.")
+                else:
+                    FGTS_BATCH_STATE['success'] += 1
+                    print(f"[FGTS-LOTE] Emissão OK ID={certidao_id}.")
+
+                FGTS_BATCH_STATE['index'] += 1
+
+        if driver:
+            try:
+                driver.quit()
+            except Exception:
+                pass
+        print("[FGTS-LOTE] Worker encerrado.")
+
+
+@bp.route('/fgts/lote/info/<int:certidao_id>')
+def fgts_lote_info(certidao_id):
+    dados = _calc_fgts_targets(certidao_id)
+    return jsonify({
+        'status': 'ok',
+        **dados
+    })
+
+
+@bp.route('/fgts/lote/iniciar', methods=['POST'])
+def fgts_lote_iniciar():
+    dados = request.get_json() or {}
+    certidao_id = dados.get('certidao_id')
+
+    if not certidao_id:
+        return jsonify({'status': 'error', 'message': 'Certidão inválida.'}), 400
+
+    with FGTS_BATCH_LOCK:
+        if FGTS_BATCH_STATE['status'] in ['running', 'paused']:
+            return jsonify({'status': 'error', 'message': 'Já existe um lote em andamento.'}), 400
+
+        dados_lote = _calc_fgts_targets(certidao_id)
+        if not dados_lote['ids']:
+            return jsonify({'status': 'error', 'message': 'Nenhuma certidão FGTS vencida ou a vencer.'}), 400
+
+        _reset_fgts_batch_state()
+        FGTS_BATCH_STATE.update({
+            'status': 'running',
+            'ids': dados_lote['ids'],
+            'total': dados_lote['total'],
+            'vencidas': dados_lote['vencidas'],
+            'a_vencer': dados_lote['a_vencer'],
+            'started_at': datetime.utcnow(),
+            'finished_at': None,
+            'success': 0,
+        })
+
+        app = current_app._get_current_object()
+        thread = Thread(target=_fgts_batch_worker, args=(app,), daemon=True)
+        thread.start()
+        print(f"[FGTS-LOTE] Lote iniciado. Total={dados_lote['total']}.")
+
+    return jsonify({'status': 'ok'})
+
+
+@bp.route('/fgts/lote/pausar', methods=['POST'])
+def fgts_lote_pausar():
+    with FGTS_BATCH_LOCK:
+        FGTS_BATCH_STATE['stop_requested'] = True
+        FGTS_BATCH_STATE['stop_action'] = 'pause'
+        if FGTS_BATCH_STATE['status'] == 'running':
+            FGTS_BATCH_STATE['status'] = 'paused'
+        print("[FGTS-LOTE] Pausa solicitada.")
+        driver = FGTS_BATCH_STATE.get('driver')
+
+    _fgts_quit_driver_async(driver)
+
+    return jsonify({'status': 'ok', 'message': 'Lote pausado.'})
+
+
+@bp.route('/fgts/lote/parar', methods=['POST'])
+def fgts_lote_parar():
+    with FGTS_BATCH_LOCK:
+        FGTS_BATCH_STATE['stop_requested'] = True
+        FGTS_BATCH_STATE['stop_action'] = 'stop'
+        FGTS_BATCH_STATE['status'] = 'stopped'
+        FGTS_BATCH_STATE['finished_at'] = datetime.utcnow()
+        print("[FGTS-LOTE] Parada solicitada.")
+        driver = FGTS_BATCH_STATE.get('driver')
+
+    _fgts_quit_driver_async(driver)
+
+    return jsonify({'status': 'ok', 'message': 'Lote interrompido.'})
+
+
+@bp.route('/fgts/lote/retomar', methods=['POST'])
+def fgts_lote_retomar():
+    with FGTS_BATCH_LOCK:
+        if FGTS_BATCH_STATE['status'] != 'paused':
+            return jsonify({'status': 'error', 'message': 'Lote não está pausado.'}), 400
+
+        FGTS_BATCH_STATE['stop_requested'] = False
+        FGTS_BATCH_STATE['status'] = 'running'
+        print("[FGTS-LOTE] Retomada solicitada.")
+
+        app = current_app._get_current_object()
+        thread = Thread(target=_fgts_batch_worker, args=(app,), daemon=True)
+        thread.start()
+
+    return jsonify({'status': 'ok'})
+
+
+@bp.route('/fgts/lote/status')
+def fgts_lote_status():
+    with FGTS_BATCH_LOCK:
+        return jsonify({
+            'status': FGTS_BATCH_STATE['status'],
+            'total': FGTS_BATCH_STATE['total'],
+            'index': FGTS_BATCH_STATE['index'],
+            'falhas': FGTS_BATCH_STATE['falhas'],
+            'current_id': FGTS_BATCH_STATE['current_id'],
+            'vencidas': FGTS_BATCH_STATE['vencidas'],
+            'a_vencer': FGTS_BATCH_STATE['a_vencer'],
+            'message': FGTS_BATCH_STATE['message'],
+            'last_completed': FGTS_BATCH_STATE.get('last_completed'),
+            'success': FGTS_BATCH_STATE.get('success', 0),
+            'started_at': FGTS_BATCH_STATE['started_at'].isoformat() if FGTS_BATCH_STATE.get('started_at') else None,
+            'finished_at': FGTS_BATCH_STATE['finished_at'].isoformat() if FGTS_BATCH_STATE.get('finished_at') else None,
+        })
+
+
+@bp.route('/fgts/emitir_unico', methods=['POST'])
+def fgts_emitir_unico():
+    dados = request.get_json() or {}
+    certidao_id = dados.get('certidao_id')
+
+    if not certidao_id:
+        return jsonify({'status': 'error', 'message': 'Certidão inválida.'}), 400
+
+    with FGTS_BATCH_LOCK:
+        if FGTS_BATCH_STATE['status'] == 'running':
+            return jsonify({'status': 'error', 'message': 'Lote em andamento. Pare o lote para emitir individual.'}), 400
+
+    sucesso, grave, mensagem = _emitir_fgts_certidao(certidao_id)
+
+    if grave:
+        return jsonify({'status': 'error', 'message': mensagem or 'Erro grave no FGTS.'}), 500
+
+    if not sucesso:
+        return jsonify({'status': 'error', 'message': mensagem or 'Falha ao emitir certidão FGTS.'}), 400
+
+    certidao = Certidao.query.get(certidao_id)
+    data_formatada = certidao.data_validade.strftime('%d/%m/%Y') if certidao and certidao.data_validade else None
+
+    return jsonify({
+        'status': 'ok',
+        'certidao_id': certidao_id,
+        'data_formatada': data_formatada,
+        'nova_classe': _fgts_status_por_data(certidao.data_validade if certidao else None)
+    })
 
 
 def _get_visualizar_serializer():
@@ -296,17 +750,44 @@ def marcar_pendente(certidao_id):
     return redirect(url_for('main.dashboard'))
 
 def _automatizar_fgts(contexto, driver, wait, certidao):
+    def _parar_se_solicitado():
+        if _fgts_stop_requested():
+            try:
+                driver.quit()
+            except Exception:
+                pass
+            return True
+        return False
+
+    def _aguardar_clickable(locator, timeout=20):
+        deadline = time.time() + timeout
+        while time.time() < deadline:
+            if _parar_se_solicitado():
+                return None
+            try:
+                return WebDriverWait(driver, 1).until(
+                    EC.element_to_be_clickable(locator)
+                )
+            except TimeoutException:
+                continue
+        return None
 
     try:
-        btn_consultar = wait.until(EC.element_to_be_clickable(
-            (By.ID, "mainForm:btnConsultar")))
+        btn_consultar = _aguardar_clickable((By.ID, "mainForm:btnConsultar"))
+        if not btn_consultar:
+            return
         print("clicando em Consultar")
+        if _parar_se_solicitado():
+            return
         btn_consultar.click()
         time.sleep(1)
 
-        btn_certificado = wait.until(EC.element_to_be_clickable(
-            (By.ID, "mainForm:j_id51")))
+        btn_certificado = _aguardar_clickable((By.ID, "mainForm:j_id51"))
+        if not btn_certificado:
+            return
         print("clicando em Certificado")
+        if _parar_se_solicitado():
+            return
         btn_certificado.click()
         time.sleep(1)
 
@@ -322,11 +803,16 @@ def _automatizar_fgts(contexto, driver, wait, certidao):
                         parte_data, '%d/%m/%Y').date()
                     contexto['data_encontrada'] = data_val
             except Exception as e:
+                if _fgts_stop_requested():
+                    return
                 print(f"erro ao encontrar data fgts: {e}")
 
-        btn_visualizar = wait.until(EC.element_to_be_clickable(
-            (By.ID, "mainForm:btnVisualizar")))
+        btn_visualizar = _aguardar_clickable((By.ID, "mainForm:btnVisualizar"))
+        if not btn_visualizar:
+            return
         print("clicando em Visualizar")
+        if _parar_se_solicitado():
+            return
         btn_visualizar.click()
         time.sleep(1)
 
@@ -377,6 +863,8 @@ def _automatizar_fgts(contexto, driver, wait, certidao):
             return driver.print_page()
 
         try:
+            if _parar_se_solicitado():
+                return
             _aguardar_pagina_certidao_fgts()
 
             pdf_b64 = _gerar_pdf_da_pagina()
@@ -405,18 +893,11 @@ def _automatizar_fgts(contexto, driver, wait, certidao):
                 except Exception as e_db:
                     db.session.rollback()
                     print(f"[FGTS] Aviso: não foi possível salvar caminho no banco: {e_db}")
-
-                try:
-                    time.sleep(1)
-                    try:
-                        driver.quit()
-                    except Exception as e_quit:
-                        print(f"[FGTS] Aviso: erro ao fechar Chrome: {e_quit}")
-                except Exception as e_alert:
-                    print(f"[FGTS] Erro ao fechar Chrome: {e_alert}")
         except Exception as e_pdf:
             print(f"[FGTS] Erro ao gerar PDF automaticamente: {e_pdf}")
     except Exception as e:
+        if _fgts_stop_requested():
+            return
         print(f"erro automação emissao FGTS: {e}")
 
 

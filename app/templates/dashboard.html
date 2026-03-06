@@ -213,6 +213,7 @@
                                                 <button class="btn btn-sm btn-outline-primary border-0 btn-baixar-certidao"
                                                     title="Emitir"
                                                     data-href="{{ url_for('main.baixar_certidao', certidao_id=certidao.id) }}"
+                                                    data-id="{{ certidao.id }}"
                                                     data-tipo="{{ certidao.tipo.name }}"
                                                     data-subtipo="{{ certidao.subtipo.name | lower if certidao.subtipo else '' }}"
                                                     data-manual-only="{{ '1' if sp_municipal_manual else '0' }}">
@@ -337,6 +338,71 @@
   </div>
 </div>
 
+<div class="modal fade" id="fgtsBatchModal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Emitir FGTS em lote</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p class="mb-2">Foram encontradas certidões FGTS:</p>
+                <ul class="mb-0">
+                    <li><strong id="fgtsBatchVencidas">0</strong> vencidas</li>
+                    <li><strong id="fgtsBatchAVencer">0</strong> a vencer</li>
+                    <li><strong id="fgtsBatchTotal">0</strong> no total</li>
+                </ul>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary" id="btnFgtsBatchStart">Iniciar lote</button>
+                <button type="button" class="btn btn-outline-primary" id="btnFgtsSingleEmit">Emitir apenas esta</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="fgtsBatchSummaryModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Resumo do lote FGTS</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p class="mb-2">Resultado final:</p>
+                <ul class="mb-0">
+                    <li><strong id="fgtsBatchSummaryEmitidas">0</strong> emitidas com sucesso</li>
+                    <li><strong id="fgtsBatchSummaryFalhas">0</strong> falhas</li>
+                    <li><strong id="fgtsBatchSummaryTotal">0</strong> no total</li>
+                    <li><strong id="fgtsBatchSummaryTempo">0s</strong> de duração</li>
+                </ul>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-primary" data-bs-dismiss="modal">OK</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="fgts-batch-overlay" class="loading-overlay d-none">
+    <div class="loading-box text-center">
+        <div class="spinner-border text-light" role="status">
+            <span class="visually-hidden">Carregando...</span>
+        </div>
+        <p class="mt-3 text-light fw-semibold mb-1" style='font-size: 1.37rem'>
+            Emissão FGTS em lote
+        </p>
+        <p class="text-light fw-semibold mb-2" id="fgtsBatchProgress">0/0 concluídas</p>
+        <p class="text-light fw-semibold mb-2" id="fgtsBatchFalhas">Falhas: 0</p>
+        <div class="d-flex justify-content-center gap-2">
+            <button class="btn btn-outline-light" id="btnFgtsBatchPause">Pausar</button>
+            <button class="btn btn-outline-warning d-none" id="btnFgtsBatchResume">Retomar</button>
+            <button class="btn btn-outline-danger" id="btnFgtsBatchStop">Parar</button>
+        </div>
+    </div>
+</div>
+
 <div id="loading-overlay" class="loading-overlay d-none">
   <div class="loading-box text-center">
     <div class="spinner-border text-light" role="status">
@@ -386,6 +452,28 @@ document.addEventListener('DOMContentLoaded', function() {
     const infoModalBody = document.getElementById('infoModalBody');
     const btnInfoModalOK = document.getElementById('btnInfoModalOK');
 
+    const fgtsBatchModalElement = document.getElementById('fgtsBatchModal');
+    let fgtsBatchModal = fgtsBatchModalElement ? new bootstrap.Modal(fgtsBatchModalElement) : null;
+    const fgtsBatchSummaryModalElement = document.getElementById('fgtsBatchSummaryModal');
+    let fgtsBatchSummaryModal = fgtsBatchSummaryModalElement ? new bootstrap.Modal(fgtsBatchSummaryModalElement) : null;
+    const fgtsBatchVencidas = document.getElementById('fgtsBatchVencidas');
+    const fgtsBatchAVencer = document.getElementById('fgtsBatchAVencer');
+    const fgtsBatchTotal = document.getElementById('fgtsBatchTotal');
+    const btnFgtsBatchStart = document.getElementById('btnFgtsBatchStart');
+    const btnFgtsSingleEmit = document.getElementById('btnFgtsSingleEmit');
+
+    const fgtsBatchSummaryEmitidas = document.getElementById('fgtsBatchSummaryEmitidas');
+    const fgtsBatchSummaryFalhas = document.getElementById('fgtsBatchSummaryFalhas');
+    const fgtsBatchSummaryTotal = document.getElementById('fgtsBatchSummaryTotal');
+    const fgtsBatchSummaryTempo = document.getElementById('fgtsBatchSummaryTempo');
+
+    const fgtsBatchOverlay = document.getElementById('fgts-batch-overlay');
+    const fgtsBatchProgress = document.getElementById('fgtsBatchProgress');
+    const fgtsBatchFalhas = document.getElementById('fgtsBatchFalhas');
+    const btnFgtsBatchPause = document.getElementById('btnFgtsBatchPause');
+    const btnFgtsBatchResume = document.getElementById('btnFgtsBatchResume');
+    const btnFgtsBatchStop = document.getElementById('btnFgtsBatchStop');
+
     const editModalEl = document.getElementById('editModal');
     let editModal = editModalEl ? new bootstrap.Modal(editModalEl) : null;
 
@@ -414,6 +502,12 @@ document.addEventListener('DOMContentLoaded', function() {
     let urlParaAbrir = null;
     let tipoParaAbrir = null;
     let idParaMonitorar = null;
+    let fgtsBatchCertidaoId = null;
+    let fgtsBatchPoller = null;
+    let fgtsBatchLastCompletedId = null;
+    let fgtsBatchSingleUrl = null;
+    let fgtsBatchEmpresaNome = null;
+    let fgtsBatchTipoCert = null;
     let caminhoArquivoParaModal = null;
     const loadingOverlay = document.getElementById('loading-overlay');
     const loadingDetalhes = document.getElementById('loading-detalhes');
@@ -667,6 +761,40 @@ document.addEventListener('DOMContentLoaded', function() {
 
             const pythonUrl = btn.dataset.href;
 
+            if (btn.dataset.tipo === 'FGTS') {
+                fgtsBatchCertidaoId = btn.dataset.id || btn.dataset.certidaoId || btn.getAttribute('data-certidao-id');
+                fgtsBatchSingleUrl = btn.dataset.href || null;
+                const cardDaLinha = btn.closest('.company-card');
+                fgtsBatchEmpresaNome = cardDaLinha && cardDaLinha.dataset.nomeEmpresa ? cardDaLinha.dataset.nomeEmpresa : '';
+                fgtsBatchTipoCert = btn.dataset.tipo || '';
+                const certidaoId = btn.dataset.id || btn.dataset.certidaoId || btn.getAttribute('data-certidao-id');
+                if (!certidaoId) {
+                    showToast('Certidão FGTS inválida.', 'error');
+                    resetDownloadButton(btn, originalHTML);
+                    return;
+                }
+
+                fetch(`/fgts/lote/info/${certidaoId}`)
+                    .then(response => response.json())
+                    .then(data => {
+                        resetDownloadButton(btn, originalHTML);
+                        if (!data || data.total === 0) {
+                            showToast('Nenhuma FGTS vencida ou a vencer.', 'primary');
+                            return;
+                        }
+                        if (fgtsBatchVencidas) fgtsBatchVencidas.textContent = data.vencidas || 0;
+                        if (fgtsBatchAVencer) fgtsBatchAVencer.textContent = data.a_vencer || 0;
+                        if (fgtsBatchTotal) fgtsBatchTotal.textContent = data.total || 0;
+                        if (fgtsBatchModal) fgtsBatchModal.show();
+                    })
+                    .catch(() => {
+                        resetDownloadButton(btn, originalHTML);
+                        showToast('Erro ao obter informações FGTS.', 'error');
+                    });
+
+                return;
+            }
+
             if (btn.dataset.tipo === 'FEDERAL') {
                 showToast("Para Federal, use o botão 'Abrir Site'.", "primary");
                 resetDownloadButton(btn, originalHTML);
@@ -725,6 +853,164 @@ document.addEventListener('DOMContentLoaded', function() {
                 });
         });
     });
+
+    function startFgtsBatchPolling() {
+        if (fgtsBatchPoller) clearInterval(fgtsBatchPoller);
+        fgtsBatchPoller = setInterval(() => {
+            fetch('/fgts/lote/status')
+                .then(r => r.json())
+                .then(data => {
+                    if (!data) return;
+                    if (fgtsBatchProgress) fgtsBatchProgress.textContent = `${data.index || 0}/${data.total || 0} concluídas`;
+                    if (fgtsBatchFalhas) fgtsBatchFalhas.textContent = `Falhas: ${data.falhas || 0}`;
+
+                    if (data.last_completed && data.last_completed.certidao_id) {
+                        const lastId = data.last_completed.certidao_id;
+                        if (lastId !== fgtsBatchLastCompletedId) {
+                            fgtsBatchLastCompletedId = lastId;
+                            const btnLinha = document.querySelector(`.btn-baixar-certidao[data-id="${lastId}"]`);
+                            if (btnLinha) {
+                                const linha = btnLinha.closest('tr');
+                                const novaDataTexto = data.last_completed.data_formatada || 'Não definida';
+                                const novaClasse = data.last_completed.nova_classe || 'status-cinza';
+                                atualizarLinhaUI(linha, novaClasse, novaDataTexto);
+                            }
+                        }
+                    }
+
+                    if (data.status === 'paused') {
+                        if (btnFgtsBatchResume) btnFgtsBatchResume.classList.remove('d-none');
+                    } else {
+                        if (btnFgtsBatchResume) btnFgtsBatchResume.classList.add('d-none');
+                    }
+
+                    if (data.status === 'completed') {
+                        clearInterval(fgtsBatchPoller);
+                        if (fgtsBatchOverlay) fgtsBatchOverlay.classList.add('d-none');
+                        showToast('Lote FGTS concluído.', 'success');
+
+                        if (fgtsBatchSummaryEmitidas) fgtsBatchSummaryEmitidas.textContent = data.success || 0;
+                        if (fgtsBatchSummaryFalhas) fgtsBatchSummaryFalhas.textContent = data.falhas || 0;
+                        if (fgtsBatchSummaryTotal) fgtsBatchSummaryTotal.textContent = data.total || 0;
+
+                        if (fgtsBatchSummaryTempo) {
+                            let tempoTexto = '0s';
+                            if (data.started_at && data.finished_at) {
+                                const ini = new Date(data.started_at);
+                                const fim = new Date(data.finished_at);
+                                const diff = Math.max(0, Math.floor((fim - ini) / 1000));
+                                const min = Math.floor(diff / 60);
+                                const sec = diff % 60;
+                                tempoTexto = min > 0 ? `${min}m ${sec}s` : `${sec}s`;
+                            }
+                            fgtsBatchSummaryTempo.textContent = tempoTexto;
+                        }
+
+                        if (fgtsBatchSummaryModal) fgtsBatchSummaryModal.show();
+                    }
+
+                    if (data.status === 'error') {
+                        clearInterval(fgtsBatchPoller);
+                        if (fgtsBatchOverlay) fgtsBatchOverlay.classList.add('d-none');
+                        showToast(data.message || 'Erro grave no lote FGTS.', 'error');
+                    }
+
+                    if (data.status === 'stopped') {
+                        clearInterval(fgtsBatchPoller);
+                        if (fgtsBatchOverlay) fgtsBatchOverlay.classList.add('d-none');
+                        showToast('Lote FGTS interrompido.', 'primary');
+                    }
+                });
+        }, 1500);
+    }
+
+    if (btnFgtsBatchStart) {
+        btnFgtsBatchStart.addEventListener('click', function() {
+            if (!fgtsBatchCertidaoId) {
+                showToast('Certidão FGTS inválida.', 'error');
+                return;
+            }
+            fetch('/fgts/lote/iniciar', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ certidao_id: fgtsBatchCertidaoId })
+            })
+                .then(r => r.json())
+                .then(data => {
+                    if (data.status !== 'ok') {
+                        showToast(data.message || 'Erro ao iniciar lote.', 'error');
+                        return;
+                    }
+                    if (fgtsBatchModal) fgtsBatchModal.hide();
+                    if (fgtsBatchOverlay) fgtsBatchOverlay.classList.remove('d-none');
+                    startFgtsBatchPolling();
+                })
+                .catch(() => showToast('Erro ao iniciar lote FGTS.', 'error'));
+        });
+    }
+
+    if (btnFgtsSingleEmit) {
+        btnFgtsSingleEmit.addEventListener('click', function() {
+            if (!fgtsBatchCertidaoId) {
+                showToast('Certidão FGTS inválida.', 'error');
+                return;
+            }
+            if (!fgtsBatchSingleUrl) {
+                showToast('URL de emissão indisponível.', 'error');
+                return;
+            }
+
+            if (fgtsBatchModal) fgtsBatchModal.hide();
+            showLoading(fgtsBatchEmpresaNome || '', fgtsBatchTipoCert || '');
+
+            fetch(fgtsBatchSingleUrl)
+                .then(response => response.json())
+                .then(data => {
+                    hideLoading();
+                    handleDownloadResponse(data);
+                })
+                .catch(() => {
+                    hideLoading();
+                    showToast('Erro ao emitir FGTS.', 'error');
+                });
+        });
+    }
+
+    if (btnFgtsBatchPause) {
+        btnFgtsBatchPause.addEventListener('click', function() {
+            fetch('/fgts/lote/pausar', { method: 'POST' })
+                .then(r => r.json())
+                .then(data => {
+                    showToast(data.message || 'Lote pausado.', 'primary');
+                    if (btnFgtsBatchResume) btnFgtsBatchResume.classList.remove('d-none');
+                });
+        });
+    }
+
+    if (btnFgtsBatchResume) {
+        btnFgtsBatchResume.addEventListener('click', function() {
+            fetch('/fgts/lote/retomar', { method: 'POST' })
+                .then(r => r.json())
+                .then(data => {
+                    if (data.status !== 'ok') {
+                        showToast(data.message || 'Erro ao retomar lote.', 'error');
+                        return;
+                    }
+                    showToast('Lote FGTS retomado.', 'success');
+                });
+        });
+    }
+
+    if (btnFgtsBatchStop) {
+        btnFgtsBatchStop.addEventListener('click', function() {
+            fetch('/fgts/lote/parar', { method: 'POST' })
+                .then(r => r.json())
+                .then(data => {
+                    showToast(data.message || 'Lote interrompido.', 'primary');
+                    if (fgtsBatchOverlay) fgtsBatchOverlay.classList.add('d-none');
+                });
+        });
+    }
 
 // ações de salvar e pendente modais
 
