@@ -5,6 +5,13 @@ basedir = os.path.abspath(os.path.dirname(__file__))
 
 load_dotenv(os.path.join(basedir, '.env'))
 
+
+def _env_bool(name, default=False):
+    value = os.environ.get(name)
+    if value is None:
+        return default
+    return value.strip().lower() in {'1', 'true', 'yes', 'on', 'sim'}
+
 class Config:
     SECRET_KEY = os.environ.get('SECRET_KEY')
     if not SECRET_KEY:
@@ -17,5 +24,15 @@ class Config:
     SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL') or \
         'sqlite:///' + os.path.join(basedir, 'instance', 'database.db')
 
+    CHROME_PROFILE_DIR = os.environ.get('CHROME_PROFILE_DIR') or \
+        os.path.join(basedir, 'chrome-profile')
+    CHROME_PROFILE_NAME = os.environ.get('CHROME_PROFILE_NAME') or 'Certidoes'
+
+    RS_CERT_AUTOSELECT_ENABLED = _env_bool('RS_CERT_AUTOSELECT_ENABLED', False)
+    RS_CERT_AUTOSELECT_PATTERN = os.environ.get('RS_CERT_AUTOSELECT_PATTERN') or \
+        'https://www.sefaz.rs.gov.br'
+    RS_CERT_AUTOSELECT_POLICY_INDEX = os.environ.get('RS_CERT_AUTOSELECT_POLICY_INDEX') or '1'
+    RS_CERT_AUTOSELECT_ISSUER_CN = os.environ.get('RS_CERT_AUTOSELECT_ISSUER_CN') or ''
+    RS_CERT_AUTOSELECT_SUBJECT_CN = os.environ.get('RS_CERT_AUTOSELECT_SUBJECT_CN') or ''
         
     SQLALCHEMY_TRACK_MODIFICATIONS = False

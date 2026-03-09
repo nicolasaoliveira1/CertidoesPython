@@ -18,6 +18,9 @@ instance/
 .env.*
 !.env.example
 
+# Perfil dedicado do Chrome / dados locais da automação
+chrome-profile/
+
 # Configurações do editor de código
 .vscode/
 .idea/
@@ -44,3 +47,7 @@ docs/MAPEAMENTO_MUNICIPIOS.md
 # Bancos locais
 *.sqlite3
 *.db
+
+# Artefatos locais diversos
+Thumbs.db
+Desktop.ini

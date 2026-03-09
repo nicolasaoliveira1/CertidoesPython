@@ -55,6 +55,8 @@ Este sistema foi criado para resolver o problema de controle manual de centenas 
 🤖 **Automação de Emissão**
   - **Federal (Receita)**: Monitoramento inteligente de download. O sistema detecta quando o PDF cai na pasta Downloads e o move automaticamente.
   - **FGTS / Estadual / Trabalhista**: Navegação automática até a página de emissão e preenchimento de CNPJ.
+  - **FGTS**: Emissão individual e em lote com geração de PDF via Chrome DevTools, sem diálogo de impressão.
+  - **Estadual RS**: Seleção automática temporária do certificado no Chrome durante a automação, com limpeza ao final.
   - **Municipal**: Suporte configurável para sites de prefeituras (ex: Gravataí, Xangri-Lá, Cidreira, etc.) com lógica personalizada para sistemas complexos.
 
 **📁 Gestão de Arquivos (File Server)**
@@ -118,6 +120,21 @@ SECRET_KEY=uma_chave_segura
 
 # Para SQLite (Desenvolvimento)
 # DATABASE_URL = 'sqlite:///instance/database.db'
+
+# Perfil dedicado do Chrome para automação
+# Se não informado, o sistema usa a pasta `chrome-profile` na raiz do projeto
+# CHROME_PROFILE_DIR=C:\CertidoesPython\chrome-profile
+# CHROME_PROFILE_NAME=Certidoes
+
+# Seleção automática do certificado do RS no Chrome
+# O sistema grava a política temporariamente em
+# HKCU\Software\Policies\Google\Chrome\AutoSelectCertificateForUrls
+# apenas durante a automação estadual do RS
+# RS_CERT_AUTOSELECT_ENABLED=true
+# RS_CERT_AUTOSELECT_PATTERN=https://www.sefaz.rs.gov.br
+# RS_CERT_AUTOSELECT_POLICY_INDEX=1
+# RS_CERT_AUTOSELECT_ISSUER_CN=AC DIGITALSIGN RFB G3
+# RS_CERT_AUTOSELECT_SUBJECT_CN=JURACI DA ROSA OLIVEIRA:34560971072
 ```
 
 5. **Inicialize o banco de dados**
@@ -147,6 +164,15 @@ CAMINHO_REDE = r"Z:\PASTAS EMPRESAS"  # Ajuste para o seu servidor
 ```
 
 O sistema localiza a pasta da empresa, encontra a pasta de documentos e usa/cria a subpasta `CERTIDOES`.
+
+### 🔐 Certificado automático do RS
+
+Para a certidão estadual do RS, o sistema pode configurar temporariamente a política do Chrome `AutoSelectCertificateForUrls` no registro do usuário atual do Windows.
+
+- Use `RS_CERT_AUTOSELECT_ENABLED=true` para ativar.
+- Ajuste `RS_CERT_AUTOSELECT_ISSUER_CN` e `RS_CERT_AUTOSELECT_SUBJECT_CN` quando o certificado for renovado ou trocado.
+- O campo de número de série não é usado aqui porque a política do Chrome filtra por `ISSUER` e `SUBJECT`, não por serial.
+- A política é gravada ao iniciar a automação RS e removida ao finalizar o fluxo, reduzindo impacto no Chrome do dia a dia.
 
 ### 🏛️ Configuração de Municípios
 
@@ -205,9 +231,10 @@ CertidoesPython/
 
 ### Emitir Certidão Automaticamente
 1. Clique no botão "Emitir" na certidão desejada
-2. O sistema abre uma janela anônima no site desejado e preenche os dados automaticamente
+2. O sistema abre uma janela do Chrome usando o perfil dedicado configurado e preenche os dados automaticamente
 3. Baixe o PDF em Download e ele será movido para a pasta configurada
-4. Feche a janela do Chrome que foi aberta e volte ao sistema para confirmar a validade da certidão
+4. Quando o fluxo suportar fechamento automático (como FGTS via PDF gerado pelo navegador), a janela será encerrada pelo sistema após sucesso
+5. Se o site exigir ação manual ou não gerar arquivo, volte ao sistema para confirmar a validade ou marcar como pendente
 
 ### Visualizar Certidão (PDF no navegador)
 1. Clique no botão "Visualizar" na certidão desejada

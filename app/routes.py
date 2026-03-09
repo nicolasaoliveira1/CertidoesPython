@@ -8,11 +8,20 @@ import re
 from threading import Thread, Lock
 from datetime import date, datetime, timedelta
 
+try:
+    import winreg
+except ImportError:
+    winreg = None
+
 from flask import (Blueprint, flash, jsonify, redirect, render_template,
                    request, url_for, send_file, current_app)
 from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
 from selenium import webdriver
-from selenium.common.exceptions import NoAlertPresentException, TimeoutException
+from selenium.common.exceptions import (InvalidSessionIdException,
+                                        NoAlertPresentException,
+                                        NoSuchWindowException,
+                                        TimeoutException,
+                                        WebDriverException)
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.chrome.service import Service as ChromeService
 from selenium.webdriver.common.by import By
@@ -31,6 +40,9 @@ from app.models import (Certidao, Empresa, Municipio, StatusEspecial,
 bp = Blueprint('main', __name__)
 
 FGTS_BATCH_LOCK = Lock()
+RS_CERT_POLICY_LOCK = Lock()
+RS_CERT_POLICY_ACTIVE_COUNT = 0
+
 FGTS_BATCH_STATE = {
     'status': 'idle',
     'ids': [],
@@ -106,10 +118,136 @@ def _fgts_quit_driver_async(driver):
     Thread(target=_close, daemon=True).start()
 
 
-def _criar_driver_fgts():
+def _get_chrome_profile_settings():
+    profile_dir = None
+    profile_name = None
+
+    try:
+        profile_dir = current_app.config.get('CHROME_PROFILE_DIR')
+        profile_name = current_app.config.get('CHROME_PROFILE_NAME')
+    except RuntimeError:
+        profile_dir = os.environ.get('CHROME_PROFILE_DIR')
+        profile_name = os.environ.get('CHROME_PROFILE_NAME')
+
+    if not profile_dir:
+        profile_dir = os.path.abspath(
+            os.path.join(os.path.dirname(__file__), '..', 'chrome-profile')
+        )
+    if not profile_name:
+        profile_name = 'Certidoes'
+
+    os.makedirs(profile_dir, exist_ok=True)
+    return profile_dir, profile_name
+
+
+def _get_config_value(name, default=None):
+    try:
+        return current_app.config.get(name, default)
+    except RuntimeError:
+        return os.environ.get(name, default)
+
+
+def _to_bool(value, default=False):
+    if value is None:
+        return default
+    if isinstance(value, bool):
+        return value
+    return str(value).strip().lower() in {'1', 'true', 'yes', 'on', 'sim'}
+
+
+def _montar_politica_autoselect_rs():
+    if not _to_bool(_get_config_value('RS_CERT_AUTOSELECT_ENABLED', True), True):
+        return None
+
+    pattern = (_get_config_value('RS_CERT_AUTOSELECT_PATTERN', 'https://www.sefaz.rs.gov.br') or '').strip()
+    issuer_cn = (_get_config_value('RS_CERT_AUTOSELECT_ISSUER_CN', '') or '').strip()
+    subject_cn = (_get_config_value('RS_CERT_AUTOSELECT_SUBJECT_CN', '') or '').strip()
+
+    if not pattern:
+        return None
+
+    filtro = {}
+    if issuer_cn:
+        filtro['ISSUER'] = {'CN': issuer_cn}
+    if subject_cn:
+        filtro['SUBJECT'] = {'CN': subject_cn}
+
+    if not filtro:
+        return None
+
+    return {
+        'pattern': pattern,
+        'filter': filtro,
+    }
+
+
+def _sincronizar_politica_autoselect_rs(aplicar=True):
+    if os.name != 'nt' or winreg is None:
+        return
+
+    indice = str(_get_config_value('RS_CERT_AUTOSELECT_POLICY_INDEX', '1') or '1').strip() or '1'
+    politica = _montar_politica_autoselect_rs() if aplicar else None
+    chave_registro = r"Software\Policies\Google\Chrome\AutoSelectCertificateForUrls"
+
+    try:
+        with winreg.CreateKey(winreg.HKEY_CURRENT_USER, chave_registro) as chave:
+            if politica is None:
+                try:
+                    winreg.DeleteValue(chave, indice)
+                    print(f"[RS] Política AutoSelectCertificate removida (índice {indice}).")
+                except FileNotFoundError:
+                    pass
+                return
+
+            valor = json.dumps(politica, ensure_ascii=False, separators=(',', ':'))
+            winreg.SetValueEx(chave, indice, 0, winreg.REG_SZ, valor)
+            print(f"[RS] Política AutoSelectCertificate aplicada (índice {indice}).")
+    except OSError as exc:
+        print(f"[RS] Não foi possível sincronizar a política AutoSelectCertificate: {exc}")
+
+
+def _ativar_politica_autoselect_rs_temporaria():
+    global RS_CERT_POLICY_ACTIVE_COUNT
+
+    if not _montar_politica_autoselect_rs():
+        return False
+
+    with RS_CERT_POLICY_LOCK:
+        RS_CERT_POLICY_ACTIVE_COUNT += 1
+        if RS_CERT_POLICY_ACTIVE_COUNT == 1:
+            _sincronizar_politica_autoselect_rs(aplicar=True)
+    return True
+
+
+def _desativar_politica_autoselect_rs_temporaria():
+    global RS_CERT_POLICY_ACTIVE_COUNT
+
+    with RS_CERT_POLICY_LOCK:
+        if RS_CERT_POLICY_ACTIVE_COUNT <= 0:
+            RS_CERT_POLICY_ACTIVE_COUNT = 0
+            _sincronizar_politica_autoselect_rs(aplicar=False)
+            return
+
+        RS_CERT_POLICY_ACTIVE_COUNT -= 1
+        if RS_CERT_POLICY_ACTIVE_COUNT == 0:
+            _sincronizar_politica_autoselect_rs(aplicar=False)
+
+
+def _build_chrome_options():
     chrome_options = Options()
-    chrome_options.add_argument("--incognito")
     chrome_options.add_argument("--start-maximized")
+
+    profile_dir, profile_name = _get_chrome_profile_settings()
+    if profile_dir:
+        chrome_options.add_argument(f"--user-data-dir={profile_dir}")
+    if profile_name:
+        chrome_options.add_argument(f"--profile-directory={profile_name}")
+
+    return chrome_options
+
+
+def _criar_driver_chrome():
+    chrome_options = _build_chrome_options()
     return webdriver.Chrome(service=ChromeService(
         ChromeDriverManager().install()), options=chrome_options)
 
@@ -202,7 +340,7 @@ def _emitir_fgts_certidao(certidao_id, driver=None):
             return False, False, 'Lote interrompido.'
 
         if local_driver is None:
-            local_driver = _criar_driver_fgts()
+            local_driver = _criar_driver_chrome()
             criado_localmente = True
 
         FGTS_BATCH_STATE['driver'] = local_driver
@@ -296,7 +434,7 @@ def _fgts_batch_worker(app):
                 print(f"[FGTS-LOTE] Iniciando emissão ID={certidao_id} ({FGTS_BATCH_STATE['index'] + 1}/{FGTS_BATCH_STATE['total']}).")
 
             if driver is None:
-                driver = _criar_driver_fgts()
+                driver = _criar_driver_chrome()
 
             sucesso, grave, mensagem = _emitir_fgts_certidao(certidao_id, driver=driver)
 
@@ -305,7 +443,7 @@ def _fgts_batch_worker(app):
                     driver.quit()
                 except Exception:
                     pass
-                driver = _criar_driver_fgts()
+                driver = _criar_driver_chrome()
                 print("[FGTS-LOTE] Recriando driver após falha de carregamento.")
                 sucesso, grave, mensagem = _emitir_fgts_certidao(certidao_id, driver=driver)
 
@@ -568,6 +706,41 @@ def _login_certificado_rs(driver, login_url, cert_url, timeout=120):
 
     time.sleep(2)
     driver.get(cert_url)
+
+
+def _erro_indica_navegador_fechado(exc):
+    tipos_fechamento = (
+        InvalidSessionIdException,
+        NoSuchWindowException,
+        WebDriverException,
+        ConnectionResetError,
+    )
+    marcadores = (
+        'connection aborted',
+        'connectionreseterror',
+        'chrome not reachable',
+        'disconnected',
+        'invalid session id',
+        'no such window',
+        'target window already closed',
+        'web view not found',
+    )
+
+    atual = exc
+    for _ in range(6):
+        if atual is None:
+            break
+
+        if isinstance(atual, tipos_fechamento):
+            return True
+
+        texto = f"{type(atual).__name__}: {atual}".lower()
+        if any(marcador in texto for marcador in marcadores):
+            return True
+
+        atual = getattr(atual, '__cause__', None) or getattr(atual, '__context__', None)
+
+    return False
 
 
 @bp.route('/')
@@ -1152,6 +1325,7 @@ def baixar_certidao(certidao_id):
     data_encontrada = None
     arquivo_salvo_msg = None
     pular_monitoramento = False
+    rs_autoselect_temporario_ativo = False
 
     # contexto compartilhado com helpers de steps
     contexto = {
@@ -1161,19 +1335,23 @@ def baixar_certidao(certidao_id):
     }
 
     tempo_inicio = time.time()
+    estado_emp = (certidao.empresa.estado or '').strip().upper()
+    usar_rs_autoselect = (
+        tipo_certidao_chave == 'ESTADUAL'
+        and estado_emp == 'RS'
+        and bool(info_site.get('login_cert_url'))
+    )
 
     try:
         print(f"--- INICIANDO AUTOMAÇÃO ({tipo_certidao_chave}) ---")
 
-        chrome_options = Options()
-        chrome_options.add_argument("--incognito")
-        chrome_options.add_argument("--start-maximized")
-        driver = webdriver.Chrome(service=ChromeService(
-            ChromeDriverManager().install()), options=chrome_options)
+        if usar_rs_autoselect:
+            rs_autoselect_temporario_ativo = _ativar_politica_autoselect_rs_temporaria()
+
+        driver = _criar_driver_chrome()
         
-        wait = WebDriverWait(driver, 20)
-        
-        estado_emp = (certidao.empresa.estado or '').strip().upper()
+        wait = WebDriverWait(driver, 1)
+
         if tipo_certidao_chave == 'ESTADUAL' and estado_emp == 'RS' and info_site.get('login_cert_url'):
             print("1. Acessando login com certificado (RS)")
             _login_certificado_rs(
@@ -1383,15 +1561,36 @@ def baixar_certidao(certidao_id):
                 time.sleep(1)
         else:
             print("--- FGTS: monitoramento pulado (PDF gerado via CDP) ---")
+            if driver:
+                try:
+                    time.sleep(1)
+                    driver.quit()
+                except Exception as e_quit:
+                    print(f"Aviso: erro ao fechar Chrome no fluxo FGTS/CDP: {e_quit}")
 
     except Exception as e:
         print(f"!!!!!!!!!! ERRO NO SELENIUM !!!!!!!!!!\n{e}")
+        if _erro_indica_navegador_fechado(e):
+            print("Chrome fechado durante a automação; retornando fluxo pendente.")
+            if driver:
+                try:
+                    driver.quit()
+                except Exception:
+                    pass
+            return jsonify({
+                'status': 'window_closed_no_file',
+                'certidao_id': certidao_id,
+                'tipo_certidao': nome_certidao_arquivo
+            })
         if driver:
             try:
                 driver.quit()
             except:
                 pass
         return jsonify({"status": "error", "message": "Ocorreu um erro na automação."}), 500
+    finally:
+        if rs_autoselect_temporario_ativo:
+            _desativar_politica_autoselect_rs_temporaria()
 
     response_data = {'status': 'unknown'}
 
