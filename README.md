@@ -57,12 +57,12 @@ Este sistema foi criado para resolver o problema de controle manual de centenas 
   - **FGTS / Estadual / Trabalhista**: Navegação automática até a página de emissão e preenchimento de CNPJ.
   - **FGTS**: Emissão individual e em lote com geração de PDF via Chrome DevTools, sem diálogo de impressão.
   - **Estadual RS**: Seleção automática temporária do certificado no Chrome durante a automação, com limpeza ao final.
-  - **Municipal**: Suporte configurável para sites de prefeituras (ex: Gravataí, Xangri-Lá, Cidreira, etc.) com lógica personalizada para sistemas complexos.
+  - **Municipal**: Suporte configurável para sites de prefeituras com lógica personalizada para sistemas complexos.
 
 **📁 Gestão de Arquivos (File Server)**
   - O sistema varre a pasta de Downloads local.
   - Identifica o PDF da certidão (com filtro inteligente de nomes para evitar conflitos).
-  - Renomeia e Move automaticamente para a pasta da empresa na rede (ex: Z:\PASTAS EMPRESAS\Cliente X\CERTIDOES\CERTIDAO FGTS.pdf).
+  - Renomeia e Move automaticamente para a pasta da empresa na rede (ex: `Z:\EMPRESAS\Cliente X\CERTIDOES\CERTIDAO FGTS.pdf`).
   - Evita duplicação de pastas (reconhece CERTIDOES e CERTIDÕES).
   - Salva o caminho do arquivo no banco para visualização posterior.
   - Ao visualizar, o sistema tenta localizar PDFs já existentes na pasta CERTIDOES.
@@ -116,7 +116,7 @@ Crie um arquivo `.env` na raiz do projeto:
 SECRET_KEY=uma_chave_segura
 
 # Para MySQL (Recomendado)
-# DATABASE_URL = 'mysql+pymysql://usuario:senha@IP_DO_SERVIDOR/sistema_certidoes'
+# DATABASE_URL=mysql+pymysql://usuario:senha@host/nome_do_banco
 
 # Para SQLite (Desenvolvimento)
 # DATABASE_URL = 'sqlite:///instance/database.db'
@@ -133,8 +133,8 @@ SECRET_KEY=uma_chave_segura
 # RS_CERT_AUTOSELECT_ENABLED=true
 # RS_CERT_AUTOSELECT_PATTERN=https://www.sefaz.rs.gov.br
 # RS_CERT_AUTOSELECT_POLICY_INDEX=1
-# RS_CERT_AUTOSELECT_ISSUER_CN=AC DIGITALSIGN RFB G3
-# RS_CERT_AUTOSELECT_SUBJECT_CN=JURACI DA ROSA OLIVEIRA:34560971072
+# RS_CERT_AUTOSELECT_ISSUER_CN=Nome da Autoridade Certificadora
+# RS_CERT_AUTOSELECT_SUBJECT_CN=NOME DO TITULAR:CPF
 ```
 
 5. **Inicialize o banco de dados**
@@ -143,7 +143,7 @@ flask db upgrade
 ```
 6. **Configurar Caminhos de Rede (`app/file_manager.py`)**
 ```powershell
-CAMINHO_REDE = r"Z:\PASTAS EMPRESAS"  # Ajuste para o seu servidor
+CAMINHO_REDE = r"Z:\EMPRESAS"  # Ajuste para o seu servidor de arquivos
 ```
 
 7. **Execute a aplicação**
@@ -160,7 +160,7 @@ python run.py
 ⚠️ **IMPORTANTE**: O caminho base é definido em `app/file_manager.py`.
 
 ```python
-CAMINHO_REDE = r"Z:\PASTAS EMPRESAS"  # Ajuste para o seu servidor
+CAMINHO_REDE = r"Z:\EMPRESAS"  # Ajuste para o seu servidor de arquivos
 ```
 
 O sistema localiza a pasta da empresa, encontra a pasta de documentos e usa/cria a subpasta `CERTIDOES`.
@@ -170,7 +170,7 @@ O sistema localiza a pasta da empresa, encontra a pasta de documentos e usa/cria
 Para a certidão estadual do RS, o sistema pode configurar temporariamente a política do Chrome `AutoSelectCertificateForUrls` no registro do usuário atual do Windows.
 
 - Use `RS_CERT_AUTOSELECT_ENABLED=true` para ativar.
-- Ajuste `RS_CERT_AUTOSELECT_ISSUER_CN` e `RS_CERT_AUTOSELECT_SUBJECT_CN` quando o certificado for renovado ou trocado.
+- Ajuste `RS_CERT_AUTOSELECT_ISSUER_CN` (nome da AC emissora) e `RS_CERT_AUTOSELECT_SUBJECT_CN` (nome do titular e CPF conforme exibido no certificado) quando o certificado for renovado ou trocado.
 - O campo de número de série não é usado aqui porque a política do Chrome filtra por `ISSUER` e `SUBJECT`, não por serial.
 - A política é gravada ao iniciar a automação RS e removida ao finalizar o fluxo, reduzindo impacto no Chrome do dia a dia.
 
@@ -279,10 +279,10 @@ flask db downgrade
 - A preferência é salva no `localStorage`
 
 ### Ajustar Logo
-Atualmente utiliza a logo do escritório onde trabalho
+Substitua pelos logos do seu escritório.
 - Logos em `app/static/images/`
-- Logo claro: `asseconlogo.png` (versão completa) e `assecon_preto.png` (compacta)
-- Logo escuro: `assecon_branco_logo.png` (completa) e `assecon_branco.png` (compacta)
+- Logo claro: versão completa e compacta para fundo claro
+- Logo escuro: versão completa e compacta para fundo escuro
 
 ### Modificar Cores de Status
 Edite em `app/templates/base.html`:
