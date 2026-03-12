@@ -27,7 +27,7 @@ SITES_CERTIDOES = {
             'by': 'id'
         },
         'MT': {
-            'url': 'https://www.sefaz.mt.gov.br/cnd/certidao/servlet/ServletRotd?origem=60',
+            'url': 'https://www.sefaz.mt.gov.br/cnd/certidao/servlet/ServletRotdAberto?origem=60',
             'pre_fill_click_id': "input[value='CNPJ']",
             'pre_fill_click_by': 'css_selector',
             'cnpj_field_id': 'numeroDocumento',
