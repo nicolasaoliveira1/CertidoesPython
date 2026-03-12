@@ -746,9 +746,13 @@ def _erro_indica_navegador_fechado(exc):
 @bp.route('/')
 def dashboard():
     status_filtros = request.args.getlist('status')
+    tipo_filtros = request.args.getlist('tipo')
+    estado_filtro = request.args.get('estado', '')
+
     query = db.session.query(Empresa).distinct()
 
     hoje = date.today()
+    join_certidao_feito = False
 
     if not status_filtros:
         status_filtros = ['todas']
@@ -757,6 +761,7 @@ def dashboard():
         status_filtros = ['todas']
     else:
         query = query.join(Certidao)
+        join_certidao_feito = True
 
         conditions = []
 
@@ -786,7 +791,38 @@ def dashboard():
         else:
             query = query.filter(Empresa.id == -1)
 
+    if not tipo_filtros or 'todas' in tipo_filtros:
+        tipo_filtros = ['todas']
+    else:
+        tipos_enum = []
+        mapa_tipo = {
+            'federal': TipoCertidao.FEDERAL,
+            'fgts': TipoCertidao.FGTS,
+            'estadual': TipoCertidao.ESTADUAL,
+            'municipal': TipoCertidao.MUNICIPAL,
+            'trabalhista': TipoCertidao.TRABALHISTA,
+        }
+        for t in tipo_filtros:
+            enum_val = mapa_tipo.get(t)
+            if enum_val:
+                tipos_enum.append(enum_val)
+        if tipos_enum:
+            if not join_certidao_feito:
+                query = query.join(Certidao)
+                join_certidao_feito = True
+            query = query.filter(Certidao.tipo.in_(tipos_enum))
+        else:
+            query = query.filter(Empresa.id == -1)
+
+    if estado_filtro:
+        query = query.filter(Empresa.estado == estado_filtro)
+
     empresas = query.order_by(Empresa.id).all()
+
+    estados_disponiveis = [
+        row[0] for row in
+        db.session.query(Empresa.estado).distinct().order_by(Empresa.estado).all()
+    ]
 
     municipios = Municipio.query.all()
 
@@ -805,6 +841,9 @@ def dashboard():
         'dashboard.html',
         empresas=empresas,
         status_filtros=status_filtros,
+        tipo_filtros=tipo_filtros,
+        estado_filtro=estado_filtro,
+        estados_disponiveis=estados_disponiveis,
         hoje=hoje,
         sites_urls=SITES_CERTIDOES,
         urls_municipais=urls_municipais

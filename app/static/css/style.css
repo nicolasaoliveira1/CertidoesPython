@@ -445,6 +445,36 @@ footer {
     box-shadow: 0 4px 10px rgba(90, 127, 157, 0.3);
 }
 
+.btn-check:checked + .chip-federal {
+    background-color: #0d6efd !important;
+    color: #fff;
+    box-shadow: 0 4px 10px rgba(13, 110, 253, 0.3);
+}
+
+.btn-check:checked + .chip-fgts {
+    background-color: #0dcaf0 !important;
+    color: #000;
+    box-shadow: 0 4px 10px rgba(13, 202, 240, 0.3);
+}
+
+.btn-check:checked + .chip-estadual {
+    background-color: #6f42c1 !important;
+    color: #fff;
+    box-shadow: 0 4px 10px rgba(111, 66, 193, 0.3);
+}
+
+.btn-check:checked + .chip-municipal {
+    background-color: #fd7e14 !important;
+    color: #fff;
+    box-shadow: 0 4px 10px rgba(253, 126, 20, 0.3);
+}
+
+.btn-check:checked + .chip-trabalhista {
+    background-color: #20c997 !important;
+    color: #fff;
+    box-shadow: 0 4px 10px rgba(32, 201, 151, 0.3);
+}
+
 [data-bs-theme="dark"] .filter-chip {
     background-color: #2b3035;
     color: #adb5bd;
@@ -466,6 +496,12 @@ footer {
     background-color: #fff !important;
     border-color: #dc3545;
     color: #dc3545;
+}
+
+[data-bs-theme="dark"] .form-select {
+    background-color: #212529;
+    border-color: #373b3e;
+    color: #fff;
 }
 
 #filtroEmpresa:focus {

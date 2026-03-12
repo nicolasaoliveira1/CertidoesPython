@@ -59,7 +59,7 @@
 <div class="card shadow-sm border-0 mb-5 bg-body-tertiary rounded-3">
     <div class="card-body p-4">
         <div class="d-flex flex-wrap gap-3 w-100 filter-container">
-            <div style="flex: 1 1 45%; min-width: 280px;">
+            <div style="flex: 1 1 30%; min-width: 250px;">
                 <label for="filtroEmpresa" class="form-label fw-bold text-secondary text-uppercase small">Buscar Empresa</label>
                 <div class="input-group">
                     <span class="input-group-text bg-white border-end-0"><i class="bi bi-search text-muted"></i></span>
@@ -68,51 +68,109 @@
                 </div>
             </div>
 
-            <div style="flex: 1 1 50%; min-width: 300px;">
-                <label class="form-label fw-bold text-secondary text-uppercase small mb-2">Filtrar Status</label>
-            
-                <form action="{{ url_for('main.dashboard') }}" method="GET" class="mb-0" id="filtro-form">
-                    <div class="d-flex flex-wrap gap-2">
-            
-                        <input type="checkbox" class="btn-check filter-trigger" id="status-todas" name="status" value="todas" {%
-                            if 'todas' in status_filtros %}checked{% endif %}>
-                        <label class="filter-chip chip-gray" for="status-todas">
-                            <i class="bi bi-grid-fill"></i> Todas
-                        </label>
-            
-                        <input type="checkbox" class="btn-check filter-trigger" id="status-validas" name="status" value="validas" {%
-                            if 'validas' in status_filtros %}checked{% endif %}>
-                        <label class="filter-chip chip-green" for="status-validas">
-                            <i class="bi bi-check-circle-fill"></i> Válidas
-                        </label>
-            
-                        <input type="checkbox" class="btn-check filter-trigger" id="status-a-vencer" name="status" value="a_vencer"
-                            {% if 'a_vencer' in status_filtros %}checked{% endif %}>
-                        <label class="filter-chip chip-yellow" for="status-a-vencer">
-                            <i class="bi bi-exclamation-triangle-fill"></i> A Vencer
-                        </label>
-            
-                        <input type="checkbox" class="btn-check filter-trigger" id="status-vencidas" name="status" value="vencidas"
-                            {% if 'vencidas' in status_filtros %}checked{% endif %}>
-                        <label class="filter-chip chip-red" for="status-vencidas">
-                            <i class="bi bi-x-circle-fill"></i> Vencidas
-                        </label>
-            
-                        <input type="checkbox" class="btn-check filter-trigger" id="status-pendentes" name="status"
-                            value="pendentes" {% if 'pendentes' in status_filtros %}checked{% endif %}>
-                        <label class="filter-chip chip-red-outline" for="status-pendentes">
-                            <i class="bi bi-exclamation-circle-fill"></i> Pendentes
-                        </label>
-            
-                        <input type="checkbox" class="btn-check filter-trigger" id="status-nao-definida" name="status"
-                            value="nao_definida" {% if 'nao_definida' in status_filtros %}checked{% endif %}>
-                        <label class="filter-chip chip-nao-definida" for="status-nao-definida">
-                            <i class="bi bi-question-circle-fill"></i> Não Definida
-                        </label>
-            
-                    </div>
-                </form>
+            <div style="flex: 0 1 auto; min-width: 160px;">
+                <label for="filtro-estado" class="form-label fw-bold text-secondary text-uppercase small">Estado</label>
+                <select class="form-select" id="filtro-estado" name="estado" form="filtro-form">
+                    <option value="">Todos</option>
+                    {% for uf in estados_disponiveis %}
+                        <option value="{{ uf }}" {% if estado_filtro == uf %}selected{% endif %}>{{ uf }}</option>
+                    {% endfor %}
+                </select>
             </div>
+        </div>
+
+        <div class="mt-3">
+            <form action="{{ url_for('main.dashboard') }}" method="GET" class="mb-0" id="filtro-form">
+                <input type="hidden" name="estado" id="estado-hidden" value="{{ estado_filtro }}">
+
+                <div class="d-flex flex-wrap gap-4">
+                    <div style="flex: 1 1 45%; min-width: 280px;">
+                        <label class="form-label fw-bold text-secondary text-uppercase small mb-2">Status</label>
+                        <div class="d-flex flex-wrap gap-2">
+
+                            <input type="checkbox" class="btn-check filter-trigger" id="status-todas" name="status" value="todas" {%
+                                if 'todas' in status_filtros %}checked{% endif %}>
+                            <label class="filter-chip chip-gray" for="status-todas">
+                                <i class="bi bi-grid-fill"></i> Todas
+                            </label>
+                
+                            <input type="checkbox" class="btn-check filter-trigger" id="status-validas" name="status" value="validas" {%
+                                if 'validas' in status_filtros %}checked{% endif %}>
+                            <label class="filter-chip chip-green" for="status-validas">
+                                <i class="bi bi-check-circle-fill"></i> Válidas
+                            </label>
+                
+                            <input type="checkbox" class="btn-check filter-trigger" id="status-a-vencer" name="status" value="a_vencer"
+                                {% if 'a_vencer' in status_filtros %}checked{% endif %}>
+                            <label class="filter-chip chip-yellow" for="status-a-vencer">
+                                <i class="bi bi-exclamation-triangle-fill"></i> A Vencer
+                            </label>
+                
+                            <input type="checkbox" class="btn-check filter-trigger" id="status-vencidas" name="status" value="vencidas"
+                                {% if 'vencidas' in status_filtros %}checked{% endif %}>
+                            <label class="filter-chip chip-red" for="status-vencidas">
+                                <i class="bi bi-x-circle-fill"></i> Vencidas
+                            </label>
+                
+                            <input type="checkbox" class="btn-check filter-trigger" id="status-pendentes" name="status"
+                                value="pendentes" {% if 'pendentes' in status_filtros %}checked{% endif %}>
+                            <label class="filter-chip chip-red-outline" for="status-pendentes">
+                                <i class="bi bi-exclamation-circle-fill"></i> Pendentes
+                            </label>
+                
+                            <input type="checkbox" class="btn-check filter-trigger" id="status-nao-definida" name="status"
+                                value="nao_definida" {% if 'nao_definida' in status_filtros %}checked{% endif %}>
+                            <label class="filter-chip chip-nao-definida" for="status-nao-definida">
+                                <i class="bi bi-question-circle-fill"></i> Não Definida
+                            </label>
+
+                        </div>
+                    </div>
+
+                    <div style="flex: 1 1 45%; min-width: 280px;">
+                        <label class="form-label fw-bold text-secondary text-uppercase small mb-2">Tipo de Certidão</label>
+                        <div class="d-flex flex-wrap gap-2">
+
+                            <input type="checkbox" class="btn-check filter-trigger" id="tipo-todas" name="tipo" value="todas" {%
+                                if 'todas' in tipo_filtros %}checked{% endif %}>
+                            <label class="filter-chip chip-gray" for="tipo-todas">
+                                <i class="bi bi-grid-fill"></i> Todas
+                            </label>
+
+                            <input type="checkbox" class="btn-check filter-trigger" id="tipo-federal" name="tipo" value="federal" {%
+                                if 'federal' in tipo_filtros %}checked{% endif %}>
+                            <label class="filter-chip chip-federal" for="tipo-federal">
+                                <i class="bi bi-bank"></i> Federal
+                            </label>
+
+                            <input type="checkbox" class="btn-check filter-trigger" id="tipo-fgts" name="tipo" value="fgts" {%
+                                if 'fgts' in tipo_filtros %}checked{% endif %}>
+                            <label class="filter-chip chip-fgts" for="tipo-fgts">
+                                <i class="bi bi-person-badge"></i> FGTS
+                            </label>
+
+                            <input type="checkbox" class="btn-check filter-trigger" id="tipo-estadual" name="tipo" value="estadual" {%
+                                if 'estadual' in tipo_filtros %}checked{% endif %}>
+                            <label class="filter-chip chip-estadual" for="tipo-estadual">
+                                <i class="bi bi-map"></i> Estadual
+                            </label>
+
+                            <input type="checkbox" class="btn-check filter-trigger" id="tipo-municipal" name="tipo" value="municipal" {%
+                                if 'municipal' in tipo_filtros %}checked{% endif %}>
+                            <label class="filter-chip chip-municipal" for="tipo-municipal">
+                                <i class="bi bi-building"></i> Municipal
+                            </label>
+
+                            <input type="checkbox" class="btn-check filter-trigger" id="tipo-trabalhista" name="tipo" value="trabalhista" {%
+                                if 'trabalhista' in tipo_filtros %}checked{% endif %}>
+                            <label class="filter-chip chip-trabalhista" for="tipo-trabalhista">
+                                <i class="bi bi-briefcase"></i> Trabalhista
+                            </label>
+
+                        </div>
+                    </div>
+                </div>
+            </form>
         </div>
     </div>
 </div>
@@ -122,7 +180,6 @@
     
         {% set certidoes_filtradas = [] %}
         {% for c in empresa.certidoes.all() %}
-            {# ... (Mesma lógica de cálculo de status do seu código anterior) ... #}
             {% set status_calculado = '' %}
             {% if c.status_especial and c.status_especial.value == 'Pendente' %}{% set status_calculado = 'pendentes' %}
             {% elif not c.data_validade %}{% set status_calculado = 'nao_definida' %}
@@ -131,7 +188,10 @@
             {% else %}{% set status_calculado = 'validas' %}
             {% endif %}
 
-            {% if 'todas' in status_filtros or status_calculado in status_filtros %}
+            {% set status_ok = ('todas' in status_filtros or status_calculado in status_filtros) %}
+            {% set tipo_ok = ('todas' in tipo_filtros or c.tipo.name | lower in tipo_filtros) %}
+
+            {% if status_ok and tipo_ok %}
                 {% set _ = certidoes_filtradas.append(c) %}
             {% endif %}
         {% endfor %}
@@ -141,7 +201,7 @@
         {# SÓ MOSTRA O CARD SE HOUVER CERTIDÕES NO FILTRO #}
         {% if certidoes_filtradas | length > 0 %}
         
-        <div class="card mb-4 shadow-sm border-0 company-card" data-nome-empresa="{{ empresa.nome }}" data-cidade-empresa="{{ empresa.cidade }}">
+        <div class="card mb-4 shadow-sm border-0 company-card" data-nome-empresa="{{ empresa.nome }}" data-cidade-empresa="{{ empresa.cidade }}" data-estado-empresa="{{ empresa.estado }}">
             
             <div class="card-header bg-white border-bottom py-3 d-flex flex-wrap justify-content-between align-items-center">
                 <div class="d-flex align-items-center gap-3">
@@ -1178,8 +1238,10 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     const formFiltro = document.getElementById('filtro-form');
+    const estadoSelect = document.getElementById('filtro-estado');
+    const estadoHidden = document.getElementById('estado-hidden');
+
     const todasCheckbox = document.getElementById('status-todas');
-    
     const statusCheckboxes = [
         document.getElementById('status-validas'),
         document.getElementById('status-a-vencer'),
@@ -1188,39 +1250,62 @@ document.addEventListener('DOMContentLoaded', function() {
         document.getElementById('status-nao-definida')
     ];
 
+    const tipoTodasCheckbox = document.getElementById('tipo-todas');
+    const tipoCheckboxes = [
+        document.getElementById('tipo-federal'),
+        document.getElementById('tipo-fgts'),
+        document.getElementById('tipo-estadual'),
+        document.getElementById('tipo-municipal'),
+        document.getElementById('tipo-trabalhista')
+    ];
+
     function autoSubmit() {
         if (formFiltro) {
+            if (estadoSelect && estadoHidden) {
+                estadoHidden.value = estadoSelect.value;
+            }
             setTimeout(() => {
                 formFiltro.submit();
             }, 100);
         }
     }
 
-    if (todasCheckbox) {
-        todasCheckbox.addEventListener('change', function() {
-            if (todasCheckbox.checked) {
-                statusCheckboxes.forEach(cb => { if (cb) cb.checked = false; });
-            } else {
-                const algumMarcado = statusCheckboxes.some(cb => cb && cb.checked);
-                if (!algumMarcado) todasCheckbox.checked = true;
-            }
-            autoSubmit();
-        });
-    }
-
-    statusCheckboxes.forEach(cb => {
-        if (cb) {
-            cb.addEventListener('change', function() {
-                if (cb.checked) {
-                    if (todasCheckbox) todasCheckbox.checked = false;
+    function setupChipGroup(todasCb, outrasCbs) {
+        if (todasCb) {
+            todasCb.addEventListener('change', function() {
+                if (todasCb.checked) {
+                    outrasCbs.forEach(cb => { if (cb) cb.checked = false; });
                 } else {
-                    const algumMarcado = statusCheckboxes.some(other => other && other.checked);
-                    if (!algumMarcado && todasCheckbox) todasCheckbox.checked = true;
+                    const algumMarcado = outrasCbs.some(cb => cb && cb.checked);
+                    if (!algumMarcado) todasCb.checked = true;
                 }
                 autoSubmit();
             });
         }
-    });
+
+        outrasCbs.forEach(cb => {
+            if (cb) {
+                cb.addEventListener('change', function() {
+                    if (cb.checked) {
+                        if (todasCb) todasCb.checked = false;
+                    } else {
+                        const algumMarcado = outrasCbs.some(other => other && other.checked);
+                        if (!algumMarcado && todasCb) todasCb.checked = true;
+                    }
+                    autoSubmit();
+                });
+            }
+        });
+    }
+
+    setupChipGroup(todasCheckbox, statusCheckboxes);
+    setupChipGroup(tipoTodasCheckbox, tipoCheckboxes);
+
+    if (estadoSelect) {
+        estadoSelect.addEventListener('change', function() {
+            autoSubmit();
+        });
+    }
 });
 
 </script>
