@@ -838,10 +838,33 @@ document.addEventListener('DOMContentLoaded', function() {
                     .then(response => response.json())
                     .then(data => {
                         resetDownloadButton(btn, originalHTML);
-                        if (!data || data.total === 0) {
-                            showToast('Nenhuma FGTS vencida ou a vencer.', 'primary');
+                        if (!data) {
+                            showToast('Erro ao obter informações FGTS.', 'error');
                             return;
                         }
+
+                        const totalLote = Number(data.total || 0);
+
+                        if (totalLote <= 1) {
+                            if (!fgtsBatchSingleUrl) {
+                                showToast('URL de emissão indisponível.', 'error');
+                                return;
+                            }
+
+                            showLoading(fgtsBatchEmpresaNome || '', fgtsBatchTipoCert || '');
+                            fetch(fgtsBatchSingleUrl)
+                                .then(response => response.json())
+                                .then(dataSingle => {
+                                    hideLoading();
+                                    handleDownloadResponse(dataSingle);
+                                })
+                                .catch(() => {
+                                    hideLoading();
+                                    showToast('Erro ao emitir FGTS.', 'error');
+                                });
+                            return;
+                        }
+
                         if (fgtsBatchVencidas) fgtsBatchVencidas.textContent = data.vencidas || 0;
                         if (fgtsBatchAVencer) fgtsBatchAVencer.textContent = data.a_vencer || 0;
                         if (fgtsBatchTotal) fgtsBatchTotal.textContent = data.total || 0;
