@@ -1389,7 +1389,7 @@ def baixar_certidao(certidao_id):
 
         driver = _criar_driver_chrome()
         
-        wait = WebDriverWait(driver, 1)
+        wait = WebDriverWait(driver, 20)
 
         if tipo_certidao_chave == 'ESTADUAL' and estado_emp == 'RS' and info_site.get('login_cert_url'):
             print("1. Acessando login com certificado (RS)")
@@ -1493,6 +1493,9 @@ def baixar_certidao(certidao_id):
                         dado_a_preencher = inscricao_limpa if info_site.get(
                             'cnpj_field_id') == 'inscricao' else cnpj_limpo
                         campo1.send_keys(dado_a_preencher)
+
+                    if tipo_certidao_chave == 'TRABALHISTA':
+                        campo1.send_keys(Keys.TAB)
                 except:
                     pass
 
