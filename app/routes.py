@@ -233,21 +233,25 @@ def _desativar_politica_autoselect_rs_temporaria():
             _sincronizar_politica_autoselect_rs(aplicar=False)
 
 
-def _build_chrome_options():
+def _build_chrome_options(anonimo=True, usar_perfil=False):
     chrome_options = Options()
     chrome_options.add_argument("--start-maximized")
 
-    profile_dir, profile_name = _get_chrome_profile_settings()
-    if profile_dir:
-        chrome_options.add_argument(f"--user-data-dir={profile_dir}")
-    if profile_name:
-        chrome_options.add_argument(f"--profile-directory={profile_name}")
+    if anonimo:
+        chrome_options.add_argument("--incognito")
+
+    if usar_perfil:
+        profile_dir, profile_name = _get_chrome_profile_settings()
+        if profile_dir:
+            chrome_options.add_argument(f"--user-data-dir={profile_dir}")
+        if profile_name:
+            chrome_options.add_argument(f"--profile-directory={profile_name}")
 
     return chrome_options
 
 
-def _criar_driver_chrome():
-    chrome_options = _build_chrome_options()
+def _criar_driver_chrome(anonimo=True, usar_perfil=False):
+    chrome_options = _build_chrome_options(anonimo=anonimo, usar_perfil=usar_perfil)
     return webdriver.Chrome(service=ChromeService(
         ChromeDriverManager().install()), options=chrome_options)
 
@@ -1387,7 +1391,10 @@ def baixar_certidao(certidao_id):
         if usar_rs_autoselect:
             rs_autoselect_temporario_ativo = _ativar_politica_autoselect_rs_temporaria()
 
-        driver = _criar_driver_chrome()
+        driver = _criar_driver_chrome(
+            anonimo=not usar_rs_autoselect,
+            usar_perfil=usar_rs_autoselect
+        )
         
         wait = WebDriverWait(driver, 20)
 
