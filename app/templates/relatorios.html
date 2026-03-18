@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="d-flex align-items-center justify-content-between flex-wrap gap-3 mb-4">
+    <div>
+        <h4 class="mb-1 fw-bold">Relatórios</h4>
+        <p class="text-body-secondary mb-0">Visão rápida dos principais indicadores.</p>
+    </div>
+</div>
+
+<div class="row g-3 mb-4">
+    <div class="col-12 col-md-6 col-xl-3">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-body">
+                <p class="text-body-secondary text-uppercase small mb-2">Empresas</p>
+                <h3 class="mb-0 fw-bold">{{ empresas_total }}</h3>
+            </div>
+        </div>
+    </div>
+    <div class="col-12 col-md-6 col-xl-3">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-body">
+                <p class="text-body-secondary text-uppercase small mb-2">Certidões</p>
+                <h3 class="mb-0 fw-bold">{{ total_certidoes }}</h3>
+            </div>
+        </div>
+    </div>
+    <div class="col-12 col-md-6 col-xl-2">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-body">
+                <p class="text-body-secondary text-uppercase small mb-2">Pendentes</p>
+                <h3 class="mb-0 fw-bold text-danger">{{ pendentes }}</h3>
+            </div>
+        </div>
+    </div>
+    <div class="col-12 col-md-6 col-xl-2">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-body">
+                <p class="text-body-secondary text-uppercase small mb-2">Vencidas</p>
+                <h3 class="mb-0 fw-bold text-danger">{{ vencidas }}</h3>
+            </div>
+        </div>
+    </div>
+    <div class="col-12 col-md-6 col-xl-2">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-body">
+                <p class="text-body-secondary text-uppercase small mb-2">A vencer (7d)</p>
+                <h3 class="mb-0 fw-bold text-warning">{{ a_vencer }}</h3>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card border-0 shadow-sm">
+    <div class="card-body py-4">
+        <p class="mb-0 text-body-secondary">Este painel é um placeholder inicial para a área de relatórios. Na próxima etapa, dá para incluir gráficos por tipo de certidão, evolução mensal e exportação.</p>
+    </div>
+</div>
+{% endblock %}

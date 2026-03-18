@@ -571,6 +571,7 @@ document.addEventListener('DOMContentLoaded', function() {
     let caminhoArquivoParaModal = null;
     const loadingOverlay = document.getElementById('loading-overlay');
     const loadingDetalhes = document.getElementById('loading-detalhes');
+    const statusesComModal = new Set(['success_file_saved', 'window_closed_no_file']);
 
     function showLoading(nomeEmpresa = '', tipoCertidao = '') {
         if (loadingOverlay) loadingOverlay.classList.remove('d-none');
@@ -590,6 +591,21 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     function hideLoading() {
         if (loadingOverlay) loadingOverlay.classList.add('d-none');
+    }
+
+    function cleanupUiLocks(options = {}) {
+        const keepLoading = options.keepLoading === true;
+        if (!keepLoading) {
+            hideLoading();
+        }
+        if (fgtsBatchOverlay) fgtsBatchOverlay.classList.add('d-none');
+
+        if (!document.querySelector('.modal.show')) {
+            document.querySelectorAll('.modal-backdrop').forEach(backdrop => backdrop.remove());
+            document.body.classList.remove('modal-open');
+            document.body.style.removeProperty('padding-right');
+            document.body.style.removeProperty('overflow');
+        }
     }
 
     function atualizarInfoArquivoModal(mensagemArquivo) {
@@ -687,13 +703,20 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     function handleDownloadResponse(data) {
+        const manterLoading = data && statusesComModal.has(data.status);
+        cleanupUiLocks({ keepLoading: manterLoading });
+
         if (data.status === 'success_file_saved') {
             if (displayData) displayData.textContent = data.data_formatada;
             if (displayTipo) displayTipo.textContent = data.tipo_certidao;
             atualizarInfoArquivoModal(data.mensagem_arquivo);
             atualizarBotaoVisualizar(data.visualizar_token);
             dadosParaSalvar = { certidao_id: data.certidao_id, nova_validade: data.nova_data };
-            if (confirmModal) confirmModal.show();
+            if (confirmModal) {
+                confirmModal.show();
+            } else {
+                hideLoading();
+            }
             return;
         }
 
@@ -701,7 +724,11 @@ document.addEventListener('DOMContentLoaded', function() {
             limparInfoArquivoModal();
             if (displayTipoPendente) displayTipoPendente.textContent = data.tipo_certidao;
             certidaoIdPendente = data.certidao_id;
-            if (pendenteModal) pendenteModal.show();
+            if (pendenteModal) {
+                pendenteModal.show();
+            } else {
+                hideLoading();
+            }
             return;
         }
 
@@ -751,6 +778,7 @@ document.addEventListener('DOMContentLoaded', function() {
         btnInfoModalOK.addEventListener('click', function() {
             if (infoModal) infoModal.hide();
             if (urlParaAbrir) {
+                showLoading('', tipoParaAbrir || '');
                 const novaAba = window.open(urlParaAbrir, '_blank');
                 
                 if (tipoParaAbrir === 'FEDERAL') {
@@ -794,17 +822,37 @@ document.addEventListener('DOMContentLoaded', function() {
                                     atualizarInfoArquivoModal(caminhoArquivoParaModal && caminhoArquivoParaModal.mensagem ? caminhoArquivoParaModal.mensagem : caminhoArquivoParaModal);
                                     atualizarBotaoVisualizar(caminhoArquivoParaModal && caminhoArquivoParaModal.visualizar_token);
                                     dadosParaSalvar = { certidao_id: idParaMonitorar, nova_validade: dataBanco };
-                                    if (confirmModal) confirmModal.show();
+                                    if (confirmModal) {
+                                        confirmModal.show();
+                                    } else {
+                                        hideLoading();
+                                    }
                                 } else {
                                     if (displayTipoPendente) displayTipoPendente.textContent = "FEDERAL";
                                     certidaoIdPendente = idParaMonitorar;
-                                    if (pendenteModal) pendenteModal.show();
+                                    if (pendenteModal) {
+                                        pendenteModal.show();
+                                    } else {
+                                        hideLoading();
+                                    }
                                 }
                             }
                         }, 1000);
                     }
                 }
             }
+        });
+    }
+
+    if (confirmModalElement) {
+        confirmModalElement.addEventListener('shown.bs.modal', function() {
+            hideLoading();
+        });
+    }
+
+    if (pendenteModalElement) {
+        pendenteModalElement.addEventListener('shown.bs.modal', function() {
+            hideLoading();
         });
     }
 
@@ -855,12 +903,13 @@ document.addEventListener('DOMContentLoaded', function() {
                             fetch(fgtsBatchSingleUrl)
                                 .then(response => response.json())
                                 .then(dataSingle => {
-                                    hideLoading();
                                     handleDownloadResponse(dataSingle);
                                 })
                                 .catch(() => {
-                                    hideLoading();
                                     showToast('Erro ao emitir FGTS.', 'error');
+                                })
+                                .finally(() => {
+                                    hideLoading();
                                 });
                             return;
                         }
@@ -923,16 +972,17 @@ document.addEventListener('DOMContentLoaded', function() {
             fetch(pythonUrlComParams)
                 .then(response => response.json())
                 .then(data => {
-                    hideLoading();
                     resetDownloadButton(btn, originalHTML);
 
                     handleDownloadResponse(data);
                 })
                 .catch(error => {
-                    hideLoading();
                     console.error('Erro:', error);
                     resetDownloadButton(btn, originalHTML);
                     showToast("Erro de comunicação.", "error");
+                })
+                .finally(() => {
+                    hideLoading();
                 });
         });
     });
@@ -1049,12 +1099,13 @@ document.addEventListener('DOMContentLoaded', function() {
             fetch(fgtsBatchSingleUrl)
                 .then(response => response.json())
                 .then(data => {
-                    hideLoading();
                     handleDownloadResponse(data);
                 })
                 .catch(() => {
-                    hideLoading();
                     showToast('Erro ao emitir FGTS.', 'error');
+                })
+                .finally(() => {
+                    hideLoading();
                 });
         });
     }
@@ -1329,6 +1380,10 @@ document.addEventListener('DOMContentLoaded', function() {
             autoSubmit();
         });
     }
+
+    window.addEventListener('focus', function() {
+        cleanupUiLocks({ keepLoading: true });
+    });
 });
 
 </script>

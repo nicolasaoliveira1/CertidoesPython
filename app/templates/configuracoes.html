@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="d-flex align-items-center justify-content-between flex-wrap gap-3 mb-4">
+    <div>
+        <h4 class="mb-1 fw-bold">Configurações</h4>
+        <p class="text-body-secondary mb-0">Área inicial para ajustes do sistema.</p>
+    </div>
+</div>
+
+<div class="row g-3">
+    <div class="col-12 col-lg-6">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-header bg-body-tertiary border-bottom">
+                <strong>Tema</strong>
+            </div>
+            <div class="card-body">
+                <p class="text-body-secondary mb-3">A alternância Light/Dark continua disponível no botão de tema da barra superior.</p>
+                <button type="button" class="btn btn-outline-primary" onclick="toggleTheme()">Alternar tema</button>
+            </div>
+        </div>
+    </div>
+    <div class="col-12 col-lg-6">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-header bg-body-tertiary border-bottom">
+                <strong>Evolução planejada</strong>
+            </div>
+            <div class="card-body">
+                <ul class="mb-0 text-body-secondary">
+                    <li>Preferências de visualização do dashboard</li>
+                    <li>Padrões de filtro por usuário</li>
+                    <li>Parâmetros de automação e alertas</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

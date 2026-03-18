@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+
+{% block content %}
+{% with messages = get_flashed_messages(with_categories=true) %}
+  {% if messages %}
+    {% for category, message in messages %}
+      <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+        {{ message }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+      </div>
+    {% endfor %}
+  {% endif %}
+{% endwith %}
+
+<div class="row justify-content-center">
+    <div class="col-12 col-xl-11 col-xxl-10">
+        <div class="card shadow-sm border-0 rounded-3">
+            <div class="card-header bg-body-tertiary border-bottom py-3">
+                <h5 class="mb-1 fw-bold">Nova Empresa</h5>
+            </div>
+            <div class="card-body p-4">
+                <form method="POST" action="{{ url_for('main.adicionar_empresa') }}" class="row g-3">
+                    <input type="hidden" name="origem" value="nova_empresa">
+
+                    <div class="col-12">
+                        <label for="nome" class="form-label">Nome da Empresa</label>
+                        <input type="text" class="form-control" id="nome" name="nome" required>
+                    </div>
+
+                    <div class="col-12 col-lg-6">
+                        <label for="cnpj" class="form-label">CNPJ</label>
+                        <input type="text" class="form-control" id="cnpj" name="cnpj"
+                               placeholder="XX.XXX.XXX/XXXX-XX" required
+                               oninput="mascaraCnpj(this)" maxlength="18"
+                               minlength="18" title="Digite um CNPJ válido.">
+                    </div>
+
+                    <div class="col-12 col-lg-6">
+                        <label for="estado" class="form-label">Estado (UF)</label>
+                        <select class="form-select" id="estado" name="estado" required>
+                            <option value="">Selecione...</option>
+                            <option value="AC">Acre</option>
+                            <option value="AL">Alagoas</option>
+                            <option value="AP">Amapá</option>
+                            <option value="AM">Amazonas</option>
+                            <option value="BA">Bahia</option>
+                            <option value="CE">Ceará</option>
+                            <option value="DF">Distrito Federal</option>
+                            <option value="ES">Espírito Santo</option>
+                            <option value="GO">Goiás</option>
+                            <option value="MA">Maranhão</option>
+                            <option value="MT">Mato Grosso</option>
+                            <option value="MS">Mato Grosso do Sul</option>
+                            <option value="MG">Minas Gerais</option>
+                            <option value="PA">Pará</option>
+                            <option value="PB">Paraíba</option>
+                            <option value="PR">Paraná</option>
+                            <option value="PE">Pernambuco</option>
+                            <option value="PI">Piauí</option>
+                            <option value="RJ">Rio de Janeiro</option>
+                            <option value="RN">Rio Grande do Norte</option>
+                            <option value="RS" selected>Rio Grande do Sul</option>
+                            <option value="RO">Rondônia</option>
+                            <option value="RR">Roraima</option>
+                            <option value="SC">Santa Catarina</option>
+                            <option value="SP">São Paulo</option>
+                            <option value="SE">Sergipe</option>
+                            <option value="TO">Tocantins</option>
+                        </select>
+                    </div>
+
+                    <div class="col-12 col-lg-6">
+                        <label for="cidade" class="form-label">Cidade</label>
+                        <input type="text" class="form-control" id="cidade" name="cidade" required>
+                    </div>
+
+                    <div class="col-12 col-lg-6">
+                        <label for="inscricao_mobiliaria" class="form-label">Inscrição Mobiliária (se houver)</label>
+                        <input type="text" class="form-control" id="inscricao_mobiliaria" name="inscricao_mobiliaria">
+                    </div>
+
+                    <div class="col-12 d-flex justify-content-end gap-2 mt-2">
+                        <a href="{{ url_for('main.dashboard') }}" class="btn btn-outline-secondary">Voltar</a>
+                        <button type="submit" class="btn btn-success">Cadastrar Empresa</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

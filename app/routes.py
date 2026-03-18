@@ -854,6 +854,51 @@ def dashboard():
     )
 
 
+@bp.route('/empresa/nova', endpoint='nova_empresa')
+def pagina_nova_empresa():
+    return render_template('nova_empresa.html')
+
+
+@bp.route('/relatorios')
+def relatorios():
+    hoje = date.today()
+    empresas_total = Empresa.query.count()
+    certidoes = Certidao.query.all()
+
+    total_certidoes = len(certidoes)
+    pendentes = 0
+    vencidas = 0
+    a_vencer = 0
+
+    for certidao in certidoes:
+        if certidao.status_especial == StatusEspecial.PENDENTE:
+            pendentes += 1
+            continue
+
+        if not certidao.data_validade:
+            continue
+
+        dias_restantes = (certidao.data_validade - hoje).days
+        if dias_restantes < 0:
+            vencidas += 1
+        elif dias_restantes <= 7:
+            a_vencer += 1
+
+    return render_template(
+        'relatorios.html',
+        empresas_total=empresas_total,
+        total_certidoes=total_certidoes,
+        pendentes=pendentes,
+        vencidas=vencidas,
+        a_vencer=a_vencer,
+    )
+
+
+@bp.route('/configuracoes')
+def configuracoes():
+    return render_template('configuracoes.html')
+
+
 @bp.route('/empresa/adicionar', methods=['POST'])
 def adicionar_empresa():
     # dados formulário
@@ -862,19 +907,25 @@ def adicionar_empresa():
     estado = request.form.get('estado')
     cidade = request.form.get('cidade')
     inscricao = request.form.get('inscricao_mobiliaria')
+    origem = request.form.get('origem')
+
+    def _redirect_apos_cadastro():
+        if origem == 'nova_empresa':
+            return redirect(url_for('main.nova_empresa'))
+        return redirect(url_for('main.dashboard'))
 
     if not cnpj or len(cnpj) < 18:
         flash('CNPJ incompleto, preencha todos os dígitos.', 'warning')
-        return redirect(url_for('main.dashboard'))
+        return _redirect_apos_cadastro()
 
     # validacao
     empresa_existente = Empresa.query.filter_by(cnpj=cnpj).first()
     if empresa_existente:
         flash(f'Empresa com CNPJ {cnpj} já está cadastrada.', 'warning')
-        return redirect(url_for('main.dashboard'))
+        return _redirect_apos_cadastro()
 
     # Cria objeto empresa
-    nova_empresa = Empresa(
+    empresa_nova = Empresa(
         nome=nome,
         cnpj=cnpj,
         estado=estado,
@@ -882,7 +933,7 @@ def adicionar_empresa():
         # Garante que seja nulo se vazio
         inscricao_mobiliaria=inscricao if inscricao else None
     )
-    db.session.add(nova_empresa)
+    db.session.add(empresa_nova)
 
     cidade_norm = file_manager.remover_acentos(cidade or '').upper()
     is_imbe = cidade_norm == 'IMBE'
@@ -893,26 +944,26 @@ def adicionar_empresa():
                 db.session.add(Certidao(
                     tipo=tipo,
                     subtipo=SubtipoCertidao.GERAL,
-                    empresa=nova_empresa,
+                    empresa=empresa_nova,
                     data_validade=None
                 ))
                 db.session.add(Certidao(
                     tipo=tipo,
                     subtipo=SubtipoCertidao.MOBILIARIO,
-                    empresa=nova_empresa,
+                    empresa=empresa_nova,
                     data_validade=None
                 ))
             else:
                 db.session.add(Certidao(
                     tipo=tipo,
-                    empresa=nova_empresa,
+                    empresa=empresa_nova,
                     data_validade=None
                 ))
             continue
 
         db.session.add(Certidao(
             tipo=tipo,
-            empresa=nova_empresa,
+            empresa=empresa_nova,
             data_validade=None
         ))
 
@@ -924,8 +975,7 @@ def adicionar_empresa():
         db.session.rollback()
         flash(f'Erro ao cadastrar empresa: {e}', 'danger')
 
-    # redirecionamento para dashboard
-    return redirect(url_for('main.dashboard'))
+    return _redirect_apos_cadastro()
 
 
 @bp.route('/certidao/atualizar/<int:certidao_id>', methods=['POST'])

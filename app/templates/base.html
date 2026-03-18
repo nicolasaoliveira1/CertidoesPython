@@ -95,18 +95,30 @@
 </head>
 
 <body>
+    <script>
+        (function () {
+            const bodyEl = document.body;
+            if (!bodyEl) {
+                return;
+            }
+
+            bodyEl.classList.add('sidebar-preload');
+            if (localStorage.getItem('sidebar-open') === '1') {
+                bodyEl.classList.add('sidebar-open');
+            }
+        })();
+    </script>
+
+    {% set current_endpoint = request.endpoint or '' %}
 
     <nav class="navbar navbar-expand-lg bg-body-tertiary mb-4">
         <div class="container-fluid mx-1 px-4 d-flex align-items-center flex-nowrap justify-content-between">
             <div class="d-flex align-items-center flex-nowrap gap-0">
-                <button class="navbar-toggler me-1 order-1 menu-button" type="button"
-                    data-bs-toggle="offcanvas"
-                    data-bs-target="#sidebarOffcanvas" 
-                    aria-controls="sidebarOffcanvas" 
-                    aria-label="Toggle navigation">
-                    <span class="navbar-toggler-icon menu-icon"></span>
+                <button class="navbar-toggler me-1 order-1 menu-button" type="button" id="sidebarToggle"
+                    aria-controls="appSidebar" aria-expanded="false" aria-label="Toggle navigation">
+                    <i class="bi bi-list menu-icon me-3" aria-hidden="true"></i>
                 </button>
-                <a class="navbar-brand fw-semibold nav-title order-2 mb-0 ms-1" href="/">Controle de Certidões Fiscais
+                <a class="navbar-brand fw-semibold nav-title order-2 mb-0 ms-3" href="/">Controle de Certidões Fiscais
                 </a>
             </div>
             <div class="d-flex align-items-center flex-nowrap gap-2">
@@ -134,78 +146,61 @@
         </div>
     </nav>
 
-    <div class="offcanvas offcanvas-start" data-bs-scroll="true" tabindex="-1" id="sidebarOffcanvas" aria-labelledby="sidebarOffcanvasLabel">
-        <div class="offcanvas-header">
-            <h5 class="offcanvas-title" id="offcanvasExampleLabel">Menu</h5>
-            <button type="button" class="btn-close text-reset" data-bs-dismiss="offcanvas" aria-label="Close"></button>
-        </div>
-        <div class="offcanvas-body">
-            <h6 class="fw-bold mb-3">Cadastrar Nova Empresa</h6>
-            <form method="POST" action="{{ url_for('main.adicionar_empresa') }}">
-                <div class="mb-3">
-                    <label for="nome" class="form-label">Nome da Empresa</label>
-                    <input type="text" class="form-control" id="nome" name="nome" required>
-                </div>
-                <div class="mb-3">
-                    <label for="cnpj" class="form-label">CNPJ</label>
-                    <input type="text" class="form-control" id="cnpj" name="cnpj"
-                           placeholder="XX.XXX.XXX/XXXX-XX" required 
-                           oninput="mascaraCnpj(this)" maxlength="18"
-                           minlength="18" title="Digite um CNPJ válido." >
-                </div>
-                <div class="mb-3">
-                    <label for="estado" class="form-label">Estado (UF)</label>
-                    <select class="form-control" id="estado" name="estado" required>
-                        <option value="">Selecione...</option>
-                        <option value="AC">Acre</option>
-                        <option value="AL">Alagoas</option>
-                        <option value="AP">Amapá</option>
-                        <option value="AM">Amazonas</option>
-                        <option value="BA">Bahia</option>
-                        <option value="CE">Ceará</option>
-                        <option value="DF">Distrito Federal</option>
-                        <option value="ES">Espírito Santo</option>
-                        <option value="GO">Goiás</option>
-                        <option value="MA">Maranhão</option>
-                        <option value="MT">Mato Grosso</option>
-                        <option value="MS">Mato Grosso do Sul</option>
-                        <option value="MG">Minas Gerais</option>
-                        <option value="PA">Pará</option>
-                        <option value="PB">Paraíba</option>
-                        <option value="PR">Paraná</option>
-                        <option value="PE">Pernambuco</option>
-                        <option value="PI">Piauí</option>
-                        <option value="RJ">Rio de Janeiro</option>
-                        <option value="RN">Rio Grande do Norte</option>
-                        <option value="RS" selected>Rio Grande do Sul</option>
-                        <option value="RO">Rondônia</option>
-                        <option value="RR">Roraima</option>
-                        <option value="SC">Santa Catarina</option>
-                        <option value="SP">São Paulo</option>
-                        <option value="SE">Sergipe</option>
-                        <option value="TO">Tocantins</option>
-                    </select>
-                </div>
-                <div class="mb-3">
-                    <label for="cidade" class="form-label">Cidade</label>
-                    <input type="text" class="form-control" id="cidade" name="cidade" required>
-                </div>
-                <div class="mb-3">
-                    <label for="inscricao_mobiliaria" class="form-label">Inscrição Mobiliária (se houver)</label>
-                    <input type="text" class="form-control" id="inscricao_mobiliaria" name="inscricao_mobiliaria">
-                </div>
-                <button type="submit" class="btn btn-success w-100">Cadastrar Empresa</button>
-            </form>
-        </div>
-    </div>
+    <div class="sidebar-backdrop" id="sidebarBackdrop" aria-hidden="true"></div>
 
-    <button id="btn-topo" class="btn-voltar-topo" title="Voltar ao topo">  
-        <i class="bi bi-arrow-up"></i>
-    </button>
-    
-    <main class="container-fluid mt-4 px-5">
-        {% block content %}{% endblock %}
-    </main>
+    <aside class="app-sidebar" id="appSidebar" aria-hidden="true">
+        <div class="sidebar-header">
+            <div class="sidebar-logo" aria-hidden="true">
+                <img src="{{ url_for('static', filename='images/assecon_preto.png') }}"
+                    class="img-fluid logo-light sidebar-logo-img" alt="Logo Assecon">
+                <img src="{{ url_for('static', filename='images/assecon_branco.png') }}"
+                    class="img-fluid logo-dark sidebar-logo-img" alt="Logo Assecon">
+            </div>
+            <div>
+                <h6 class="sidebar-title mb-0">Menu</h6>
+                <!-- <small class="text-body-secondary">Navegação rápida</small> -->
+            </div>
+            <button class="btn btn-link sidebar-toggle-menu" type="button" id="sidebarToggleMenu"
+                aria-controls="appSidebar" aria-expanded="false" aria-label="Fechar menu">
+                <i class="bi bi-list menu-icon" aria-hidden="true"></i>
+            </button>
+        </div>
+
+        <nav class="sidebar-nav" aria-label="Menu lateral">
+            <a class="sidebar-link {% if current_endpoint == 'main.dashboard' %}active{% endif %}" href="{{ url_for('main.dashboard') }}" title="Dashboard">
+                <i class="bi bi-grid-1x2-fill"></i>
+                <span>Dashboard</span>
+            </a>
+            <a class="sidebar-link {% if current_endpoint == 'main.nova_empresa' %}active{% endif %}" href="{{ url_for('main.nova_empresa') }}" title="Nova Empresa">
+                <i class="bi bi-building-add"></i>
+                <span>Nova Empresa</span>
+            </a>
+            <a class="sidebar-link {% if current_endpoint == 'main.relatorios' %}active{% endif %}" href="{{ url_for('main.relatorios') }}" title="Relatórios">
+                <i class="bi bi-bar-chart-line-fill"></i>
+                <span>Relatórios</span>
+            </a>
+            <a class="sidebar-link {% if current_endpoint == 'main.configuracoes' %}active{% endif %}" href="{{ url_for('main.configuracoes') }}" title="Configurações">
+                <i class="bi bi-gear-fill"></i>
+                <span>Configurações</span>
+            </a>
+        </nav>
+    </aside>
+
+    <div class="page-content" id="pageContent">
+        <button id="btn-topo" class="btn-voltar-topo" title="Voltar ao topo">  
+            <i class="bi bi-arrow-up"></i>
+        </button>
+        
+        <main class="container-fluid app-main mt-4 px-6-custom">
+            {% block content %}{% endblock %}
+        </main>
+        <footer class="bg-body-secondary border-top mt-auto py-2">
+            <div class="container-fluid text-center text-muted small">
+                <p class="mb-1">&copy; 2025 Sistema de Controle de Certidões Fiscais</p>
+                <p class="mb-0"><strong>Assecon Assessoria e Contabilidade</strong></p>
+            </div>
+        </footer>
+    </div>
     
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 
@@ -222,6 +217,140 @@
 
             input.value = valor;
         }
+
+        document.addEventListener('DOMContentLoaded', function () {
+            const bodyEl = document.body;
+            const sidebarEl = document.getElementById('appSidebar');
+            const toggleButton = document.getElementById('sidebarToggle');
+            const toggleButtonMenu = document.getElementById('sidebarToggleMenu');
+            const backdropEl = document.getElementById('sidebarBackdrop');
+            const navEl = document.querySelector('.navbar');
+            const menuLinks = document.querySelectorAll('.sidebar-link');
+            const mobileMedia = window.matchMedia('(max-width: 900px)');
+            const sidebarStateKey = 'sidebar-open';
+
+            if (!sidebarEl || !toggleButton || !backdropEl || !navEl) {
+                return;
+            }
+
+            function isSidebarOpen() {
+                return bodyEl.classList.contains('sidebar-open');
+            }
+
+            function isMobile() {
+                return mobileMedia.matches;
+            }
+
+            function syncNavbarHeight() {
+                const navHeight = navEl.offsetHeight || 72;
+                document.documentElement.style.setProperty('--navbar-height', `${navHeight}px`);
+            }
+
+            function applySidebarState(open, persist = true) {
+                bodyEl.classList.toggle('sidebar-open', open);
+                const hidden = isMobile() ? !open : false;
+                sidebarEl.setAttribute('aria-hidden', hidden ? 'true' : 'false');
+                toggleButton.setAttribute('aria-expanded', open ? 'true' : 'false');
+                if (toggleButtonMenu) {
+                    toggleButtonMenu.setAttribute('aria-expanded', open ? 'true' : 'false');
+                }
+
+                if (persist) {
+                    localStorage.setItem(sidebarStateKey, open ? '1' : '0');
+                }
+            }
+
+            const storedSidebarState = bodyEl.classList.contains('sidebar-open') || localStorage.getItem(sidebarStateKey) === '1';
+            applySidebarState(storedSidebarState, false);
+            syncNavbarHeight();
+
+            requestAnimationFrame(() => {
+                bodyEl.classList.remove('sidebar-preload');
+            });
+
+            toggleButton.addEventListener('click', function () {
+                applySidebarState(!isSidebarOpen());
+            });
+
+            if (toggleButtonMenu) {
+                toggleButtonMenu.addEventListener('click', function () {
+                    applySidebarState(!isSidebarOpen());
+                });
+            }
+
+            backdropEl.addEventListener('click', function () {
+                applySidebarState(false);
+            });
+
+            menuLinks.forEach(link => {
+                link.addEventListener('click', function () {
+                    if (isMobile()) {
+                        applySidebarState(false);
+                    }
+                });
+            });
+
+            document.addEventListener('keydown', function (event) {
+                if (event.key === 'Escape' && isSidebarOpen()) {
+                    applySidebarState(false);
+                }
+            });
+
+            window.addEventListener('resize', function () {
+                syncNavbarHeight();
+            });
+
+            let lastScrollY = window.scrollY;
+            let tickingNavbar = false;
+            const HIDE_SCROLL_START = 18;
+            const MIN_DELTA = 4;
+
+            function updateNavbarByScroll() {
+                const currentY = window.scrollY;
+                const delta = currentY - lastScrollY;
+
+                if (Math.abs(delta) < MIN_DELTA) {
+                    tickingNavbar = false;
+                    return;
+                }
+
+                if (currentY <= 8) {
+                    bodyEl.classList.remove('navbar-hidden');
+                } else if (delta > 0 && currentY > HIDE_SCROLL_START) {
+                    bodyEl.classList.add('navbar-hidden');
+                } else if (delta < 0) {
+                    bodyEl.classList.remove('navbar-hidden');
+                }
+
+                lastScrollY = currentY;
+                tickingNavbar = false;
+            }
+
+            window.addEventListener('scroll', function () {
+                if (!tickingNavbar) {
+                    window.requestAnimationFrame(updateNavbarByScroll);
+                    tickingNavbar = true;
+                }
+            }, { passive: true });
+
+            function cleanupModalArtifacts() {
+                if (document.querySelector('.modal.show')) {
+                    return;
+                }
+
+                document.querySelectorAll('.modal-backdrop').forEach(backdrop => backdrop.remove());
+                bodyEl.classList.remove('modal-open');
+                bodyEl.style.removeProperty('padding-right');
+                bodyEl.style.removeProperty('overflow');
+            }
+
+            document.addEventListener('hidden.bs.modal', function () {
+                setTimeout(cleanupModalArtifacts, 0);
+            });
+
+            window.addEventListener('focus', cleanupModalArtifacts);
+        });
+
         const editModal = document.getElementById('editModal');
         if (editModal) {
             editModal.addEventListener('show.bs.modal', event => {
@@ -362,13 +491,6 @@
         });
 
     </script>
-
-    <footer class="bg-body-secondary border-top mt-auto py-2">
-        <div class="container-fluid text-center text-muted small">
-            <p class="mb-1">&copy; 2025 Sistema de Controle de Certidões Fiscais</p>
-            <p class="mb-0"><strong>Assecon Assessoria e Contabilidade</strong></p>
-        </div>
-    </footer>
 
 </body>
 
