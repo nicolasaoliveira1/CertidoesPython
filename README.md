@@ -50,6 +50,10 @@ Este sistema foi criado para resolver o problema de controle manual de centenas 
 
 - **Dark Mode Automático**: Detecção de preferência do sistema + botão de troca manual (Persistente).
 
+- **Navegação Lateral Responsiva**: Menu lateral com estado persistente (aberto/retraído), animações suaves e comportamento adaptado para desktop/mobile.
+
+- **Páginas Dedicadas**: Cadastro de empresa migrado para rota própria (`/empresa/nova`) e novas páginas iniciais de `Relatórios` e `Configurações`.
+
 - **Responsividade**: Tabela e menus se adaptam a telas pequenas e zoom alto.
 
 🤖 **Automação de Emissão**
@@ -205,7 +209,10 @@ CertidoesPython/
 │   │   └── images/              # Logos e ícones
 │   └── templates/
 │       ├── base.html            # Template base
-│       └── dashboard.html       # Dashboard principal
+│       ├── dashboard.html       # Dashboard principal
+│       ├── nova_empresa.html    # Cadastro dedicado de empresa
+│       ├── relatorios.html      # Página de relatórios (inicial)
+│       └── configuracoes.html   # Página de configurações (inicial)
 ├── migrations/                   # Migrations do Alembic
 ├── instance/
 │   └── database.db              # Banco de dados SQLite
@@ -220,9 +227,14 @@ CertidoesPython/
 ## 🚀 Uso
 
 ### Adicionar Empresa
-1. No dashboard, clique em "Adicionar Empresa"
+1. No menu lateral, clique em "Nova Empresa"
 2. Preencha: Nome, CNPJ, Cidade, Inscrição Mobiliária (opcional)
 3. As 5 certidões são criadas automaticamente
+
+### Navegação
+1. Use o botão hambúrguer para abrir/retrair o menu lateral
+2. O estado do menu é persistido entre páginas (mantém aberto/retraído)
+3. O menu inclui: Dashboard, Nova Empresa, Relatórios e Configurações
 
 ### Abrir Site Certidão (IMPORTANTE: utilize esse botão para emitir certidões federais)
 1. Clique no botão "Abrir Site" na certidão desejada
@@ -278,6 +290,9 @@ flask db downgrade
 - O sistema detecta automaticamente a preferência do sistema
 - Use o botão sol/lua no navbar para alternar manualmente
 - A preferência é salva no `localStorage`
+
+### Comportamento da Navbar
+- A navbar pode ocultar ao rolar para baixo e reaparecer ao rolar para cima, com animação fluida.
 
 ### Ajustar Logo
 Substitua pelos logos do seu escritório.
