@@ -697,6 +697,41 @@ def _extrair_validade_pdf_federal(caminho_pdf):
     except ValueError:
         return None
 
+
+def _extrair_texto_pdf(caminho_pdf, origem_log='PDF'):
+    if not caminho_pdf:
+        return ''
+
+    try:
+        with pdfplumber.open(caminho_pdf) as pdf:
+            return "\n".join(page.extract_text() or "" for page in pdf.pages)
+    except Exception as exc:
+        print(f"[{origem_log}] Erro ao ler PDF: {exc}")
+        return ''
+
+
+def _normalizar_texto_pdf(texto):
+    texto = file_manager.remover_acentos(texto or '')
+    texto = re.sub(r'\s+', ' ', texto)
+    return texto.upper().strip()
+
+
+def _classificar_certidao_estadual_rs(caminho_pdf):
+    texto = _normalizar_texto_pdf(_extrair_texto_pdf(caminho_pdf, origem_log='ESTADUAL-RS'))
+    if not texto:
+        return 'desconhecida'
+
+    if re.search(r'CERTIDAO\s+POSITIVA\s+COM\s+EFEITOS?\s+DE\s+NEGATIVA', texto):
+        return 'efeito_negativa'
+
+    if re.search(r'CERTIDAO\s+POSITIVA\b', texto):
+        return 'positiva'
+
+    if re.search(r'CERTIDAO\s+NEGATIVA\b', texto):
+        return 'negativa'
+
+    return 'desconhecida'
+
 def _login_certificado_rs(driver, login_url, cert_url, timeout=120):
     driver.get(login_url)
 
@@ -1475,6 +1510,8 @@ def baixar_certidao(certidao_id):
     arquivo_salvo_msg = None
     pular_monitoramento = False
     rs_autoselect_temporario_ativo = False
+    rs_estadual_classificacao = None
+    rs_estadual_msg = None
 
     # contexto compartilhado com helpers de steps
     contexto = {
@@ -1683,6 +1720,34 @@ def baixar_certidao(certidao_id):
                             except Exception as e_db:
                                 db.session.rollback()
                                 print(f"Aviso: não foi possível salvar caminho no banco: {e_db}")
+
+                            if tipo_certidao_chave == 'ESTADUAL' and estado_emp == 'RS':
+                                rs_estadual_classificacao = _classificar_certidao_estadual_rs(msg)
+                                print(f"[ESTADUAL-RS] Classificação do PDF: {rs_estadual_classificacao}")
+
+                                if rs_estadual_classificacao == 'positiva':
+                                    erro_remocao = None
+                                    try:
+                                        if msg and os.path.exists(msg):
+                                            os.remove(msg)
+                                    except Exception as exc_remove:
+                                        erro_remocao = str(exc_remove)
+                                        print(f"[ESTADUAL-RS] Não foi possível remover PDF positivo: {exc_remove}")
+
+                                    try:
+                                        certidao.caminho_arquivo = None
+                                        certidao.status_especial = StatusEspecial.PENDENTE
+                                        certidao.data_validade = None
+                                        db.session.commit()
+                                    except Exception as e_db:
+                                        db.session.rollback()
+                                        print(f"[ESTADUAL-RS] Erro ao marcar pendente após PDF positivo: {e_db}")
+                                        rs_estadual_msg = 'Certidão POSITIVA detectada, mas houve erro ao marcar como PENDENTE no banco.'
+                                        rs_estadual_classificacao = 'erro'
+                                    else:
+                                        rs_estadual_msg = 'Certidão ESTADUAL RS detectada como POSITIVA. Arquivo removido e certidão marcada como PENDENTE.'
+                                        if erro_remocao:
+                                            rs_estadual_msg += f' Não foi possível remover o arquivo automaticamente: {erro_remocao}'
                             try:
                                 try:
                                     janelas_abertas = list(driver.window_handles)
@@ -1748,6 +1813,19 @@ def baixar_certidao(certidao_id):
             _desativar_politica_autoselect_rs_temporaria()
 
     response_data = {'status': 'unknown'}
+
+    if rs_estadual_classificacao == 'positiva':
+        response_data['status'] = 'estadual_rs_positiva'
+        response_data['message'] = rs_estadual_msg or 'Certidão ESTADUAL RS detectada como POSITIVA e marcada como PENDENTE.'
+        response_data['certidao_id'] = certidao_id
+        response_data['tipo_certidao'] = nome_certidao_arquivo
+        return jsonify(response_data)
+
+    if rs_estadual_classificacao == 'erro':
+        return jsonify({
+            'status': 'error',
+            'message': rs_estadual_msg or 'Erro ao tratar certidão positiva do RS.'
+        }), 500
 
     if arquivo_salvo_msg:
         response_data['status'] = 'success_file_saved'

@@ -378,6 +378,24 @@
   </div>
 </div>
 
+<div class="modal fade" id="estadualRsPositivaModal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title text-danger">Certidão Positiva Detectada</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p class="mb-2">A certidão <strong id="displayTipoPositivaRs">ESTADUAL</strong> foi classificada como <span class="text-danger fw-bold">POSITIVA</span>.</p>
+                <p class="mb-0" id="displayMensagemPositivaRs">O arquivo foi removido e a certidão foi marcada como PENDENTE no dashboard.</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-primary" data-bs-dismiss="modal">Entendi</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <div class="toast-container position-fixed bottom-0 end-0 p-3">
   
   <div id="liveToast" class="toast align-items-center text-bg-primary border-0" role="alert" aria-live="assertive" aria-atomic="true" 
@@ -518,6 +536,11 @@ document.addEventListener('DOMContentLoaded', function() {
     const pendenteModalElement = document.getElementById('marcarPendenteModal');
     let pendenteModal = pendenteModalElement ? new bootstrap.Modal(pendenteModalElement) : null;
 
+    const estadualRsPositivaModalElement = document.getElementById('estadualRsPositivaModal');
+    let estadualRsPositivaModal = estadualRsPositivaModalElement ? new bootstrap.Modal(estadualRsPositivaModalElement) : null;
+    const displayTipoPositivaRs = document.getElementById('displayTipoPositivaRs');
+    const displayMensagemPositivaRs = document.getElementById('displayMensagemPositivaRs');
+
     const infoModalElement = document.getElementById('infoModal');
     let infoModal = infoModalElement ? new bootstrap.Modal(infoModalElement) : null;
     const infoModalBody = document.getElementById('infoModalBody');
@@ -582,7 +605,7 @@ document.addEventListener('DOMContentLoaded', function() {
     let caminhoArquivoParaModal = null;
     const loadingOverlay = document.getElementById('loading-overlay');
     const loadingDetalhes = document.getElementById('loading-detalhes');
-    const statusesComModal = new Set(['success_file_saved', 'window_closed_no_file']);
+    const statusesComModal = new Set(['success_file_saved', 'window_closed_no_file', 'estadual_rs_positiva']);
 
     function showLoading(nomeEmpresa = '', tipoCertidao = '') {
         if (loadingOverlay) loadingOverlay.classList.remove('d-none');
@@ -743,6 +766,25 @@ document.addEventListener('DOMContentLoaded', function() {
             return;
         }
 
+        if (data.status === 'estadual_rs_positiva') {
+            limparInfoArquivoModal();
+            if (displayTipoPositivaRs) displayTipoPositivaRs.textContent = data.tipo_certidao || 'ESTADUAL';
+            if (displayMensagemPositivaRs) {
+                displayMensagemPositivaRs.textContent = data.message || 'Certidão POSITIVA detectada. O arquivo foi removido e a certidão marcada como PENDENTE.';
+            }
+
+            if (linhaAtualTabela) {
+                atualizarLinhaUI(linhaAtualTabela, 'status-vermelho', 'PENDENTE');
+            }
+
+            if (estadualRsPositivaModal) {
+                estadualRsPositivaModal.show();
+            } else {
+                showToast(data.message || 'Certidão POSITIVA detectada. Marcada como pendente.', 'error');
+            }
+            return;
+        }
+
         if (data.status === 'success_file_saved_no_date') {
             limparInfoArquivoModal();
             showToast("Arquivo salvo! Sem regra de data.", "primary");
@@ -789,10 +831,18 @@ document.addEventListener('DOMContentLoaded', function() {
         btnInfoModalOK.addEventListener('click', function() {
             if (infoModal) infoModal.hide();
             if (urlParaAbrir) {
-                showLoading('', tipoParaAbrir || '');
                 const novaAba = window.open(urlParaAbrir, '_blank');
+
+                if (!novaAba) {
+                    if (tipoParaAbrir === 'FEDERAL') {
+                        hideLoading();
+                    }
+                    showToast('Não foi possível abrir o site. Verifique se o bloqueador de pop-up está ativo.', 'error');
+                    return;
+                }
                 
                 if (tipoParaAbrir === 'FEDERAL') {
+                    showLoading('', tipoParaAbrir || '');
                     let arquivoSalvo = false;
                     caminhoArquivoParaModal = null;
                     
