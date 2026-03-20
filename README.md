@@ -59,6 +59,7 @@ Este sistema foi criado para resolver o problema de controle manual de centenas 
 🤖 **Automação de Emissão**
   - **Federal (Receita)**: Monitoramento inteligente de download. O sistema detecta quando o PDF cai na pasta Downloads e o move automaticamente.
   - **FGTS / Estadual / Trabalhista**: Navegação automática até a página de emissão e preenchimento de CNPJ.
+  - **Abrir Site (UX)**: O loading de execução é exibido somente para Federal (onde existe monitoramento de download). Nos demais tipos, o site é aberto sem overlay persistente.
   - **FGTS**: Emissão individual e em lote com geração de PDF via Chrome DevTools, sem diálogo de impressão.
   - **FGTS (botão Emitir)**: Quando o lote retornar `<= 1` item (vencida/a vencer), o sistema emite direto sem abrir modal de lote.
   - **Estadual RS**: Seleção automática temporária do certificado no Chrome durante a automação, com limpeza ao final.
@@ -239,8 +240,10 @@ CertidoesPython/
 ### Abrir Site Certidão (IMPORTANTE: utilize esse botão para emitir certidões federais)
 1. Clique no botão "Abrir Site" na certidão desejada
 2. O sistema abre uma aba ao lado no site de emissão e copia o CNPJ da empresa para colar
-3. Baixe o PDF em Downloads e ele será movido para a pasta configurada
-4. Feche o site e volte ao sistema para confirmar validade da certidão
+3. Para Federal, o sistema mantém o loading durante o monitoramento do download; para os demais tipos, não exibe loading contínuo
+4. Se o navegador bloquear pop-up, o sistema exibe aviso para liberar a abertura da aba
+5. Baixe o PDF em Downloads e ele será movido para a pasta configurada
+6. Feche o site e volte ao sistema para confirmar validade da certidão
 
 ### Emitir Certidão Automaticamente
 1. Clique no botão "Emitir" na certidão desejada
