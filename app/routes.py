@@ -747,11 +747,33 @@ def _erro_indica_navegador_fechado(exc):
     return False
 
 
+def _normalizar_cidade_dashboard(valor):
+    texto = (valor or '').strip()
+    if not texto:
+        return ''
+    return file_manager.remover_acentos(texto).upper()
+
+
+def _escolher_cidade_canonica_dashboard(variantes):
+    def _ordenacao(item):
+        nome, frequencia = item
+        tem_acento = file_manager.remover_acentos(nome) != nome
+        return (
+            -frequencia,
+            -int(tem_acento),
+            _normalizar_cidade_dashboard(nome),
+            nome.upper(),
+        )
+
+    return sorted(variantes.items(), key=_ordenacao)[0][0]
+
+
 @bp.route('/')
 def dashboard():
     status_filtros = request.args.getlist('status')
     tipo_filtros = request.args.getlist('tipo')
     estado_filtro = request.args.get('estado', '')
+    cidade_filtro = (request.args.get('cidade', '') or '').strip()
 
     query = db.session.query(Empresa).distinct()
 
@@ -821,7 +843,39 @@ def dashboard():
     if estado_filtro:
         query = query.filter(Empresa.estado == estado_filtro)
 
+    cidades_variantes = {}
+    cidades_db = db.session.query(Empresa.cidade).all()
+    for row in cidades_db:
+        cidade = (row[0] or '').strip()
+        if not cidade:
+            continue
+
+        chave_normalizada = _normalizar_cidade_dashboard(cidade)
+        if not chave_normalizada:
+            continue
+
+        variantes = cidades_variantes.setdefault(chave_normalizada, {})
+        variantes[cidade] = variantes.get(cidade, 0) + 1
+
+    cidades_por_chave = {
+        chave: _escolher_cidade_canonica_dashboard(variantes)
+        for chave, variantes in cidades_variantes.items()
+    }
+    cidades_disponiveis = sorted(
+        cidades_por_chave.values(),
+        key=_normalizar_cidade_dashboard,
+    )
+
     empresas = query.order_by(Empresa.id).all()
+
+    if cidade_filtro:
+        chave_filtro = _normalizar_cidade_dashboard(cidade_filtro)
+        if chave_filtro:
+            empresas = [
+                empresa for empresa in empresas
+                if _normalizar_cidade_dashboard(empresa.cidade) == chave_filtro
+            ]
+            cidade_filtro = cidades_por_chave.get(chave_filtro, cidade_filtro)
 
     estados_disponiveis = [
         row[0] for row in
@@ -847,7 +901,9 @@ def dashboard():
         status_filtros=status_filtros,
         tipo_filtros=tipo_filtros,
         estado_filtro=estado_filtro,
+        cidade_filtro=cidade_filtro,
         estados_disponiveis=estados_disponiveis,
+        cidades_disponiveis=cidades_disponiveis,
         hoje=hoje,
         sites_urls=SITES_CERTIDOES,
         urls_municipais=urls_municipais

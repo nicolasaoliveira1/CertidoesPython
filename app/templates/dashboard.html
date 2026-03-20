@@ -77,11 +77,22 @@
                     {% endfor %}
                 </select>
             </div>
+
+            <div style="flex: 0 1 auto; min-width: 220px;">
+                <label for="filtro-cidade" class="form-label fw-bold text-secondary text-uppercase small">Cidade</label>
+                <select class="form-select" id="filtro-cidade" name="cidade" form="filtro-form">
+                    <option value="">Todas</option>
+                    {% for cidade in cidades_disponiveis %}
+                        <option value="{{ cidade }}" {% if cidade_filtro == cidade %}selected{% endif %}>{{ cidade }}</option>
+                    {% endfor %}
+                </select>
+            </div>
         </div>
 
         <div class="mt-3">
             <form action="{{ url_for('main.dashboard') }}" method="GET" class="mb-0" id="filtro-form">
                 <input type="hidden" name="estado" id="estado-hidden" value="{{ estado_filtro }}">
+                <input type="hidden" name="cidade" id="cidade-hidden" value="{{ cidade_filtro }}">
 
                 <div class="d-flex flex-wrap gap-4">
                     <div style="flex: 1 1 45%; min-width: 280px;">
@@ -1314,6 +1325,8 @@ document.addEventListener('DOMContentLoaded', function() {
     const formFiltro = document.getElementById('filtro-form');
     const estadoSelect = document.getElementById('filtro-estado');
     const estadoHidden = document.getElementById('estado-hidden');
+    const cidadeSelect = document.getElementById('filtro-cidade');
+    const cidadeHidden = document.getElementById('cidade-hidden');
 
     const todasCheckbox = document.getElementById('status-todas');
     const statusCheckboxes = [
@@ -1337,6 +1350,9 @@ document.addEventListener('DOMContentLoaded', function() {
         if (formFiltro) {
             if (estadoSelect && estadoHidden) {
                 estadoHidden.value = estadoSelect.value;
+            }
+            if (cidadeSelect && cidadeHidden) {
+                cidadeHidden.value = cidadeSelect.value;
             }
             setTimeout(() => {
                 formFiltro.submit();
@@ -1377,6 +1393,12 @@ document.addEventListener('DOMContentLoaded', function() {
 
     if (estadoSelect) {
         estadoSelect.addEventListener('change', function() {
+            autoSubmit();
+        });
+    }
+
+    if (cidadeSelect) {
+        cidadeSelect.addEventListener('change', function() {
             autoSubmit();
         });
     }

@@ -305,6 +305,12 @@
             const HIDE_SCROLL_START = 18;
             const MIN_DELTA = 4;
 
+            if (window.scrollY > HIDE_SCROLL_START) {
+                bodyEl.classList.add('navbar-hidden');
+            } else {
+                bodyEl.classList.remove('navbar-hidden');
+            }
+
             function updateNavbarByScroll() {
                 const currentY = window.scrollY;
                 const delta = currentY - lastScrollY;
@@ -318,8 +324,6 @@
                     bodyEl.classList.remove('navbar-hidden');
                 } else if (delta > 0 && currentY > HIDE_SCROLL_START) {
                     bodyEl.classList.add('navbar-hidden');
-                } else if (delta < 0) {
-                    bodyEl.classList.remove('navbar-hidden');
                 }
 
                 lastScrollY = currentY;
