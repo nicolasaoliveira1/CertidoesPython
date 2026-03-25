@@ -474,6 +474,75 @@
     </div>
 </div>
 
+<div class="modal fade" id="rsBatchModal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Emitir Estadual RS em lote</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p class="mb-2">Foram encontradas certidões Estadual RS:</p>
+                <ul class="mb-0">
+                    <li><strong id="rsBatchVencidas">0</strong> vencidas</li>
+                    <li><strong id="rsBatchAVencer">0</strong> a vencer</li>
+                    <li><strong id="rsBatchTotal">0</strong> no total</li>
+                </ul>
+                <p class="text-muted small mt-2 mb-0">No lote RS, o ALTCHA é resolvido automaticamente via 2captcha.</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary" id="btnRsBatchStart">Iniciar lote</button>
+                <button type="button" class="btn btn-outline-primary" id="btnRsSingleEmit">Emitir apenas esta</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="rsBatchSummaryModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Resumo do lote Estadual RS</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p class="mb-2">Resultado final:</p>
+                <ul class="mb-0">
+                    <li><strong id="rsBatchSummaryEmitidas">0</strong> emitidas com sucesso</li>
+                    <li><strong id="rsBatchSummaryFalhas">0</strong> falhas</li>
+                    <li><strong id="rsBatchSummaryPositivas">0</strong> positivas (marcadas como pendente)</li>
+                    <li><strong id="rsBatchSummaryNegativas">0</strong> negativas</li>
+                    <li><strong id="rsBatchSummaryEfeitoNegativas">0</strong> positivas com efeito de negativa</li>
+                    <li><strong id="rsBatchSummaryTotal">0</strong> no total</li>
+                    <li><strong id="rsBatchSummaryTempo">0s</strong> de duração</li>
+                </ul>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-primary" data-bs-dismiss="modal">OK</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="rs-batch-overlay" class="loading-overlay d-none">
+    <div class="loading-box text-center">
+        <div class="spinner-border text-light" role="status">
+            <span class="visually-hidden">Carregando...</span>
+        </div>
+        <p class="mt-3 text-light fw-semibold mb-1" style='font-size: 1.37rem'>
+            Emissão Estadual RS em lote
+        </p>
+        <p class="text-light fw-semibold mb-2" id="rsBatchProgress">0/0 concluídas</p>
+        <p class="text-light fw-semibold mb-2" id="rsBatchFalhas">Falhas: 0</p>
+        <div class="d-flex justify-content-center gap-2">
+            <button class="btn btn-outline-light" id="btnRsBatchPause">Pausar</button>
+            <button class="btn btn-outline-warning d-none" id="btnRsBatchResume">Retomar</button>
+            <button class="btn btn-outline-danger" id="btnRsBatchStop">Parar</button>
+        </div>
+    </div>
+</div>
+
 <div id="fgts-batch-overlay" class="loading-overlay d-none">
     <div class="loading-box text-center">
         <div class="spinner-border text-light" role="status">
@@ -568,6 +637,31 @@ document.addEventListener('DOMContentLoaded', function() {
     const btnFgtsBatchResume = document.getElementById('btnFgtsBatchResume');
     const btnFgtsBatchStop = document.getElementById('btnFgtsBatchStop');
 
+    const rsBatchModalElement = document.getElementById('rsBatchModal');
+    let rsBatchModal = rsBatchModalElement ? new bootstrap.Modal(rsBatchModalElement) : null;
+    const rsBatchSummaryModalElement = document.getElementById('rsBatchSummaryModal');
+    let rsBatchSummaryModal = rsBatchSummaryModalElement ? new bootstrap.Modal(rsBatchSummaryModalElement) : null;
+    const rsBatchVencidas = document.getElementById('rsBatchVencidas');
+    const rsBatchAVencer = document.getElementById('rsBatchAVencer');
+    const rsBatchTotal = document.getElementById('rsBatchTotal');
+    const btnRsBatchStart = document.getElementById('btnRsBatchStart');
+    const btnRsSingleEmit = document.getElementById('btnRsSingleEmit');
+
+    const rsBatchSummaryEmitidas = document.getElementById('rsBatchSummaryEmitidas');
+    const rsBatchSummaryFalhas = document.getElementById('rsBatchSummaryFalhas');
+    const rsBatchSummaryPositivas = document.getElementById('rsBatchSummaryPositivas');
+    const rsBatchSummaryNegativas = document.getElementById('rsBatchSummaryNegativas');
+    const rsBatchSummaryEfeitoNegativas = document.getElementById('rsBatchSummaryEfeitoNegativas');
+    const rsBatchSummaryTotal = document.getElementById('rsBatchSummaryTotal');
+    const rsBatchSummaryTempo = document.getElementById('rsBatchSummaryTempo');
+
+    const rsBatchOverlay = document.getElementById('rs-batch-overlay');
+    const rsBatchProgress = document.getElementById('rsBatchProgress');
+    const rsBatchFalhas = document.getElementById('rsBatchFalhas');
+    const btnRsBatchPause = document.getElementById('btnRsBatchPause');
+    const btnRsBatchResume = document.getElementById('btnRsBatchResume');
+    const btnRsBatchStop = document.getElementById('btnRsBatchStop');
+
     const editModalEl = document.getElementById('editModal');
     let editModal = editModalEl ? new bootstrap.Modal(editModalEl) : null;
 
@@ -602,6 +696,12 @@ document.addEventListener('DOMContentLoaded', function() {
     let fgtsBatchSingleUrl = null;
     let fgtsBatchEmpresaNome = null;
     let fgtsBatchTipoCert = null;
+    let rsBatchCertidaoId = null;
+    let rsBatchPoller = null;
+    let rsBatchLastCompletedId = null;
+    let rsBatchSingleUrl = null;
+    let rsBatchEmpresaNome = null;
+    let rsBatchTipoCert = null;
     let caminhoArquivoParaModal = null;
     const loadingOverlay = document.getElementById('loading-overlay');
     const loadingDetalhes = document.getElementById('loading-detalhes');
@@ -629,10 +729,14 @@ document.addEventListener('DOMContentLoaded', function() {
 
     function cleanupUiLocks(options = {}) {
         const keepLoading = options.keepLoading === true;
+        const keepBatchOverlays = options.keepBatchOverlays === true;
         if (!keepLoading) {
             hideLoading();
         }
-        if (fgtsBatchOverlay) fgtsBatchOverlay.classList.add('d-none');
+        if (!keepBatchOverlays) {
+            if (fgtsBatchOverlay) fgtsBatchOverlay.classList.add('d-none');
+            if (rsBatchOverlay) rsBatchOverlay.classList.add('d-none');
+        }
 
         if (!document.querySelector('.modal.show')) {
             document.querySelectorAll('.modal-backdrop').forEach(backdrop => backdrop.remove());
@@ -988,6 +1092,67 @@ document.addEventListener('DOMContentLoaded', function() {
                 return;
             }
 
+            const cardDaLinha = btn.closest('.company-card');
+            const estadoEmpresa = ((cardDaLinha && cardDaLinha.dataset.estadoEmpresa) ? cardDaLinha.dataset.estadoEmpresa : '').toUpperCase();
+            const isEstadualRs = btn.dataset.tipo === 'ESTADUAL' && estadoEmpresa === 'RS';
+
+            if (isEstadualRs) {
+                rsBatchCertidaoId = btn.dataset.id || btn.dataset.certidaoId || btn.getAttribute('data-certidao-id');
+                rsBatchSingleUrl = btn.dataset.href || null;
+                rsBatchEmpresaNome = cardDaLinha && cardDaLinha.dataset.nomeEmpresa ? cardDaLinha.dataset.nomeEmpresa : '';
+                rsBatchTipoCert = btn.dataset.tipo || '';
+
+                if (!rsBatchCertidaoId) {
+                    showToast('Certidão Estadual RS inválida.', 'error');
+                    resetDownloadButton(btn, originalHTML);
+                    return;
+                }
+
+                fetch(`/estadual-rs/lote/info/${rsBatchCertidaoId}`)
+                    .then(response => response.json())
+                    .then(data => {
+                        resetDownloadButton(btn, originalHTML);
+                        if (!data) {
+                            showToast('Erro ao obter informações do lote Estadual RS.', 'error');
+                            return;
+                        }
+
+                        const totalLote = Number(data.total || 0);
+
+                        if (totalLote <= 1) {
+                            if (!rsBatchSingleUrl) {
+                                showToast('URL de emissão indisponível.', 'error');
+                                return;
+                            }
+
+                            showLoading(rsBatchEmpresaNome || '', rsBatchTipoCert || '');
+                            fetch(rsBatchSingleUrl)
+                                .then(response => response.json())
+                                .then(dataSingle => {
+                                    handleDownloadResponse(dataSingle);
+                                })
+                                .catch(() => {
+                                    showToast('Erro ao emitir Estadual RS.', 'error');
+                                })
+                                .finally(() => {
+                                    hideLoading();
+                                });
+                            return;
+                        }
+
+                        if (rsBatchVencidas) rsBatchVencidas.textContent = data.vencidas || 0;
+                        if (rsBatchAVencer) rsBatchAVencer.textContent = data.a_vencer || 0;
+                        if (rsBatchTotal) rsBatchTotal.textContent = data.total || 0;
+                        if (rsBatchModal) rsBatchModal.show();
+                    })
+                    .catch(() => {
+                        resetDownloadButton(btn, originalHTML);
+                        showToast('Erro ao obter informações do lote Estadual RS.', 'error');
+                    });
+
+                return;
+            }
+
             if (btn.dataset.tipo === 'FEDERAL') {
                 showToast("Para Federal, use o botão 'Abrir Site'.", "primary");
                 resetDownloadButton(btn, originalHTML);
@@ -1000,7 +1165,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 return;
             }
 
-            const cardDaLinha = btn.closest('.company-card');
             const cidadeEmpresaRaw = (cardDaLinha && cardDaLinha.dataset.cidadeEmpresa) ? cardDaLinha.dataset.cidadeEmpresa : '';
             const cidadeEmpresaNorm = cidadeEmpresaRaw
                 .normalize('NFD')
@@ -1048,164 +1212,268 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
 
-    function startFgtsBatchPolling() {
-        if (fgtsBatchPoller) clearInterval(fgtsBatchPoller);
-        fgtsBatchPoller = setInterval(() => {
-            fetch('/fgts/lote/status')
+    function calcularTempoLote(data) {
+        if (!data || !data.started_at || !data.finished_at) return '0s';
+        const ini = new Date(data.started_at);
+        const fim = new Date(data.finished_at);
+        const diff = Math.max(0, Math.floor((fim - ini) / 1000));
+        const min = Math.floor(diff / 60);
+        const sec = diff % 60;
+        return min > 0 ? `${min}m ${sec}s` : `${sec}s`;
+    }
+
+    function atualizarUltimaLinhaConcluida(data, getLastId, setLastId) {
+        if (!(data && data.last_completed && data.last_completed.certidao_id)) return;
+
+        const lastId = data.last_completed.certidao_id;
+        if (lastId === getLastId()) return;
+
+        setLastId(lastId);
+        const btnLinha = document.querySelector(`.btn-baixar-certidao[data-id="${lastId}"]`);
+        if (!btnLinha) return;
+
+        const linha = btnLinha.closest('tr');
+        const novaDataTexto = data.last_completed.data_formatada || 'Não definida';
+        const novaClasse = data.last_completed.nova_classe || 'status-cinza';
+        atualizarLinhaUI(linha, novaClasse, novaDataTexto);
+    }
+
+    function startBatchPolling(config) {
+        const pollerAtual = config.getPoller();
+        if (pollerAtual) clearInterval(pollerAtual);
+
+        const poller = setInterval(() => {
+            fetch(config.endpoints.status)
                 .then(r => r.json())
                 .then(data => {
                     if (!data) return;
-                    if (fgtsBatchProgress) fgtsBatchProgress.textContent = `${data.index || 0}/${data.total || 0} concluídas`;
-                    if (fgtsBatchFalhas) fgtsBatchFalhas.textContent = `Falhas: ${data.falhas || 0}`;
 
-                    if (data.last_completed && data.last_completed.certidao_id) {
-                        const lastId = data.last_completed.certidao_id;
-                        if (lastId !== fgtsBatchLastCompletedId) {
-                            fgtsBatchLastCompletedId = lastId;
-                            const btnLinha = document.querySelector(`.btn-baixar-certidao[data-id="${lastId}"]`);
-                            if (btnLinha) {
-                                const linha = btnLinha.closest('tr');
-                                const novaDataTexto = data.last_completed.data_formatada || 'Não definida';
-                                const novaClasse = data.last_completed.nova_classe || 'status-cinza';
-                                atualizarLinhaUI(linha, novaClasse, novaDataTexto);
-                            }
-                        }
-                    }
+                    if (config.progressEl) config.progressEl.textContent = `${data.index || 0}/${data.total || 0} concluídas`;
+                    if (config.falhasEl) config.falhasEl.textContent = `Falhas: ${data.falhas || 0}`;
 
-                    if (data.status === 'paused') {
-                        if (btnFgtsBatchResume) btnFgtsBatchResume.classList.remove('d-none');
-                    } else {
-                        if (btnFgtsBatchResume) btnFgtsBatchResume.classList.add('d-none');
+                    atualizarUltimaLinhaConcluida(data, config.getLastCompletedId, config.setLastCompletedId);
+
+                    if (config.resumeBtn) {
+                        if (data.status === 'paused') config.resumeBtn.classList.remove('d-none');
+                        else config.resumeBtn.classList.add('d-none');
                     }
 
                     if (data.status === 'completed') {
-                        clearInterval(fgtsBatchPoller);
-                        if (fgtsBatchOverlay) fgtsBatchOverlay.classList.add('d-none');
-                        showToast('Lote FGTS concluído.', 'success');
+                        clearInterval(config.getPoller());
+                        config.setPoller(null);
+                        if (config.overlayEl) config.overlayEl.classList.add('d-none');
+                        showToast(config.messages.completed, 'success');
 
-                        if (fgtsBatchSummaryEmitidas) fgtsBatchSummaryEmitidas.textContent = data.success || 0;
-                        if (fgtsBatchSummaryFalhas) fgtsBatchSummaryFalhas.textContent = data.falhas || 0;
-                        if (fgtsBatchSummaryTotal) fgtsBatchSummaryTotal.textContent = data.total || 0;
-
-                        if (fgtsBatchSummaryTempo) {
-                            let tempoTexto = '0s';
-                            if (data.started_at && data.finished_at) {
-                                const ini = new Date(data.started_at);
-                                const fim = new Date(data.finished_at);
-                                const diff = Math.max(0, Math.floor((fim - ini) / 1000));
-                                const min = Math.floor(diff / 60);
-                                const sec = diff % 60;
-                                tempoTexto = min > 0 ? `${min}m ${sec}s` : `${sec}s`;
-                            }
-                            fgtsBatchSummaryTempo.textContent = tempoTexto;
-                        }
-
-                        if (fgtsBatchSummaryModal) fgtsBatchSummaryModal.show();
+                        if (config.summaryEmitidasEl) config.summaryEmitidasEl.textContent = data.success || 0;
+                        if (config.summaryFalhasEl) config.summaryFalhasEl.textContent = data.falhas || 0;
+                        if (config.summaryTotalEl) config.summaryTotalEl.textContent = data.total || 0;
+                        if (config.summaryTempoEl) config.summaryTempoEl.textContent = calcularTempoLote(data);
+                        if (config.onCompleted) config.onCompleted(data);
+                        if (config.summaryModal) config.summaryModal.show();
+                        return;
                     }
 
                     if (data.status === 'error') {
-                        clearInterval(fgtsBatchPoller);
-                        if (fgtsBatchOverlay) fgtsBatchOverlay.classList.add('d-none');
-                        showToast(data.message || 'Erro grave no lote FGTS.', 'error');
+                        clearInterval(config.getPoller());
+                        config.setPoller(null);
+                        if (config.overlayEl) config.overlayEl.classList.add('d-none');
+                        showToast(data.message || config.messages.error, 'error');
+                        return;
                     }
 
                     if (data.status === 'stopped') {
-                        clearInterval(fgtsBatchPoller);
-                        if (fgtsBatchOverlay) fgtsBatchOverlay.classList.add('d-none');
-                        showToast('Lote FGTS interrompido.', 'primary');
+                        clearInterval(config.getPoller());
+                        config.setPoller(null);
+                        if (config.overlayEl) config.overlayEl.classList.add('d-none');
+                        showToast(config.messages.stopped, 'primary');
                     }
                 });
         }, 1500);
+
+        config.setPoller(poller);
     }
 
-    if (btnFgtsBatchStart) {
-        btnFgtsBatchStart.addEventListener('click', function() {
-            if (!fgtsBatchCertidaoId) {
-                showToast('Certidão FGTS inválida.', 'error');
-                return;
-            }
-            fetch('/fgts/lote/iniciar', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ certidao_id: fgtsBatchCertidaoId })
-            })
-                .then(r => r.json())
-                .then(data => {
-                    if (data.status !== 'ok') {
-                        showToast(data.message || 'Erro ao iniciar lote.', 'error');
-                        return;
-                    }
-                    if (fgtsBatchModal) fgtsBatchModal.hide();
-                    if (fgtsBatchOverlay) fgtsBatchOverlay.classList.remove('d-none');
-                    startFgtsBatchPolling();
+    function bindBatchControls(config) {
+        if (config.startBtn) {
+            config.startBtn.addEventListener('click', function() {
+                if (!config.getCertidaoId()) {
+                    showToast(config.messages.invalidCertidao, 'error');
+                    return;
+                }
+
+                fetch(config.endpoints.start, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ certidao_id: config.getCertidaoId() })
                 })
-                .catch(() => showToast('Erro ao iniciar lote FGTS.', 'error'));
-        });
+                    .then(r => r.json())
+                    .then(data => {
+                        if (data.status !== 'ok') {
+                            showToast(data.message || config.messages.startError, 'error');
+                            return;
+                        }
+                        if (config.batchModal) config.batchModal.hide();
+                        if (config.overlayEl) config.overlayEl.classList.remove('d-none');
+                        startBatchPolling(config);
+                    })
+                    .catch(() => showToast(config.messages.startCatchError, 'error'));
+            });
+        }
+
+        if (config.singleBtn) {
+            config.singleBtn.addEventListener('click', function() {
+                const singleUrl = config.getSingleUrl();
+                if (!singleUrl) {
+                    showToast('URL de emissão indisponível.', 'error');
+                    return;
+                }
+
+                if (config.batchModal) config.batchModal.hide();
+                showLoading(config.getEmpresaNome() || '', config.getTipoCert() || '');
+
+                fetch(singleUrl)
+                    .then(response => response.json())
+                    .then(data => {
+                        handleDownloadResponse(data);
+                    })
+                    .catch(() => {
+                        showToast(config.messages.singleError, 'error');
+                    })
+                    .finally(() => {
+                        hideLoading();
+                    });
+            });
+        }
+
+        if (config.pauseBtn) {
+            config.pauseBtn.addEventListener('click', function() {
+                fetch(config.endpoints.pause, { method: 'POST' })
+                    .then(r => r.json())
+                    .then(data => {
+                        showToast(data.message || config.messages.paused, 'primary');
+                        if (config.resumeBtn) config.resumeBtn.classList.remove('d-none');
+                    });
+            });
+        }
+
+        if (config.resumeBtn) {
+            config.resumeBtn.addEventListener('click', function() {
+                fetch(config.endpoints.resume, { method: 'POST' })
+                    .then(r => r.json())
+                    .then(data => {
+                        if (data.status !== 'ok') {
+                            showToast(data.message || config.messages.resumeError, 'error');
+                            return;
+                        }
+                        showToast(config.messages.resumed, 'success');
+                    });
+            });
+        }
+
+        if (config.stopBtn) {
+            config.stopBtn.addEventListener('click', function() {
+                fetch(config.endpoints.stop, { method: 'POST' })
+                    .then(r => r.json())
+                    .then(data => {
+                        showToast(data.message || config.messages.stopped, 'primary');
+                        if (config.overlayEl) config.overlayEl.classList.add('d-none');
+                    });
+            });
+        }
     }
 
-    if (btnFgtsSingleEmit) {
-        btnFgtsSingleEmit.addEventListener('click', function() {
-            if (!fgtsBatchCertidaoId) {
-                showToast('Certidão FGTS inválida.', 'error');
-                return;
-            }
-            if (!fgtsBatchSingleUrl) {
-                showToast('URL de emissão indisponível.', 'error');
-                return;
-            }
+    bindBatchControls({
+        endpoints: {
+            status: '/fgts/lote/status',
+            start: '/fgts/lote/iniciar',
+            pause: '/fgts/lote/pausar',
+            resume: '/fgts/lote/retomar',
+            stop: '/fgts/lote/parar'
+        },
+        messages: {
+            invalidCertidao: 'Certidão FGTS inválida.',
+            startError: 'Erro ao iniciar lote.',
+            startCatchError: 'Erro ao iniciar lote FGTS.',
+            singleError: 'Erro ao emitir FGTS.',
+            paused: 'Lote pausado.',
+            resumeError: 'Erro ao retomar lote.',
+            resumed: 'Lote FGTS retomado.',
+            stopped: 'Lote FGTS interrompido.',
+            completed: 'Lote FGTS concluído.',
+            error: 'Erro grave no lote FGTS.'
+        },
+        getPoller: () => fgtsBatchPoller,
+        setPoller: (value) => { fgtsBatchPoller = value; },
+        getLastCompletedId: () => fgtsBatchLastCompletedId,
+        setLastCompletedId: (value) => { fgtsBatchLastCompletedId = value; },
+        getCertidaoId: () => fgtsBatchCertidaoId,
+        getSingleUrl: () => fgtsBatchSingleUrl,
+        getEmpresaNome: () => fgtsBatchEmpresaNome,
+        getTipoCert: () => fgtsBatchTipoCert,
+        progressEl: fgtsBatchProgress,
+        falhasEl: fgtsBatchFalhas,
+        overlayEl: fgtsBatchOverlay,
+        resumeBtn: btnFgtsBatchResume,
+        pauseBtn: btnFgtsBatchPause,
+        stopBtn: btnFgtsBatchStop,
+        startBtn: btnFgtsBatchStart,
+        singleBtn: btnFgtsSingleEmit,
+        batchModal: fgtsBatchModal,
+        summaryModal: fgtsBatchSummaryModal,
+        summaryEmitidasEl: fgtsBatchSummaryEmitidas,
+        summaryFalhasEl: fgtsBatchSummaryFalhas,
+        summaryTotalEl: fgtsBatchSummaryTotal,
+        summaryTempoEl: fgtsBatchSummaryTempo
+    });
 
-            if (fgtsBatchModal) fgtsBatchModal.hide();
-            showLoading(fgtsBatchEmpresaNome || '', fgtsBatchTipoCert || '');
-
-            fetch(fgtsBatchSingleUrl)
-                .then(response => response.json())
-                .then(data => {
-                    handleDownloadResponse(data);
-                })
-                .catch(() => {
-                    showToast('Erro ao emitir FGTS.', 'error');
-                })
-                .finally(() => {
-                    hideLoading();
-                });
-        });
-    }
-
-    if (btnFgtsBatchPause) {
-        btnFgtsBatchPause.addEventListener('click', function() {
-            fetch('/fgts/lote/pausar', { method: 'POST' })
-                .then(r => r.json())
-                .then(data => {
-                    showToast(data.message || 'Lote pausado.', 'primary');
-                    if (btnFgtsBatchResume) btnFgtsBatchResume.classList.remove('d-none');
-                });
-        });
-    }
-
-    if (btnFgtsBatchResume) {
-        btnFgtsBatchResume.addEventListener('click', function() {
-            fetch('/fgts/lote/retomar', { method: 'POST' })
-                .then(r => r.json())
-                .then(data => {
-                    if (data.status !== 'ok') {
-                        showToast(data.message || 'Erro ao retomar lote.', 'error');
-                        return;
-                    }
-                    showToast('Lote FGTS retomado.', 'success');
-                });
-        });
-    }
-
-    if (btnFgtsBatchStop) {
-        btnFgtsBatchStop.addEventListener('click', function() {
-            fetch('/fgts/lote/parar', { method: 'POST' })
-                .then(r => r.json())
-                .then(data => {
-                    showToast(data.message || 'Lote interrompido.', 'primary');
-                    if (fgtsBatchOverlay) fgtsBatchOverlay.classList.add('d-none');
-                });
-        });
-    }
+    bindBatchControls({
+        endpoints: {
+            status: '/estadual-rs/lote/status',
+            start: '/estadual-rs/lote/iniciar',
+            pause: '/estadual-rs/lote/pausar',
+            resume: '/estadual-rs/lote/retomar',
+            stop: '/estadual-rs/lote/parar'
+        },
+        messages: {
+            invalidCertidao: 'Certidão Estadual RS inválida.',
+            startError: 'Erro ao iniciar lote Estadual RS.',
+            startCatchError: 'Erro ao iniciar lote Estadual RS.',
+            singleError: 'Erro ao emitir Estadual RS.',
+            paused: 'Lote Estadual RS pausado.',
+            resumeError: 'Erro ao retomar lote Estadual RS.',
+            resumed: 'Lote Estadual RS retomado.',
+            stopped: 'Lote Estadual RS interrompido.',
+            completed: 'Lote Estadual RS concluído.',
+            error: 'Erro grave no lote Estadual RS.'
+        },
+        getPoller: () => rsBatchPoller,
+        setPoller: (value) => { rsBatchPoller = value; },
+        getLastCompletedId: () => rsBatchLastCompletedId,
+        setLastCompletedId: (value) => { rsBatchLastCompletedId = value; },
+        getCertidaoId: () => rsBatchCertidaoId,
+        getSingleUrl: () => rsBatchSingleUrl,
+        getEmpresaNome: () => rsBatchEmpresaNome,
+        getTipoCert: () => rsBatchTipoCert,
+        progressEl: rsBatchProgress,
+        falhasEl: rsBatchFalhas,
+        overlayEl: rsBatchOverlay,
+        resumeBtn: btnRsBatchResume,
+        pauseBtn: btnRsBatchPause,
+        stopBtn: btnRsBatchStop,
+        startBtn: btnRsBatchStart,
+        singleBtn: btnRsSingleEmit,
+        batchModal: rsBatchModal,
+        summaryModal: rsBatchSummaryModal,
+        summaryEmitidasEl: rsBatchSummaryEmitidas,
+        summaryFalhasEl: rsBatchSummaryFalhas,
+        summaryTotalEl: rsBatchSummaryTotal,
+        summaryTempoEl: rsBatchSummaryTempo,
+        onCompleted: (data) => {
+            if (rsBatchSummaryPositivas) rsBatchSummaryPositivas.textContent = data.positivas || 0;
+            if (rsBatchSummaryNegativas) rsBatchSummaryNegativas.textContent = data.negativas || 0;
+            if (rsBatchSummaryEfeitoNegativas) rsBatchSummaryEfeitoNegativas.textContent = data.efeito_negativas || 0;
+        }
+    });
 
 // ações de salvar e pendente modais
 
@@ -1454,7 +1722,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     window.addEventListener('focus', function() {
-        cleanupUiLocks({ keepLoading: true });
+        cleanupUiLocks({ keepLoading: true, keepBatchOverlays: true });
     });
 });
 

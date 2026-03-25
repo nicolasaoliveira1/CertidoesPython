@@ -36,60 +36,32 @@ from app import db, file_manager
 from app.automation import SITES_CERTIDOES, VALIDADES_CERTIDOES
 from app.models import (Certidao, Empresa, Municipio, StatusEspecial,
                         SubtipoCertidao, TipoCertidao)
+from app.services import batch_engine
+from app.services.rs_altcha import (clicar_enviar_estadual_rs as _clicar_enviar_estadual_rs,
+                                    resolver_altcha_rs_com_2captcha as _resolver_altcha_rs_com_2captcha)
 
 bp = Blueprint('main', __name__)
 
 FGTS_BATCH_LOCK = Lock()
+RS_BATCH_LOCK = Lock()
 RS_CERT_POLICY_LOCK = Lock()
 RS_CERT_POLICY_ACTIVE_COUNT = 0
 
-FGTS_BATCH_STATE = {
-    'status': 'idle',
-    'ids': [],
-    'index': 0,
-    'total': 0,
-    'vencidas': 0,
-    'a_vencer': 0,
-    'falhas': 0,
-    'current_id': None,
-    'message': None,
-    'stop_requested': False,
-    'stop_action': None,
-    'driver': None,
-    'last_completed': None,
-    'started_at': None,
-    'finished_at': None,
-    'success': 0,
-}
+FGTS_BATCH_STATE = batch_engine.batch_state_defaults()
+
+RS_BATCH_STATE = batch_engine.batch_state_defaults()
 
 
-def _reset_fgts_batch_state():
-    FGTS_BATCH_STATE.update({
-        'status': 'idle',
-        'ids': [],
-        'index': 0,
-        'total': 0,
-        'vencidas': 0,
-        'a_vencer': 0,
-        'falhas': 0,
-        'current_id': None,
-        'message': None,
-        'stop_requested': False,
-        'stop_action': None,
-        'driver': None,
-        'last_completed': None,
-        'started_at': None,
-        'finished_at': None,
-        'success': 0,
-    })
+def _current_app_object():
+    return current_app._get_current_object()
 
 
 def _fgts_stop_requested():
     return FGTS_BATCH_STATE.get('stop_requested')
 
 
-def _fgts_stop_action():
-    return FGTS_BATCH_STATE.get('stop_action')
+def _rs_batch_stop_requested():
+    return RS_BATCH_STATE.get('stop_requested')
 
 
 def _fgts_status_por_data(nova_data):
@@ -299,30 +271,415 @@ def _preparar_pagina_fgts(driver, url, cnpj_field_id):
 
 
 def _calc_fgts_targets(start_certidao_id):
-    hoje = date.today()
-    limite = hoje + timedelta(days=7)
+    return batch_engine.calc_targets(
+        start_certidao_id,
+        extra_filter=lambda query: query.filter(Certidao.tipo == TipoCertidao.FGTS)
+    )
 
-    certidoes = (Certidao.query
-                 .filter(Certidao.tipo == TipoCertidao.FGTS)
-                 .filter(Certidao.data_validade != None)
-                 .filter(Certidao.data_validade <= limite)
-                 .order_by(Certidao.id)
-                 .all())
 
-    ids = [c.id for c in certidoes if c.data_validade]
-    vencidas = sum(1 for c in certidoes if c.data_validade and c.data_validade < hoje)
-    a_vencer = sum(1 for c in certidoes if c.data_validade and hoje <= c.data_validade <= limite)
+def _calc_estadual_rs_targets(start_certidao_id):
+    return batch_engine.calc_targets(
+        start_certidao_id,
+        extra_filter=lambda query: (
+            query.join(Empresa, Empresa.id == Certidao.empresa_id)
+                 .filter(Certidao.tipo == TipoCertidao.ESTADUAL)
+                 .filter(Empresa.estado == 'RS')
+        )
+    )
 
-    if start_certidao_id in ids:
-        ids.remove(start_certidao_id)
-        ids.insert(0, start_certidao_id)
 
-    return {
-        'ids': ids,
-        'total': len(ids),
-        'vencidas': vencidas,
-        'a_vencer': a_vencer,
-    }
+def _snapshot_downloads_pdf():
+    pasta_downloads = os.path.join(os.path.expanduser("~"), "Downloads")
+    snapshot = {}
+
+    try:
+        nomes = os.listdir(pasta_downloads)
+    except Exception:
+        return snapshot
+
+    for nome in nomes:
+        caminho = os.path.join(pasta_downloads, nome)
+        if not os.path.isfile(caminho):
+            continue
+
+        nome_l = nome.lower()
+        if not nome_l.endswith('.pdf'):
+            continue
+        if nome_l.endswith('.crdownload') or nome_l.endswith('.tmp'):
+            continue
+
+        try:
+            stat = os.stat(caminho)
+            snapshot[caminho] = {
+                'mtime': stat.st_mtime,
+                'size': stat.st_size,
+            }
+        except OSError:
+            continue
+
+    return snapshot
+
+
+def _pick_changed_download_pdf(snapshot_before):
+    current = _snapshot_downloads_pdf()
+    candidatos = []
+
+    for caminho, info in current.items():
+        base = snapshot_before.get(caminho)
+        if base is None:
+            candidatos.append((info['mtime'], caminho))
+            continue
+
+        if info['mtime'] > base.get('mtime', 0) or info['size'] != base.get('size', -1):
+            candidatos.append((info['mtime'], caminho))
+
+    if not candidatos:
+        return None
+
+    candidatos.sort(key=lambda item: item[0], reverse=True)
+    return candidatos[0][1]
+
+
+def _wait_file_stable(caminho_arquivo, checks=3, interval=0.6):
+    ultimo_tamanho = None
+    estavel = 0
+
+    for _ in range(max(2, int(checks))):
+        try:
+            tamanho = os.path.getsize(caminho_arquivo)
+        except OSError:
+            return False
+
+        if tamanho > 0 and tamanho == ultimo_tamanho:
+            estavel += 1
+            if estavel >= 2:
+                return True
+        else:
+            estavel = 0
+
+        ultimo_tamanho = tamanho
+        time.sleep(interval)
+
+    return False
+
+
+def _rs_pagina_solicitacao_pronta(driver, cnpj_field_name='campoCnpj', timeout=3):
+    try:
+        WebDriverWait(driver, timeout).until(
+            EC.element_to_be_clickable((By.NAME, cnpj_field_name))
+        )
+        return True
+    except Exception:
+        return False
+
+
+def _rs_garantir_pagina_solicitacao(driver, info_site):
+    cnpj_field_name = info_site.get('cnpj_field_id', 'campoCnpj')
+    url_atual = (driver.current_url or '').lower()
+    if 'certidaositfiscalsolic.aspx' in url_atual and _rs_pagina_solicitacao_pronta(driver, cnpj_field_name):
+        return True
+
+    _login_certificado_rs(driver, info_site.get('login_cert_url'), info_site.get('url'))
+    return _rs_pagina_solicitacao_pronta(driver, cnpj_field_name, timeout=8)
+
+
+def _rs_preencher_cnpj_com_confirmacao(driver, cnpj_field_name, cnpj_limpo, tentativas=3):
+    for _ in range(max(1, int(tentativas))):
+        try:
+            campo_cnpj = WebDriverWait(driver, 10).until(
+                EC.element_to_be_clickable((By.NAME, cnpj_field_name))
+            )
+            campo_cnpj.click()
+            campo_cnpj.clear()
+            campo_cnpj.send_keys(cnpj_limpo)
+
+            valor = ''.join(filter(str.isdigit, campo_cnpj.get_attribute('value') or ''))
+            if valor == cnpj_limpo:
+                return True
+        except Exception:
+            pass
+
+        time.sleep(0.4)
+
+    return False
+
+
+def _emitir_estadual_rs_certidao(certidao_id, driver=None, usar_2captcha=False):
+    if _rs_batch_stop_requested():
+        return False, False, 'Lote interrompido.'
+
+    certidao = Certidao.query.get(certidao_id)
+    if not certidao:
+        return False, False, 'Certidão não encontrada.'
+
+    if certidao.tipo != TipoCertidao.ESTADUAL or (certidao.empresa.estado or '').strip().upper() != 'RS':
+        return False, True, 'Certidão não pertence ao fluxo Estadual RS.'
+
+    info_site = (SITES_CERTIDOES.get('ESTADUAL', {}).get('RS') or {}).copy()
+    if not info_site.get('url') or not info_site.get('login_cert_url'):
+        return False, True, 'Configuração Estadual RS ausente.'
+
+    cnpj_limpo = ''.join(filter(str.isdigit, certidao.empresa.cnpj or ''))
+
+    local_driver = driver
+    criado_localmente = False
+    inicio_fluxo = time.time()
+
+    def _log_etapa(etapa, extra=''):
+        state = _rs_get_page_state(local_driver)
+        elapsed = time.time() - inicio_fluxo
+        sufixo = f" | {extra}" if extra else ''
+        print(
+            f"[ESTADUAL-RS-LOTE][ID={certidao_id}] {etapa} "
+            f"| +{elapsed:.1f}s | url={state['url']} | title={state['title']}{sufixo}"
+        )
+
+    try:
+        if local_driver is None:
+            local_driver = _criar_driver_chrome(anonimo=False, usar_perfil=True)
+            criado_localmente = True
+
+        RS_BATCH_STATE['driver'] = local_driver
+
+        _log_etapa('Garantindo página de solicitação RS')
+        if not _rs_garantir_pagina_solicitacao(local_driver, info_site):
+            _log_etapa('Falha ao abrir página de solicitação RS')
+            return False, True, 'Não foi possível abrir a página de solicitação da certidão RS.'
+        _log_etapa('Página de solicitação pronta')
+
+        if _rs_sessao_expirada(local_driver):
+            _log_etapa('Sessão expirada detectada logo após login')
+            return False, False, 'Sessão RS expirada logo após login com certificado.'
+
+        _log_etapa('Preenchendo CNPJ')
+        if not _rs_preencher_cnpj_com_confirmacao(
+            local_driver,
+            info_site.get('cnpj_field_id', 'campoCnpj'),
+            cnpj_limpo,
+            tentativas=3,
+        ):
+            _log_etapa('Falha ao preencher CNPJ')
+            return False, False, 'Não foi possível preencher o CNPJ antes de resolver o ALTCHA.'
+        _log_etapa('CNPJ preenchido')
+
+        if _rs_sessao_expirada(local_driver):
+            _log_etapa('Sessão expirada detectada após preencher CNPJ')
+            return False, False, 'Sessão RS expirada após preencher CNPJ.'
+
+        if usar_2captcha:
+            altcha_resultado = None
+            for tentativa_altcha in range(1, 3):
+                _log_etapa('Iniciando tentativa ALTCHA', extra=f'tentativa={tentativa_altcha}')
+                altcha_resultado = _resolver_altcha_rs_com_2captcha(local_driver, current_app.config, allow_solver=True)
+                _log_etapa(
+                    'Retorno ALTCHA',
+                    extra=(
+                        f"status={altcha_resultado.get('status')} "
+                        f"msg={(altcha_resultado.get('message') or '')[:180]}"
+                    )
+                )
+                if altcha_resultado.get('status') == 'solved':
+                    break
+                if tentativa_altcha < 2:
+                    time.sleep(1.0)
+
+            if not altcha_resultado or altcha_resultado.get('status') != 'solved':
+                detalhe = (altcha_resultado or {}).get('message') if altcha_resultado else None
+                detalhe_upper = (detalhe or '').upper()
+                if 'ERROR_KEY_DOES_NOT_EXIST' in detalhe_upper:
+                    return (
+                        False,
+                        True,
+                        'Chave da API 2captcha inválida (ERROR_KEY_DOES_NOT_EXIST). '
+                        'Revise CAPTCHA_2_API_KEY e reinicie a aplicação.'
+                    )
+                if detalhe:
+                    return False, False, f"ALTCHA não resolvido: {altcha_resultado.get('status')} ({detalhe})"
+                return False, False, f"ALTCHA não resolvido: {altcha_resultado.get('status') if altcha_resultado else 'sem_resposta'}"
+
+            if _rs_sessao_expirada(local_driver):
+                _log_etapa('Sessão expirada detectada após resolver ALTCHA')
+                return False, False, 'Sessão RS expirada após resolver ALTCHA.'
+
+            time.sleep(0.5)
+            _log_etapa('Tentando clicar Enviar')
+            snapshot_downloads_antes_envio = _snapshot_downloads_pdf()
+            envio_rs = _clicar_enviar_estadual_rs(local_driver, timeout=8, retries=4, post_wait=0.5)
+            _log_etapa('Resultado clique Enviar', extra=f"clicked={envio_rs.get('clicked')} method={envio_rs.get('method')}")
+            if not envio_rs.get('clicked'):
+                return False, False, 'Não foi possível acionar o botão Enviar no lote RS.'
+
+            if _rs_sessao_expirada(local_driver):
+                _log_etapa('Sessão expirada detectada após clicar Enviar')
+                return False, False, 'Sessão RS expirada após clicar Enviar.'
+
+        inicio_monitoramento = time.time()
+        prazo_download = 180
+        novo_arquivo = None
+        _log_etapa('Aguardando download')
+
+        while (time.time() - inicio_monitoramento) < prazo_download:
+            if _rs_batch_stop_requested():
+                return False, False, 'Lote interrompido.'
+
+            if _rs_sessao_expirada(local_driver):
+                _log_etapa('Sessão expirada detectada durante espera de download')
+                return False, False, 'Sessão RS expirada durante espera do download.'
+
+            if usar_2captcha:
+                candidato = _pick_changed_download_pdf(snapshot_downloads_antes_envio)
+            else:
+                candidato = file_manager.verificar_novo_arquivo(inicio_monitoramento)
+
+            if candidato:
+                if not _wait_file_stable(candidato, checks=4, interval=0.6):
+                    _log_etapa('Arquivo detectado ainda instável', extra=f'arquivo={os.path.basename(candidato)}')
+                    time.sleep(0.8)
+                    continue
+                novo_arquivo = candidato
+                _log_etapa('Download detectado', extra=f'arquivo={os.path.basename(candidato)}')
+                break
+
+            time.sleep(1)
+
+        if not novo_arquivo:
+            return False, True, 'Timeout aguardando download da certidão Estadual RS.'
+
+        sucesso, caminho_final = file_manager.mover_e_renomear(
+            novo_arquivo,
+            certidao.empresa.nome,
+            certidao.tipo.value
+        )
+        if not sucesso:
+            return False, True, f'Falha ao mover arquivo Estadual RS: {caminho_final}'
+
+        certidao.caminho_arquivo = caminho_final
+        classificacao = _classificar_certidao_estadual_rs(caminho_final)
+
+        if classificacao == 'positiva':
+            try:
+                if caminho_final and os.path.exists(caminho_final):
+                    os.remove(caminho_final)
+            except Exception as exc_remove:
+                print(f"[ESTADUAL-RS-LOTE] Aviso ao remover PDF positivo: {exc_remove}")
+
+            certidao.caminho_arquivo = None
+            certidao.status_especial = StatusEspecial.PENDENTE
+            certidao.data_validade = None
+            db.session.commit()
+
+            with RS_BATCH_LOCK:
+                RS_BATCH_STATE['positivas'] = RS_BATCH_STATE.get('positivas', 0) + 1
+                RS_BATCH_STATE['last_completed'] = {
+                    'certidao_id': certidao.id,
+                    'data_formatada': 'PENDENTE',
+                    'nova_classe': 'status-vermelho'
+                }
+            return True, False, None
+
+        nova_data = calcular_validade_padrao(certidao, None)
+        certidao.data_validade = nova_data
+        certidao.status_especial = None
+        db.session.commit()
+
+        with RS_BATCH_LOCK:
+            if classificacao == 'negativa':
+                RS_BATCH_STATE['negativas'] = RS_BATCH_STATE.get('negativas', 0) + 1
+            elif classificacao == 'efeito_negativa':
+                RS_BATCH_STATE['efeito_negativas'] = RS_BATCH_STATE.get('efeito_negativas', 0) + 1
+
+            RS_BATCH_STATE['last_completed'] = {
+                'certidao_id': certidao.id,
+                'data_formatada': nova_data.strftime('%d/%m/%Y') if nova_data else None,
+                'nova_classe': _fgts_status_por_data(nova_data)
+            }
+
+        return True, False, None
+    except Exception as exc:
+        db.session.rollback()
+        return False, True, f'Erro grave no lote Estadual RS: {exc}'
+    finally:
+        if criado_localmente:
+            RS_BATCH_STATE['driver'] = None
+            if local_driver:
+                try:
+                    local_driver.quit()
+                except Exception:
+                    pass
+
+
+def _rs_batch_worker(app):
+    with app.app_context():
+        driver = None
+        rs_policy_ativa = False
+        print("[ESTADUAL-RS-LOTE] Worker iniciado.")
+
+        try:
+            rs_policy_ativa = _ativar_politica_autoselect_rs_temporaria()
+            driver = _criar_driver_chrome(anonimo=False, usar_perfil=True)
+
+            while True:
+                with RS_BATCH_LOCK:
+                    if RS_BATCH_STATE['stop_requested']:
+                        if RS_BATCH_STATE.get('stop_action') == 'stop':
+                            RS_BATCH_STATE['status'] = 'stopped'
+                            print("[ESTADUAL-RS-LOTE] Interrompido por parada solicitada.")
+                        else:
+                            RS_BATCH_STATE['status'] = 'paused'
+                            print("[ESTADUAL-RS-LOTE] Pausado por solicitação.")
+                        break
+
+                    if RS_BATCH_STATE['index'] >= RS_BATCH_STATE['total']:
+                        RS_BATCH_STATE['status'] = 'completed'
+                        RS_BATCH_STATE['current_id'] = None
+                        RS_BATCH_STATE['finished_at'] = datetime.utcnow()
+                        print("[ESTADUAL-RS-LOTE] Finalizado com sucesso.")
+                        break
+
+                    certidao_id = RS_BATCH_STATE['ids'][RS_BATCH_STATE['index']]
+                    RS_BATCH_STATE['current_id'] = certidao_id
+                    print(
+                        f"[ESTADUAL-RS-LOTE] Iniciando emissão ID={certidao_id} "
+                        f"({RS_BATCH_STATE['index'] + 1}/{RS_BATCH_STATE['total']})."
+                    )
+
+                sucesso, grave, mensagem = _emitir_estadual_rs_certidao(
+                    certidao_id,
+                    driver=driver,
+                    usar_2captcha=True
+                )
+
+                with RS_BATCH_LOCK:
+                    if RS_BATCH_STATE['stop_requested']:
+                        if RS_BATCH_STATE.get('stop_action') == 'stop':
+                            RS_BATCH_STATE['status'] = 'stopped'
+                        else:
+                            RS_BATCH_STATE['status'] = 'paused'
+                        break
+
+                    if grave:
+                        RS_BATCH_STATE['status'] = 'error'
+                        RS_BATCH_STATE['message'] = mensagem or 'Erro grave no lote Estadual RS.'
+                        print(f"[ESTADUAL-RS-LOTE] Erro grave: {RS_BATCH_STATE['message']}")
+                        break
+
+                    if not sucesso:
+                        RS_BATCH_STATE['falhas'] += 1
+                        print(f"[ESTADUAL-RS-LOTE] Falha na emissão ID={certidao_id}: {mensagem}")
+                    else:
+                        RS_BATCH_STATE['success'] += 1
+                        print(f"[ESTADUAL-RS-LOTE] Emissão OK ID={certidao_id}.")
+
+                    RS_BATCH_STATE['index'] += 1
+        finally:
+            if driver:
+                try:
+                    driver.quit()
+                except Exception:
+                    pass
+            if rs_policy_ativa:
+                _desativar_politica_autoselect_rs_temporaria()
+            print("[ESTADUAL-RS-LOTE] Worker encerrado.")
 
 
 def _emitir_fgts_certidao(certidao_id, driver=None):
@@ -501,43 +858,30 @@ def fgts_lote_iniciar():
     if not certidao_id:
         return jsonify({'status': 'error', 'message': 'Certidão inválida.'}), 400
 
-    with FGTS_BATCH_LOCK:
-        if FGTS_BATCH_STATE['status'] in ['running', 'paused']:
-            return jsonify({'status': 'error', 'message': 'Já existe um lote em andamento.'}), 400
+    dados_lote = batch_engine.init_batch_run(
+        FGTS_BATCH_LOCK,
+        FGTS_BATCH_STATE,
+        certidao_id,
+        _calc_fgts_targets,
+        _fgts_batch_worker,
+        app_factory=_current_app_object,
+    )
 
-        dados_lote = _calc_fgts_targets(certidao_id)
-        if not dados_lote['ids']:
-            return jsonify({'status': 'error', 'message': 'Nenhuma certidão FGTS vencida ou a vencer.'}), 400
+    if dados_lote is None:
+        return jsonify({'status': 'error', 'message': 'Já existe um lote em andamento.'}), 400
 
-        _reset_fgts_batch_state()
-        FGTS_BATCH_STATE.update({
-            'status': 'running',
-            'ids': dados_lote['ids'],
-            'total': dados_lote['total'],
-            'vencidas': dados_lote['vencidas'],
-            'a_vencer': dados_lote['a_vencer'],
-            'started_at': datetime.utcnow(),
-            'finished_at': None,
-            'success': 0,
-        })
+    if not dados_lote:
+        return jsonify({'status': 'error', 'message': 'Nenhuma certidão FGTS vencida ou a vencer.'}), 400
 
-        app = current_app._get_current_object()
-        thread = Thread(target=_fgts_batch_worker, args=(app,), daemon=True)
-        thread.start()
-        print(f"[FGTS-LOTE] Lote iniciado. Total={dados_lote['total']}.")
+    print(f"[FGTS-LOTE] Lote iniciado. Total={dados_lote['total']}.")
 
     return jsonify({'status': 'ok'})
 
 
 @bp.route('/fgts/lote/pausar', methods=['POST'])
 def fgts_lote_pausar():
-    with FGTS_BATCH_LOCK:
-        FGTS_BATCH_STATE['stop_requested'] = True
-        FGTS_BATCH_STATE['stop_action'] = 'pause'
-        if FGTS_BATCH_STATE['status'] == 'running':
-            FGTS_BATCH_STATE['status'] = 'paused'
-        print("[FGTS-LOTE] Pausa solicitada.")
-        driver = FGTS_BATCH_STATE.get('driver')
+    driver = batch_engine.request_pause(FGTS_BATCH_LOCK, FGTS_BATCH_STATE)
+    print("[FGTS-LOTE] Pausa solicitada.")
 
     _fgts_quit_driver_async(driver)
 
@@ -546,13 +890,8 @@ def fgts_lote_pausar():
 
 @bp.route('/fgts/lote/parar', methods=['POST'])
 def fgts_lote_parar():
-    with FGTS_BATCH_LOCK:
-        FGTS_BATCH_STATE['stop_requested'] = True
-        FGTS_BATCH_STATE['stop_action'] = 'stop'
-        FGTS_BATCH_STATE['status'] = 'stopped'
-        FGTS_BATCH_STATE['finished_at'] = datetime.utcnow()
-        print("[FGTS-LOTE] Parada solicitada.")
-        driver = FGTS_BATCH_STATE.get('driver')
+    driver = batch_engine.request_stop(FGTS_BATCH_LOCK, FGTS_BATCH_STATE)
+    print("[FGTS-LOTE] Parada solicitada.")
 
     _fgts_quit_driver_async(driver)
 
@@ -561,38 +900,105 @@ def fgts_lote_parar():
 
 @bp.route('/fgts/lote/retomar', methods=['POST'])
 def fgts_lote_retomar():
-    with FGTS_BATCH_LOCK:
-        if FGTS_BATCH_STATE['status'] != 'paused':
-            return jsonify({'status': 'error', 'message': 'Lote não está pausado.'}), 400
+    if not batch_engine.resume_batch(
+        FGTS_BATCH_LOCK,
+        FGTS_BATCH_STATE,
+        _fgts_batch_worker,
+        app_factory=_current_app_object,
+    ):
+        return jsonify({'status': 'error', 'message': 'Lote não está pausado.'}), 400
 
-        FGTS_BATCH_STATE['stop_requested'] = False
-        FGTS_BATCH_STATE['status'] = 'running'
-        print("[FGTS-LOTE] Retomada solicitada.")
-
-        app = current_app._get_current_object()
-        thread = Thread(target=_fgts_batch_worker, args=(app,), daemon=True)
-        thread.start()
+    print("[FGTS-LOTE] Retomada solicitada.")
 
     return jsonify({'status': 'ok'})
 
 
 @bp.route('/fgts/lote/status')
 def fgts_lote_status():
-    with FGTS_BATCH_LOCK:
+    return jsonify(batch_engine.status_payload_locked(FGTS_BATCH_LOCK, FGTS_BATCH_STATE))
+
+
+@bp.route('/estadual-rs/lote/info/<int:certidao_id>')
+def estadual_rs_lote_info(certidao_id):
+    dados = _calc_estadual_rs_targets(certidao_id)
+    return jsonify({
+        'status': 'ok',
+        **dados
+    })
+
+
+@bp.route('/estadual-rs/lote/iniciar', methods=['POST'])
+def estadual_rs_lote_iniciar():
+    dados = request.get_json() or {}
+    certidao_id = dados.get('certidao_id')
+
+    if not certidao_id:
+        return jsonify({'status': 'error', 'message': 'Certidão inválida.'}), 400
+
+    if not _to_bool(_get_config_value('RS_ALTCHA_AUTOSOLVE_ENABLED', False), False):
         return jsonify({
-            'status': FGTS_BATCH_STATE['status'],
-            'total': FGTS_BATCH_STATE['total'],
-            'index': FGTS_BATCH_STATE['index'],
-            'falhas': FGTS_BATCH_STATE['falhas'],
-            'current_id': FGTS_BATCH_STATE['current_id'],
-            'vencidas': FGTS_BATCH_STATE['vencidas'],
-            'a_vencer': FGTS_BATCH_STATE['a_vencer'],
-            'message': FGTS_BATCH_STATE['message'],
-            'last_completed': FGTS_BATCH_STATE.get('last_completed'),
-            'success': FGTS_BATCH_STATE.get('success', 0),
-            'started_at': FGTS_BATCH_STATE['started_at'].isoformat() if FGTS_BATCH_STATE.get('started_at') else None,
-            'finished_at': FGTS_BATCH_STATE['finished_at'].isoformat() if FGTS_BATCH_STATE.get('finished_at') else None,
-        })
+            'status': 'error',
+            'message': 'Ative RS_ALTCHA_AUTOSOLVE_ENABLED para usar lote Estadual RS.'
+        }), 400
+
+    dados_lote = batch_engine.init_batch_run(
+        RS_BATCH_LOCK,
+        RS_BATCH_STATE,
+        certidao_id,
+        _calc_estadual_rs_targets,
+        _rs_batch_worker,
+        app_factory=_current_app_object,
+    )
+
+    if dados_lote is None:
+        return jsonify({'status': 'error', 'message': 'Já existe um lote Estadual RS em andamento.'}), 400
+
+    if not dados_lote:
+        return jsonify({'status': 'error', 'message': 'Nenhuma certidão Estadual RS vencida ou a vencer.'}), 400
+
+    print(f"[ESTADUAL-RS-LOTE] Lote iniciado. Total={dados_lote['total']}.")
+
+    return jsonify({'status': 'ok'})
+
+
+@bp.route('/estadual-rs/lote/pausar', methods=['POST'])
+def estadual_rs_lote_pausar():
+    driver = batch_engine.request_pause(RS_BATCH_LOCK, RS_BATCH_STATE)
+    print("[ESTADUAL-RS-LOTE] Pausa solicitada.")
+
+    _fgts_quit_driver_async(driver)
+
+    return jsonify({'status': 'ok', 'message': 'Lote Estadual RS pausado.'})
+
+
+@bp.route('/estadual-rs/lote/parar', methods=['POST'])
+def estadual_rs_lote_parar():
+    driver = batch_engine.request_stop(RS_BATCH_LOCK, RS_BATCH_STATE)
+    print("[ESTADUAL-RS-LOTE] Parada solicitada.")
+
+    _fgts_quit_driver_async(driver)
+
+    return jsonify({'status': 'ok', 'message': 'Lote Estadual RS interrompido.'})
+
+
+@bp.route('/estadual-rs/lote/retomar', methods=['POST'])
+def estadual_rs_lote_retomar():
+    if not batch_engine.resume_batch(
+        RS_BATCH_LOCK,
+        RS_BATCH_STATE,
+        _rs_batch_worker,
+        app_factory=_current_app_object,
+    ):
+        return jsonify({'status': 'error', 'message': 'Lote Estadual RS não está pausado.'}), 400
+
+    print("[ESTADUAL-RS-LOTE] Retomada solicitada.")
+
+    return jsonify({'status': 'ok'})
+
+
+@bp.route('/estadual-rs/lote/status')
+def estadual_rs_lote_status():
+    return jsonify(batch_engine.status_payload_locked(RS_BATCH_LOCK, RS_BATCH_STATE))
 
 
 @bp.route('/fgts/emitir_unico', methods=['POST'])
@@ -732,6 +1138,46 @@ def _classificar_certidao_estadual_rs(caminho_pdf):
 
     return 'desconhecida'
 
+
+def _rs_get_page_state(driver):
+    try:
+        url = (driver.current_url or '').strip()
+    except Exception:
+        url = ''
+
+    try:
+        title = (driver.title or '').strip()
+    except Exception:
+        title = ''
+
+    try:
+        body_text = (driver.find_element(By.TAG_NAME, 'body').text or '').strip().lower()
+    except Exception:
+        body_text = ''
+
+    return {
+        'url': url,
+        'title': title,
+        'body_text': body_text,
+    }
+
+
+def _rs_sessao_expirada(driver):
+    state = _rs_get_page_state(driver)
+    url = state['url'].lower()
+    body = state['body_text']
+
+    if 'finalizarlogincert.aspx?exit=1' in url:
+        return True
+
+    marcadores = (
+        'sessao expirou',
+        'sessão expirou',
+        'tempo de inatividade',
+        'feche a janela do seu navegador e acesse-o novamente',
+    )
+    return any(marcador in body for marcador in marcadores)
+
 def _login_certificado_rs(driver, login_url, cert_url, timeout=120):
     driver.get(login_url)
 
@@ -745,6 +1191,14 @@ def _login_certificado_rs(driver, login_url, cert_url, timeout=120):
 
     time.sleep(2)
     driver.get(cert_url)
+
+    try:
+        wait_timeout = max(2, min(int(timeout or 20), 30))
+        WebDriverWait(driver, wait_timeout).until(
+            lambda d: (d.execute_script('return document.readyState') or '') == 'complete'
+        )
+    except Exception:
+        pass
 
 
 def _erro_indica_navegador_fechado(exc):
@@ -1367,6 +1821,14 @@ def baixar_certidao(certidao_id):
     certidao = Certidao.query.get_or_404(certidao_id)
     tipo_certidao_chave = certidao.tipo.name
 
+    if tipo_certidao_chave == 'ESTADUAL' and (certidao.empresa.estado or '').strip().upper() == 'RS':
+        with RS_BATCH_LOCK:
+            if RS_BATCH_STATE['status'] in ['running', 'paused']:
+                return jsonify({
+                    'status': 'error',
+                    'message': 'Lote Estadual RS em andamento. Aguarde finalizar ou interrompa o lote.'
+                }), 400
+
     by_map = {
         'id': By.ID,
         'css_selector': By.CSS_SELECTOR,
@@ -1648,6 +2110,9 @@ def baixar_certidao(certidao_id):
                         campo1.send_keys(Keys.TAB)
                 except:
                     pass
+
+        if tipo_certidao_chave == 'ESTADUAL' and estado_emp == 'RS':
+            print('[ESTADUAL-RS][ALTCHA] Emissão unitária em modo manual: resolva o captcha e clique em Enviar.')
 
         if tipo_certidao_chave == 'MUNICIPAL' and usar_config_municipal:
             steps_after = config_municipal.get('after_cnpj', []) if config_municipal else []
