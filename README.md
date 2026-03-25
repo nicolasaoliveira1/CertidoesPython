@@ -45,11 +45,12 @@ O sistema combina:
 
 ## Diferenciais técnicos
 
-- Lote Estadual RS com resolução de ALTCHA via API, sem extensão de navegador.
-- Estratégia de robustez no RS: só avança para o próximo CNPJ após download, estabilização do arquivo, movimentação e classificação.
-- Motor compartilhado de lotes (pausar, retomar, parar, status) para reduzir duplicação e facilitar manutenção.
-- UX com polling de progresso e resumo final de execução para lotes FGTS e RS.
-- Tratamento explícito de erro crítico de chave inválida no solver (fail-fast).
+- Visão operacional centralizada: dashboard único para empresas e certidões, com status visual e filtros em tempo real.
+- Arquitetura orientada a manutenção: motor compartilhado de lotes e serviços dedicados para reduzir duplicação e facilitar evolução.
+- Automação híbrida pragmática: Selenium local para cenários reais de portais públicos, com fluxos assistidos e automáticos.
+- Gestão de arquivos ponta a ponta: detecção de download, estabilização, movimentação/renomeação e vínculo do PDF ao registro no banco.
+- Segurança aplicada ao uso diário: visualização de PDF por token assinado e controle explícito de configurações sensíveis via ambiente.
+- Fluxos críticos robustos no RS/FGTS: lote com pausa/retomada/parada, polling de progresso, resumo final e fail-fast para erro de chave do solver.
 
 ## Principais funcionalidades
 
