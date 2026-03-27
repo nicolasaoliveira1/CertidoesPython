@@ -1179,8 +1179,8 @@ def _normalizar_texto_pdf(texto):
     return texto.upper().strip()
 
 
-def _classificar_certidao_estadual_rs(caminho_pdf):
-    texto = _normalizar_texto_pdf(_extrair_texto_pdf(caminho_pdf, origem_log='ESTADUAL-RS'))
+def _classificar_status_certidao_pdf(caminho_pdf, origem_log='PDF'):
+    texto = _normalizar_texto_pdf(_extrair_texto_pdf(caminho_pdf, origem_log=origem_log))
     if not texto:
         return 'desconhecida'
 
@@ -1194,6 +1194,10 @@ def _classificar_certidao_estadual_rs(caminho_pdf):
         return 'negativa'
 
     return 'desconhecida'
+
+
+def _classificar_certidao_estadual_rs(caminho_pdf):
+    return _classificar_status_certidao_pdf(caminho_pdf, origem_log='ESTADUAL-RS')
 
 
 def _rs_get_page_state(driver):
@@ -2137,6 +2141,8 @@ def baixar_certidao(certidao_id):
     rs_autoselect_temporario_ativo = False
     rs_estadual_classificacao = None
     rs_estadual_msg = None
+    municipal_pdf_classificacao = None
+    municipal_pdf_msg = None
 
     # contexto compartilhado com helpers de steps
     contexto = {
@@ -2403,6 +2409,43 @@ def baixar_certidao(certidao_id):
                                         rs_estadual_msg = 'Certidão ESTADUAL RS detectada como POSITIVA. Arquivo removido e certidão marcada como PENDENTE.'
                                         if erro_remocao:
                                             rs_estadual_msg += f' Não foi possível remover o arquivo automaticamente: {erro_remocao}'
+
+                            if (
+                                tipo_certidao_chave == 'MUNICIPAL'
+                                and regra_municipio
+                                and usar_config_municipal
+                                and bool((config_municipal or {}).get('classificar_pdf_status'))
+                            ):
+                                origem_pdf = f"MUNICIPAL-{regra_municipio.nome}"
+                                municipal_pdf_classificacao = _classificar_status_certidao_pdf(msg, origem_log=origem_pdf)
+                                print(f"[{origem_pdf}] Classificação do PDF: {municipal_pdf_classificacao}")
+
+                                if municipal_pdf_classificacao == 'positiva':
+                                    erro_remocao = None
+                                    try:
+                                        if msg and os.path.exists(msg):
+                                            os.remove(msg)
+                                    except Exception as exc_remove:
+                                        erro_remocao = str(exc_remove)
+                                        print(f"[{origem_pdf}] Não foi possível remover PDF positivo: {exc_remove}")
+
+                                    try:
+                                        certidao.caminho_arquivo = None
+                                        certidao.status_especial = StatusEspecial.PENDENTE
+                                        certidao.data_validade = None
+                                        db.session.commit()
+                                    except Exception as e_db:
+                                        db.session.rollback()
+                                        print(f"[{origem_pdf}] Erro ao marcar pendente após PDF positivo: {e_db}")
+                                        municipal_pdf_msg = 'Certidão MUNICIPAL POSITIVA detectada, mas houve erro ao marcar como PENDENTE no banco.'
+                                        municipal_pdf_classificacao = 'erro'
+                                    else:
+                                        municipal_pdf_msg = (
+                                            f"Certidão MUNICIPAL ({regra_municipio.nome}) detectada como POSITIVA. "
+                                            "Arquivo removido e certidão marcada como PENDENTE."
+                                        )
+                                        if erro_remocao:
+                                            municipal_pdf_msg += f' Não foi possível remover o arquivo automaticamente: {erro_remocao}'
                             try:
                                 try:
                                     janelas_abertas = list(driver.window_handles)
@@ -2480,6 +2523,19 @@ def baixar_certidao(certidao_id):
         return jsonify({
             'status': 'error',
             'message': rs_estadual_msg or 'Erro ao tratar certidão positiva do RS.'
+        }), 500
+
+    if municipal_pdf_classificacao == 'positiva':
+        response_data['status'] = 'municipal_pdf_positiva'
+        response_data['message'] = municipal_pdf_msg or 'Certidão MUNICIPAL detectada como POSITIVA e marcada como PENDENTE.'
+        response_data['certidao_id'] = certidao_id
+        response_data['tipo_certidao'] = nome_certidao_arquivo
+        return jsonify(response_data)
+
+    if municipal_pdf_classificacao == 'erro':
+        return jsonify({
+            'status': 'error',
+            'message': municipal_pdf_msg or 'Erro ao tratar certidão municipal positiva.'
         }), 500
 
     if arquivo_salvo_msg:

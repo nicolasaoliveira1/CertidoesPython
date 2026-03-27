@@ -705,7 +705,7 @@ document.addEventListener('DOMContentLoaded', function() {
     let caminhoArquivoParaModal = null;
     const loadingOverlay = document.getElementById('loading-overlay');
     const loadingDetalhes = document.getElementById('loading-detalhes');
-    const statusesComModal = new Set(['success_file_saved', 'window_closed_no_file', 'estadual_rs_positiva']);
+    const statusesComModal = new Set(['success_file_saved', 'window_closed_no_file', 'estadual_rs_positiva', 'municipal_pdf_positiva']);
 
     function showLoading(nomeEmpresa = '', tipoCertidao = '') {
         if (loadingOverlay) loadingOverlay.classList.remove('d-none');
@@ -870,9 +870,9 @@ document.addEventListener('DOMContentLoaded', function() {
             return;
         }
 
-        if (data.status === 'estadual_rs_positiva') {
+        if (data.status === 'estadual_rs_positiva' || data.status === 'municipal_pdf_positiva') {
             limparInfoArquivoModal();
-            if (displayTipoPositivaRs) displayTipoPositivaRs.textContent = data.tipo_certidao || 'ESTADUAL';
+            if (displayTipoPositivaRs) displayTipoPositivaRs.textContent = data.tipo_certidao || 'CERTIDÃO';
             if (displayMensagemPositivaRs) {
                 displayMensagemPositivaRs.textContent = data.message || 'Certidão POSITIVA detectada. O arquivo foi removido e a certidão marcada como PENDENTE.';
             }
