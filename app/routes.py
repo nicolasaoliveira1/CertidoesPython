@@ -5,6 +5,7 @@ import string
 import random
 import base64
 import re
+import unicodedata
 from threading import Thread, Lock
 from datetime import date, datetime, timedelta
 
@@ -208,6 +209,20 @@ def _desativar_politica_autoselect_rs_temporaria():
 def _build_chrome_options(anonimo=True, usar_perfil=False):
     chrome_options = Options()
     chrome_options.add_argument("--start-maximized")
+    chrome_options.add_argument("--disable-features=DownloadBubble,DownloadBubbleV2")
+    chrome_options.add_argument("--no-first-run")
+    chrome_options.add_argument("--no-default-browser-check")
+
+    downloads_dir = os.path.join(os.path.expanduser("~"), "Downloads")
+    chrome_options.add_experimental_option('prefs', {
+        'download.default_directory': downloads_dir,
+        'download.prompt_for_download': False,
+        'download.directory_upgrade': True,
+        'download.open_pdf_in_system_reader': False,
+        'profile.default_content_setting_values.automatic_downloads': 1,
+        'safebrowsing.enabled': True,
+        'plugins.always_open_pdf_externally': True,
+    })
 
     if anonimo:
         chrome_options.add_argument("--incognito")
@@ -222,10 +237,52 @@ def _build_chrome_options(anonimo=True, usar_perfil=False):
     return chrome_options
 
 
+def _configurar_download_automatico_chrome(driver):
+    downloads_dir = os.path.join(os.path.expanduser("~"), "Downloads")
+
+    try:
+        driver.execute_cdp_cmd('Page.setDownloadBehavior', {
+            'behavior': 'allow',
+            'downloadPath': downloads_dir,
+        })
+    except Exception:
+        pass
+
+    try:
+        driver.execute_cdp_cmd('Browser.setDownloadBehavior', {
+            'behavior': 'allow',
+            'downloadPath': downloads_dir,
+            'eventsEnabled': False,
+        })
+    except Exception:
+        pass
+
+    try:
+        info = driver.execute_cdp_cmd('Target.getTargetInfo', {})
+        target_info = (info or {}).get('targetInfo') or {}
+        browser_context_id = target_info.get('browserContextId')
+        if browser_context_id:
+            driver.execute_cdp_cmd('Browser.setDownloadBehavior', {
+                'behavior': 'allow',
+                'downloadPath': downloads_dir,
+                'eventsEnabled': False,
+                'browserContextId': browser_context_id,
+            })
+    except Exception:
+        pass
+
+
 def _criar_driver_chrome(anonimo=True, usar_perfil=False):
     chrome_options = _build_chrome_options(anonimo=anonimo, usar_perfil=usar_perfil)
-    return webdriver.Chrome(service=ChromeService(
+    driver = webdriver.Chrome(service=ChromeService(
         ChromeDriverManager().install()), options=chrome_options)
+
+    try:
+        _configurar_download_automatico_chrome(driver)
+    except Exception as exc:
+        print(f"[DOWNLOAD] Não foi possível configurar download automático no Chrome: {exc}")
+
+    return driver
 
 
 def _preparar_pagina_fgts(driver, url, cnpj_field_id):
@@ -1725,9 +1782,16 @@ def _carregar_config_municipio(regra_municipio):
         return None
 
 
-def _executar_steps_municipio(driver, wait, steps, cnpj_limpo, inscricao_limpa):
+def _executar_steps_municipio(driver, wait, steps, cnpj_limpo, inscricao_limpa, etapa_label='steps'):
     if not steps:
-        return
+        return None
+
+    def _normalizar_texto(valor):
+        texto = (valor or '')
+        texto = unicodedata.normalize('NFKD', texto)
+        texto = ''.join(ch for ch in texto if not unicodedata.combining(ch))
+        texto = re.sub(r'\s+', ' ', texto).strip().upper()
+        return texto
 
     by_map = {
         'id': By.ID,
@@ -1737,9 +1801,107 @@ def _executar_steps_municipio(driver, wait, steps, cnpj_limpo, inscricao_limpa):
         'class_name': By.CLASS_NAME
     }
 
-    for step in steps:
+    for idx, step in enumerate(steps, start=1):
         tipo = (step or {}).get('tipo')
         if not tipo:
+            continue
+
+        if tipo == 'click_if_text_or_close':
+            by = by_map.get(step.get('by'))
+            locator = step.get('locator')
+            expected_text = _normalizar_texto(step.get('expected_text_contains'))
+            timeout = float(step.get('timeout', 10))
+            sleep_after = float(step.get('sleep', 0.5))
+            wait_url_contains = (step.get('wait_url_contains') or '').strip()
+
+            if not by or not locator or not expected_text:
+                continue
+
+            if wait_url_contains:
+                try:
+                    WebDriverWait(driver, timeout).until(lambda d: wait_url_contains in (d.current_url or ''))
+                except TimeoutException:
+                    print(f"[MUNICIPAL] Timeout aguardando URL final do step condicional ({wait_url_contains}).")
+
+            try:
+                WebDriverWait(driver, timeout).until(
+                    lambda d: d.execute_script('return document.readyState') == 'complete'
+                )
+            except TimeoutException:
+                pass
+
+            try:
+                WebDriverWait(driver, timeout).until(
+                    EC.presence_of_all_elements_located((by, locator))
+                )
+            except TimeoutException:
+                pass
+
+            try:
+                elementos = driver.find_elements(by, locator)
+            except Exception as exc_find:
+                print(f"[MUNICIPAL] Erro ao buscar elementos do step condicional: {exc_find!r}")
+                raise
+
+            alvo = None
+            for pos, elemento in enumerate(elementos, start=1):
+                texto_variantes = [
+                    _normalizar_texto(elemento.text),
+                    _normalizar_texto(elemento.get_attribute('textContent')),
+                    _normalizar_texto(elemento.get_attribute('innerText')),
+                ]
+                if any(expected_text in t for t in texto_variantes if t):
+                    alvo = elemento
+                    break
+
+            if alvo is None:
+                try:
+                    js_click_result = driver.execute_script(
+                        """
+                        const expected = arguments[0];
+                        const normalize = (txt) => (txt || '')
+                          .normalize('NFD')
+                          .replace(/[\u0300-\u036f]/g, '')
+                                                    .replace(/\\s+/g, ' ')
+                          .trim()
+                          .toUpperCase();
+                        const anchors = Array.from(document.querySelectorAll('a'));
+                        for (const a of anchors) {
+                          const text = normalize(a.innerText || a.textContent || '');
+                          if (text.includes(expected)) {
+                            a.click();
+                            return {
+                              clicked: true,
+                              text,
+                              href: a.getAttribute('href') || ''
+                            };
+                          }
+                        }
+                        return {clicked: false, count: anchors.length};
+                        """,
+                        expected_text
+                    )
+                    if js_click_result and js_click_result.get('clicked'):
+                        print('[MUNICIPAL] Link de certidão NEGATIVA encontrado. Prosseguindo com download.')
+                        time.sleep(sleep_after)
+                        continue
+                except Exception as exc_js_click:
+                    print(f"[MUNICIPAL] Erro no fallback JS do step condicional: {exc_js_click!r}")
+
+                print('[MUNICIPAL] Link de certidão NEGATIVA não encontrado. Fechando e retornando pendente.')
+                try:
+                    driver.close()
+                except Exception:
+                    pass
+                return {'encerrar_sem_arquivo': True}
+
+            try:
+                alvo.click()
+            except Exception:
+                driver.execute_script('arguments[0].click();', alvo)
+
+            print('[MUNICIPAL] Link de certidão NEGATIVA encontrado. Prosseguindo com download.')
+            time.sleep(sleep_after)
             continue
 
         if tipo == 'sleep':
@@ -1810,6 +1972,7 @@ def _executar_steps_municipio(driver, wait, steps, cnpj_limpo, inscricao_limpa):
                 elemento.send_keys(value)
                 time.sleep(float(step.get('sleep', 0.5)))
                 continue
+    return None
 
 
 # baixar certidao com automacao salvamento ||||
@@ -2014,17 +2177,33 @@ def baixar_certidao(certidao_id):
         else:
             print(f"1. Acessando a URL: {info_site.get('url')}")
             driver.get(info_site.get('url'))
+
+        try:
+            _configurar_download_automatico_chrome(driver)
+        except Exception as exc:
+            print(f"[DOWNLOAD] Falha ao reaplicar configuração de download automático: {exc}")
         
         if tipo_certidao_chave == 'MUNICIPAL':
             if usar_config_municipal:
                 steps_before = config_municipal.get('before_cnpj', []) if config_municipal else []
-                _executar_steps_municipio(
+                resultado_steps = _executar_steps_municipio(
                     driver,
                     wait,
                     steps_before,
                     cnpj_limpo,
-                    inscricao_limpa
+                    inscricao_limpa,
+                    etapa_label='before_cnpj'
                 )
+                if resultado_steps and resultado_steps.get('encerrar_sem_arquivo'):
+                    try:
+                        driver.quit()
+                    except Exception:
+                        pass
+                    return jsonify({
+                        'status': 'window_closed_no_file',
+                        'certidao_id': certidao_id,
+                        'tipo_certidao': nome_certidao_arquivo
+                    })
 
 
         def executar_acao_aux(nome_acao):
@@ -2116,13 +2295,24 @@ def baixar_certidao(certidao_id):
 
         if tipo_certidao_chave == 'MUNICIPAL' and usar_config_municipal:
             steps_after = config_municipal.get('after_cnpj', []) if config_municipal else []
-            _executar_steps_municipio(
+            resultado_steps = _executar_steps_municipio(
                 driver,
                 wait,
                 steps_after,
                 cnpj_limpo,
-                inscricao_limpa
+                inscricao_limpa,
+                etapa_label='after_cnpj'
             )
+            if resultado_steps and resultado_steps.get('encerrar_sem_arquivo'):
+                try:
+                    driver.quit()
+                except Exception:
+                    pass
+                return jsonify({
+                    'status': 'window_closed_no_file',
+                    'certidao_id': certidao_id,
+                    'tipo_certidao': nome_certidao_arquivo
+                })
 
         # ordem das ações depois do cnpj
         steps_after_cnpj = info_site.get('steps_after_cnpj')
