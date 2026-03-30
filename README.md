@@ -77,6 +77,8 @@ O sistema combina:
   - Lote com ALTCHA automático via API 2captcha.
   - Processo robusto: só avança para o próximo CNPJ após baixar, estabilizar, mover e classificar o arquivo.
 - Municipal: automação orientada por configuração da tabela Município.
+  - Tramandaí: fluxo condicional com detecção de link NEGATIVA na página final.
+  - Gravataí: classificação de status via conteúdo do PDF (positiva/negativa), com tratamento automático de pendência quando positiva.
 
 ### Gestão de arquivos
 
@@ -84,6 +86,7 @@ O sistema combina:
 - Move e renomeia para a pasta final da empresa.
 - Salva caminho do arquivo no banco.
 - Visualização de PDF com token assinado e expirável.
+- Download automático no Chrome (incluindo fluxos em modo anônimo), reduzindo necessidade de interação manual no diálogo de salvar.
 
 ## Requisitos
 
@@ -183,24 +186,41 @@ As automações municipais dependem da configuração de seletores e steps na ta
 ## Estrutura do projeto
 
 ```text
+.
+  .env
+  config.py
+  run.py
+  requirements.txt
+  README.md
+  docs/
+    context.json
+    MAPEAMENTO_MUNICIPIOS.md
+  migrations/
+    alembic.ini
+    env.py
+    versions/
+  instance/
 app/
   __init__.py              # Inicialização Flask
+  captcha_solver.py        # Integração 2captcha
   models.py                # Modelos do banco
   routes.py                # Rotas e fluxos de negócio
   automation.py            # URLs, seletores e validades
   file_manager.py          # Detecção/movimentação de PDFs
-  captcha_solver.py        # Integração 2captcha
+  stop_federal_monitor.txt # Controle de interrupção de monitoramento
   services/
+    __init__.py
     batch_engine.py        # Motor compartilhado de lotes
     rs_altcha.py           # Resolver/injetar ALTCHA no RS
+  static/
+    css/
+    images/
   templates/
+    base.html
     dashboard.html
     nova_empresa.html
     relatorios.html
     configuracoes.html
-config.py
-run.py
-requirements.txt
 ```
 
 ## Limitações atuais
