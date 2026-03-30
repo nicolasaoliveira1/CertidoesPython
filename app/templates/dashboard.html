@@ -738,7 +738,11 @@ document.addEventListener('DOMContentLoaded', function() {
             if (rsBatchOverlay) rsBatchOverlay.classList.add('d-none');
         }
 
-        if (!document.querySelector('.modal.show')) {
+        const modalAbertoOuAbrindo = document.querySelector(
+            '.modal.show, .modal[aria-modal="true"], .modal[style*="display: block"]'
+        );
+
+        if (!modalAbertoOuAbrindo) {
             document.querySelectorAll('.modal-backdrop').forEach(backdrop => backdrop.remove());
             document.body.classList.remove('modal-open');
             document.body.style.removeProperty('padding-right');
