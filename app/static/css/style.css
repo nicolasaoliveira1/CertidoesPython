@@ -399,6 +399,120 @@ footer {
     background: rgba(0, 0, 0, 0.831);
 }
 
+.batch-summary-modal {
+    border: 1px solid var(--bs-border-color-translucent);
+    border-radius: 0.85rem;
+}
+
+.batch-action-modal {
+    border: 1px solid var(--bs-border-color-translucent);
+    border-radius: 0.85rem;
+}
+
+.batch-modal-intro {
+    color: var(--bs-secondary-color);
+    font-weight: 500;
+}
+
+.batch-kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.75rem;
+}
+
+.batch-kpi-card {
+    border: 1px solid var(--bs-border-color);
+    border-radius: 0.75rem;
+    background: var(--bs-tertiary-bg);
+    padding: 0.8rem 0.9rem;
+}
+
+.batch-kpi-card.is-danger {
+    border-color: rgba(220, 53, 69, 0.25);
+    background: rgba(220, 53, 69, 0.06);
+}
+
+.batch-kpi-card.is-warning {
+    border-color: rgba(255, 193, 7, 0.35);
+    background: rgba(255, 193, 7, 0.12);
+}
+
+.batch-kpi-card.is-total {
+    border-color: rgba(13, 110, 253, 0.28);
+    background: rgba(13, 110, 253, 0.08);
+}
+
+.batch-kpi-label {
+    display: block;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--bs-secondary-color);
+    margin-bottom: 0.2rem;
+}
+
+.batch-kpi-value {
+    display: block;
+    font-size: 1.25rem;
+    line-height: 1.1;
+    font-weight: 700;
+    color: var(--bs-emphasis-color);
+}
+
+.batch-modal-footer {
+    gap: 0.45rem;
+}
+
+.batch-summary-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.75rem;
+}
+
+.batch-summary-card {
+    border: 1px solid var(--bs-border-color);
+    border-radius: 0.75rem;
+    background: var(--bs-tertiary-bg);
+    padding: 0.85rem 0.9rem;
+}
+
+.batch-summary-card.is-success {
+    border-color: rgba(25, 135, 84, 0.3);
+    background: rgba(25, 135, 84, 0.08);
+}
+
+.batch-summary-card.is-danger {
+    border-color: rgba(220, 53, 69, 0.3);
+    background: rgba(220, 53, 69, 0.08);
+}
+
+.batch-summary-label {
+    display: block;
+    font-size: 0.78rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--bs-secondary-color);
+    margin-bottom: 0.2rem;
+}
+
+.batch-summary-value {
+    display: block;
+    font-size: 1.35rem;
+    line-height: 1.1;
+    font-weight: 700;
+    color: var(--bs-emphasis-color);
+}
+
+@media (max-width: 576px) {
+    .batch-kpi-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .batch-summary-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
 .px-6-custom {
     padding-left: 2rem !important;
     padding-right: 2rem !important;

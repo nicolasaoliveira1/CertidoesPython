@@ -428,21 +428,30 @@
 </div>
 
 <div class="modal fade" id="fgtsBatchModal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
-    <div class="modal-dialog">
-        <div class="modal-content">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content batch-action-modal">
             <div class="modal-header">
                 <h5 class="modal-title">Emitir FGTS em lote</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body">
-                <p class="mb-2">Foram encontradas certidões FGTS:</p>
-                <ul class="mb-0">
-                    <li><strong id="fgtsBatchVencidas">0</strong> vencidas</li>
-                    <li><strong id="fgtsBatchAVencer">0</strong> a vencer</li>
-                    <li><strong id="fgtsBatchTotal">0</strong> no total</li>
-                </ul>
+                <p class="batch-modal-intro mb-3">Foram encontradas certidões FGTS:</p>
+                <div class="batch-kpi-grid">
+                    <div class="batch-kpi-card is-danger">
+                        <span class="batch-kpi-label">Vencidas</span>
+                        <strong class="batch-kpi-value" id="fgtsBatchVencidas">0</strong>
+                    </div>
+                    <div class="batch-kpi-card is-warning">
+                        <span class="batch-kpi-label">A vencer</span>
+                        <strong class="batch-kpi-value" id="fgtsBatchAVencer">0</strong>
+                    </div>
+                    <div class="batch-kpi-card is-total">
+                        <span class="batch-kpi-label">Total do lote</span>
+                        <strong class="batch-kpi-value" id="fgtsBatchTotal">0</strong>
+                    </div>
+                </div>
             </div>
-            <div class="modal-footer">
+            <div class="modal-footer batch-modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
                 <button type="button" class="btn btn-primary" id="btnFgtsBatchStart">Iniciar lote</button>
                 <button type="button" class="btn btn-outline-primary" id="btnFgtsSingleEmit">Emitir apenas esta</button>
@@ -452,45 +461,73 @@
 </div>
 
 <div class="modal fade" id="fgtsBatchSummaryModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">Resumo do lote FGTS</h5>
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content batch-summary-modal">
+            <div class="modal-header border-0 pb-0">
+                <div>
+                    <h5 class="modal-title mb-1">Resumo do lote FGTS</h5>
+                    <p class="text-muted mb-0 small">
+                        Lote concluído: <strong id="fgtsBatchSummaryTotal">0</strong> processadas
+                    </p>
+                </div>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
-            <div class="modal-body">
-                <p class="mb-2">Resultado final:</p>
-                <ul class="mb-0">
-                    <li><strong id="fgtsBatchSummaryEmitidas">0</strong> emitidas com sucesso</li>
-                    <li><strong id="fgtsBatchSummaryFalhas">0</strong> falhas</li>
-                    <li><strong id="fgtsBatchSummaryTotal">0</strong> no total</li>
-                    <li><strong id="fgtsBatchSummaryTempo">0s</strong> de duração</li>
-                </ul>
+            <div class="modal-body pt-3">
+                <div class="batch-summary-grid">
+                    <div class="batch-summary-card is-success">
+                        <span class="batch-summary-label">Emitidas</span>
+                        <strong class="batch-summary-value" id="fgtsBatchSummaryEmitidas">0</strong>
+                    </div>
+
+                    <div class="batch-summary-card is-danger">
+                        <span class="batch-summary-label">Falhas</span>
+                        <strong class="batch-summary-value" id="fgtsBatchSummaryFalhas">0</strong>
+                    </div>
+
+                    <div class="batch-summary-card">
+                        <span class="batch-summary-label">Duração</span>
+                        <strong class="batch-summary-value" id="fgtsBatchSummaryTempo">0s</strong>
+                    </div>
+
+                    <div class="batch-summary-card">
+                        <span class="batch-summary-label">Taxa de sucesso</span>
+                        <strong class="batch-summary-value" id="fgtsBatchSummaryTaxa">0%</strong>
+                    </div>
+                </div>
             </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-primary" data-bs-dismiss="modal">OK</button>
+            <div class="modal-footer border-0 pt-0">
+                <button type="button" class="btn btn-primary px-4" data-bs-dismiss="modal">OK</button>
             </div>
         </div>
     </div>
 </div>
 
 <div class="modal fade" id="rsBatchModal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
-    <div class="modal-dialog">
-        <div class="modal-content">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content batch-action-modal">
             <div class="modal-header">
                 <h5 class="modal-title">Emitir Estadual RS em lote</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body">
-                <p class="mb-2">Foram encontradas certidões Estadual RS:</p>
-                <ul class="mb-0">
-                    <li><strong id="rsBatchVencidas">0</strong> vencidas</li>
-                    <li><strong id="rsBatchAVencer">0</strong> a vencer</li>
-                    <li><strong id="rsBatchTotal">0</strong> no total</li>
-                </ul>
-                <p class="text-muted small mt-2 mb-0">No lote RS, o ALTCHA é resolvido automaticamente via 2captcha.</p>
+                <p class="batch-modal-intro mb-3">Foram encontradas certidões Estadual RS:</p>
+                <div class="batch-kpi-grid">
+                    <div class="batch-kpi-card is-danger">
+                        <span class="batch-kpi-label">Vencidas</span>
+                        <strong class="batch-kpi-value" id="rsBatchVencidas">0</strong>
+                    </div>
+                    <div class="batch-kpi-card is-warning">
+                        <span class="batch-kpi-label">A vencer</span>
+                        <strong class="batch-kpi-value" id="rsBatchAVencer">0</strong>
+                    </div>
+                    <div class="batch-kpi-card is-total">
+                        <span class="batch-kpi-label">Total do lote</span>
+                        <strong class="batch-kpi-value" id="rsBatchTotal">0</strong>
+                    </div>
+                </div>
+                <p class="text-muted small mt-3 mb-0">No lote RS, o ALTCHA é resolvido automaticamente via 2captcha.</p>
             </div>
-            <div class="modal-footer">
+            <div class="modal-footer batch-modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
                 <button type="button" class="btn btn-primary" id="btnRsBatchStart">Iniciar lote</button>
                 <button type="button" class="btn btn-outline-primary" id="btnRsSingleEmit">Emitir apenas esta</button>
@@ -500,26 +537,57 @@
 </div>
 
 <div class="modal fade" id="rsBatchSummaryModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">Resumo do lote Estadual RS</h5>
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content batch-summary-modal">
+            <div class="modal-header border-0 pb-0">
+                <div>
+                    <h5 class="modal-title mb-1">Resumo do lote Estadual RS</h5>
+                    <p class="text-muted mb-0 small">
+                        Lote concluído: <strong id="rsBatchSummaryTotal">0</strong> processadas
+                    </p>
+                </div>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
-            <div class="modal-body">
-                <p class="mb-2">Resultado final:</p>
-                <ul class="mb-0">
-                    <li><strong id="rsBatchSummaryEmitidas">0</strong> emitidas com sucesso</li>
-                    <li><strong id="rsBatchSummaryFalhas">0</strong> falhas</li>
-                    <li><strong id="rsBatchSummaryPositivas">0</strong> positivas (marcadas como pendente)</li>
-                    <li><strong id="rsBatchSummaryNegativas">0</strong> negativas</li>
-                    <li><strong id="rsBatchSummaryEfeitoNegativas">0</strong> positivas com efeito de negativa</li>
-                    <li><strong id="rsBatchSummaryTotal">0</strong> no total</li>
-                    <li><strong id="rsBatchSummaryTempo">0s</strong> de duração</li>
-                </ul>
+            <div class="modal-body pt-3">
+                <div class="batch-summary-grid">
+                    <div class="batch-summary-card is-success">
+                        <span class="batch-summary-label">Emitidas</span>
+                        <strong class="batch-summary-value" id="rsBatchSummaryEmitidas">0</strong>
+                    </div>
+
+                    <div class="batch-summary-card is-danger">
+                        <span class="batch-summary-label">Falhas</span>
+                        <strong class="batch-summary-value" id="rsBatchSummaryFalhas">0</strong>
+                    </div>
+
+                    <div class="batch-summary-card">
+                        <span class="batch-summary-label">Positivas</span>
+                        <strong class="batch-summary-value" id="rsBatchSummaryPositivas">0</strong>
+                    </div>
+
+                    <div class="batch-summary-card">
+                        <span class="batch-summary-label">Negativas</span>
+                        <strong class="batch-summary-value" id="rsBatchSummaryNegativas">0</strong>
+                    </div>
+
+                    <div class="batch-summary-card">
+                        <span class="batch-summary-label">Efeito de negativa</span>
+                        <strong class="batch-summary-value" id="rsBatchSummaryEfeitoNegativas">0</strong>
+                    </div>
+
+                    <div class="batch-summary-card">
+                        <span class="batch-summary-label">Duração</span>
+                        <strong class="batch-summary-value" id="rsBatchSummaryTempo">0s</strong>
+                    </div>
+
+                    <div class="batch-summary-card">
+                        <span class="batch-summary-label">Taxa de sucesso</span>
+                        <strong class="batch-summary-value" id="rsBatchSummaryTaxa">0%</strong>
+                    </div>
+                </div>
             </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-primary" data-bs-dismiss="modal">OK</button>
+            <div class="modal-footer border-0 pt-0">
+                <button type="button" class="btn btn-primary px-4" data-bs-dismiss="modal">OK</button>
             </div>
         </div>
     </div>
@@ -629,6 +697,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const fgtsBatchSummaryFalhas = document.getElementById('fgtsBatchSummaryFalhas');
     const fgtsBatchSummaryTotal = document.getElementById('fgtsBatchSummaryTotal');
     const fgtsBatchSummaryTempo = document.getElementById('fgtsBatchSummaryTempo');
+    const fgtsBatchSummaryTaxa = document.getElementById('fgtsBatchSummaryTaxa');
 
     const fgtsBatchOverlay = document.getElementById('fgts-batch-overlay');
     const fgtsBatchProgress = document.getElementById('fgtsBatchProgress');
@@ -654,6 +723,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const rsBatchSummaryEfeitoNegativas = document.getElementById('rsBatchSummaryEfeitoNegativas');
     const rsBatchSummaryTotal = document.getElementById('rsBatchSummaryTotal');
     const rsBatchSummaryTempo = document.getElementById('rsBatchSummaryTempo');
+    const rsBatchSummaryTaxa = document.getElementById('rsBatchSummaryTaxa');
 
     const rsBatchOverlay = document.getElementById('rs-batch-overlay');
     const rsBatchProgress = document.getElementById('rsBatchProgress');
@@ -1226,6 +1296,13 @@ document.addEventListener('DOMContentLoaded', function() {
         return min > 0 ? `${min}m ${sec}s` : `${sec}s`;
     }
 
+    function calcularTaxaSucesso(success, total) {
+        const sucessoNum = Number(success || 0);
+        const totalNum = Number(total || 0);
+        if (totalNum <= 0) return '0%';
+        return `${Math.round((sucessoNum / totalNum) * 100)}%`;
+    }
+
     function atualizarUltimaLinhaConcluida(data, getLastId, setLastId) {
         if (!(data && data.last_completed && data.last_completed.certidao_id)) return;
 
@@ -1268,10 +1345,15 @@ document.addEventListener('DOMContentLoaded', function() {
                         if (config.overlayEl) config.overlayEl.classList.add('d-none');
                         showToast(config.messages.completed, 'success');
 
-                        if (config.summaryEmitidasEl) config.summaryEmitidasEl.textContent = data.success || 0;
-                        if (config.summaryFalhasEl) config.summaryFalhasEl.textContent = data.falhas || 0;
-                        if (config.summaryTotalEl) config.summaryTotalEl.textContent = data.total || 0;
+                        const success = Number(data.success || 0);
+                        const falhas = Number(data.falhas || 0);
+                        const total = Number(data.total || 0);
+
+                        if (config.summaryEmitidasEl) config.summaryEmitidasEl.textContent = success;
+                        if (config.summaryFalhasEl) config.summaryFalhasEl.textContent = falhas;
+                        if (config.summaryTotalEl) config.summaryTotalEl.textContent = total;
                         if (config.summaryTempoEl) config.summaryTempoEl.textContent = calcularTempoLote(data);
+                        if (config.summaryTaxaEl) config.summaryTaxaEl.textContent = calcularTaxaSucesso(success, total);
                         if (config.onCompleted) config.onCompleted(data);
                         if (config.summaryModal) config.summaryModal.show();
                         return;
@@ -1427,7 +1509,8 @@ document.addEventListener('DOMContentLoaded', function() {
         summaryEmitidasEl: fgtsBatchSummaryEmitidas,
         summaryFalhasEl: fgtsBatchSummaryFalhas,
         summaryTotalEl: fgtsBatchSummaryTotal,
-        summaryTempoEl: fgtsBatchSummaryTempo
+        summaryTempoEl: fgtsBatchSummaryTempo,
+        summaryTaxaEl: fgtsBatchSummaryTaxa
     });
 
     bindBatchControls({
@@ -1472,6 +1555,7 @@ document.addEventListener('DOMContentLoaded', function() {
         summaryFalhasEl: rsBatchSummaryFalhas,
         summaryTotalEl: rsBatchSummaryTotal,
         summaryTempoEl: rsBatchSummaryTempo,
+        summaryTaxaEl: rsBatchSummaryTaxa,
         onCompleted: (data) => {
             if (rsBatchSummaryPositivas) rsBatchSummaryPositivas.textContent = data.positivas || 0;
             if (rsBatchSummaryNegativas) rsBatchSummaryNegativas.textContent = data.negativas || 0;
