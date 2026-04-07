@@ -142,6 +142,30 @@ def _fgts_fechar_abas_extras(driver):
         pass
 
 
+def _fgts_marcar_pendente_por_impedimento(certidao, mensagem_base=None):
+    if not certidao:
+        return False, 'Certidão FGTS inválida para marcação pendente por impedimento.'
+
+    try:
+        certidao.status_especial = StatusEspecial.PENDENTE
+        certidao.data_validade = None
+        db.session.commit()
+    except Exception as exc:
+        db.session.rollback()
+        return False, f'Erro ao marcar FGTS como pendente após impedimento: {exc}'
+
+    with FGTS_BATCH_LOCK:
+        FGTS_BATCH_STATE['fgts_marcadas_pendente'] = FGTS_BATCH_STATE.get('fgts_marcadas_pendente', 0) + 1
+        FGTS_BATCH_STATE['last_completed'] = {
+            'certidao_id': certidao.id,
+            'data_formatada': 'PENDENTE',
+            'nova_classe': 'status-vermelho'
+        }
+
+    msg = mensagem_base or 'FGTS com impedimento de emissão automática. Certidão marcada como pendente.'
+    return True, msg
+
+
 def _fgts_quit_driver_async(driver):
     if not driver:
         return
@@ -872,9 +896,10 @@ def _emitir_fgts_certidao(certidao_id, driver=None):
             'impedimento_msg': None,
         }
 
+        scope_atual = (FGTS_BATCH_STATE.get('scope') or 'default').strip().lower()
         detectar_impedimento = (
             FGTS_BATCH_STATE.get('status') == 'running'
-            and FGTS_BATCH_STATE.get('scope') == 'pendentes'
+            and scope_atual in {'default', 'pendentes'}
         )
 
         _automatizar_fgts(contexto, local_driver, wait, certidao, detectar_impedimento)
@@ -883,7 +908,15 @@ def _emitir_fgts_certidao(certidao_id, driver=None):
             return False, False, 'Lote interrompido.'
 
         if contexto.get('impedimento_fgts'):
-            return False, False, (contexto.get('impedimento_msg') or 'Certidão FGTS mantida como pendente.')
+            msg_impedimento = contexto.get('impedimento_msg') or 'Certidão FGTS mantida como pendente.'
+
+            if scope_atual == 'default':
+                marcado, msg_marcacao = _fgts_marcar_pendente_por_impedimento(certidao, msg_impedimento)
+                if not marcado:
+                    return False, True, msg_marcacao
+                return False, False, msg_marcacao
+
+            return False, False, msg_impedimento
 
         if contexto.get('arquivo_salvo_msg'):
             nova_data = calcular_validade_padrao(certidao, contexto.get('data_encontrada'))
