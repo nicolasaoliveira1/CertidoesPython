@@ -496,6 +496,7 @@
                         <strong class="batch-summary-value" id="fgtsBatchSummaryTaxa">0%</strong>
                     </div>
                 </div>
+                <p class="small text-muted mt-3 mb-0 d-none" id="fgtsBatchSummaryNotice"></p>
             </div>
             <div class="modal-footer border-0 pt-0">
                 <button type="button" class="btn btn-primary px-4" data-bs-dismiss="modal">OK</button>
@@ -707,6 +708,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const fgtsBatchSummaryTotal = document.getElementById('fgtsBatchSummaryTotal');
     const fgtsBatchSummaryTempo = document.getElementById('fgtsBatchSummaryTempo');
     const fgtsBatchSummaryTaxa = document.getElementById('fgtsBatchSummaryTaxa');
+    const fgtsBatchSummaryNotice = document.getElementById('fgtsBatchSummaryNotice');
 
     const fgtsBatchOverlay = document.getElementById('fgts-batch-overlay');
     const fgtsBatchProgress = document.getElementById('fgtsBatchProgress');
@@ -1454,6 +1456,18 @@ document.addEventListener('DOMContentLoaded', function() {
                         if (config.summaryTotalEl) config.summaryTotalEl.textContent = total;
                         if (config.summaryTempoEl) config.summaryTempoEl.textContent = calcularTempoLote(data);
                         if (config.summaryTaxaEl) config.summaryTaxaEl.textContent = calcularTaxaSucesso(success, total);
+
+                        if (config.summaryNoticeEl) {
+                            const qtdPendentes = Number(data.fgts_marcadas_pendente || 0);
+                            if (qtdPendentes > 0 && scopeAtual === 'default') {
+                                config.summaryNoticeEl.textContent = `${qtdPendentes} certidão(ões) não puderam ser emitidas automaticamente no FGTS e foram marcadas como pendente.`;
+                                config.summaryNoticeEl.classList.remove('d-none');
+                            } else {
+                                config.summaryNoticeEl.textContent = '';
+                                config.summaryNoticeEl.classList.add('d-none');
+                            }
+                        }
+
                         if (config.onCompleted) config.onCompleted(data);
                         if (config.summaryModal) config.summaryModal.show();
                         return;
@@ -1616,7 +1630,8 @@ document.addEventListener('DOMContentLoaded', function() {
         summaryFalhasEl: fgtsBatchSummaryFalhas,
         summaryTotalEl: fgtsBatchSummaryTotal,
         summaryTempoEl: fgtsBatchSummaryTempo,
-        summaryTaxaEl: fgtsBatchSummaryTaxa
+        summaryTaxaEl: fgtsBatchSummaryTaxa,
+        summaryNoticeEl: fgtsBatchSummaryNotice
     });
 
     bindBatchControls({
