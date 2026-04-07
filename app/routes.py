@@ -78,6 +78,70 @@ def _fgts_status_por_data(nova_data):
     return 'status-verde'
 
 
+def _fgts_normalizar_texto(texto):
+    texto_limpo = file_manager.remover_acentos((texto or '').strip().lower())
+    texto_limpo = re.sub(r'\s+', ' ', texto_limpo)
+    return texto_limpo
+
+
+def _fgts_detectar_mensagem_impedimento(driver):
+    texto_base = ''
+    try:
+        texto_base = driver.find_element(By.TAG_NAME, 'body').text or ''
+    except Exception:
+        try:
+            texto_base = driver.page_source or ''
+        except Exception:
+            texto_base = ''
+
+    texto_norm = _fgts_normalizar_texto(texto_base)
+    if not texto_norm:
+        return None
+
+    msg_insuficiente = (
+        'as informacoes disponiveis nao sao suficientes para a comprovacao automatica '
+        'da regularidade do empregador perante o fgts'
+    )
+    msg_nao_cadastrado = 'empregador nao cadastrado'
+
+    if msg_insuficiente in texto_norm:
+        return (
+            'FGTS com informações insuficientes para comprovação automática. '
+            'Mantida como PENDENTE e seguindo para a próxima empresa.'
+        )
+
+    if msg_nao_cadastrado in texto_norm:
+        return 'Empregador não cadastrado no FGTS. Mantida como PENDENTE e seguindo para a próxima empresa.'
+
+    return None
+
+
+def _fgts_fechar_abas_extras(driver):
+    if not driver:
+        return
+
+    try:
+        handles = list(driver.window_handles)
+    except Exception:
+        return
+
+    if len(handles) <= 1:
+        return
+
+    principal = handles[0]
+    for handle in handles[1:]:
+        try:
+            driver.switch_to.window(handle)
+            driver.close()
+        except Exception:
+            continue
+
+    try:
+        driver.switch_to.window(principal)
+    except Exception:
+        pass
+
+
 def _fgts_quit_driver_async(driver):
     if not driver:
         return
@@ -328,21 +392,38 @@ def _preparar_pagina_fgts(driver, url, cnpj_field_id):
 
 
 def _calc_fgts_targets(start_certidao_id):
+    return _calc_fgts_targets_by_scope(start_certidao_id, 'default')
+
+
+def _calc_fgts_targets_by_scope(start_certidao_id, scope='default'):
     return batch_engine.calc_targets(
         start_certidao_id,
-        extra_filter=lambda query: query.filter(Certidao.tipo == TipoCertidao.FGTS)
+        extra_filter=lambda query: query.filter(Certidao.tipo == TipoCertidao.FGTS),
+        scope=scope,
     )
 
 
 def _calc_estadual_rs_targets(start_certidao_id):
+    return _calc_estadual_rs_targets_by_scope(start_certidao_id, 'default')
+
+
+def _calc_estadual_rs_targets_by_scope(start_certidao_id, scope='default'):
     return batch_engine.calc_targets(
         start_certidao_id,
         extra_filter=lambda query: (
             query.join(Empresa, Empresa.id == Certidao.empresa_id)
                  .filter(Certidao.tipo == TipoCertidao.ESTADUAL)
                  .filter(Empresa.estado == 'RS')
-        )
+        ),
+        scope=scope,
     )
+
+
+def _parse_batch_scope(raw_scope):
+    scope = (raw_scope or 'default').strip().lower()
+    if scope in {'pendente', 'pendentes'}:
+        return 'pendentes'
+    return 'default'
 
 
 def _snapshot_downloads_pdf():
@@ -786,13 +867,23 @@ def _emitir_fgts_certidao(certidao_id, driver=None):
         contexto = {
             'arquivo_salvo_msg': None,
             'pular_monitoramento': False,
-            'data_encontrada': None
+            'data_encontrada': None,
+            'impedimento_fgts': False,
+            'impedimento_msg': None,
         }
 
-        _automatizar_fgts(contexto, local_driver, wait, certidao)
+        detectar_impedimento = (
+            FGTS_BATCH_STATE.get('status') == 'running'
+            and FGTS_BATCH_STATE.get('scope') == 'pendentes'
+        )
+
+        _automatizar_fgts(contexto, local_driver, wait, certidao, detectar_impedimento)
 
         if _fgts_stop_requested():
             return False, False, 'Lote interrompido.'
+
+        if contexto.get('impedimento_fgts'):
+            return False, False, (contexto.get('impedimento_msg') or 'Certidão FGTS mantida como pendente.')
 
         if contexto.get('arquivo_salvo_msg'):
             nova_data = calcular_validade_padrao(certidao, contexto.get('data_encontrada'))
@@ -883,7 +974,7 @@ def _fgts_batch_worker(app):
 
                 if not sucesso:
                     FGTS_BATCH_STATE['falhas'] += 1
-                    print(f"[FGTS-LOTE] Falha na emissão ID={certidao_id}.")
+                    print(f"[FGTS-LOTE] Falha na emissão ID={certidao_id}. Motivo: {mensagem}")
                 else:
                     FGTS_BATCH_STATE['success'] += 1
                     print(f"[FGTS-LOTE] Emissão OK ID={certidao_id}.")
@@ -900,7 +991,8 @@ def _fgts_batch_worker(app):
 
 @bp.route('/fgts/lote/info/<int:certidao_id>')
 def fgts_lote_info(certidao_id):
-    dados = _calc_fgts_targets(certidao_id)
+    scope = _parse_batch_scope(request.args.get('scope'))
+    dados = _calc_fgts_targets_by_scope(certidao_id, scope=scope)
     return jsonify({
         'status': 'ok',
         **dados
@@ -911,6 +1003,7 @@ def fgts_lote_info(certidao_id):
 def fgts_lote_iniciar():
     dados = request.get_json() or {}
     certidao_id = dados.get('certidao_id')
+    scope = _parse_batch_scope(dados.get('scope'))
 
     if not certidao_id:
         return jsonify({'status': 'error', 'message': 'Certidão inválida.'}), 400
@@ -919,7 +1012,7 @@ def fgts_lote_iniciar():
         FGTS_BATCH_LOCK,
         FGTS_BATCH_STATE,
         certidao_id,
-        _calc_fgts_targets,
+        lambda start_id: _calc_fgts_targets_by_scope(start_id, scope=scope),
         _fgts_batch_worker,
         app_factory=_current_app_object,
     )
@@ -928,6 +1021,8 @@ def fgts_lote_iniciar():
         return jsonify({'status': 'error', 'message': 'Já existe um lote em andamento.'}), 400
 
     if not dados_lote:
+        if scope == 'pendentes':
+            return jsonify({'status': 'error', 'message': 'Nenhuma certidão FGTS pendente para emissão.'}), 400
         return jsonify({'status': 'error', 'message': 'Nenhuma certidão FGTS vencida ou a vencer.'}), 400
 
     print(f"[FGTS-LOTE] Lote iniciado. Total={dados_lote['total']}.")
@@ -977,7 +1072,8 @@ def fgts_lote_status():
 
 @bp.route('/estadual-rs/lote/info/<int:certidao_id>')
 def estadual_rs_lote_info(certidao_id):
-    dados = _calc_estadual_rs_targets(certidao_id)
+    scope = _parse_batch_scope(request.args.get('scope'))
+    dados = _calc_estadual_rs_targets_by_scope(certidao_id, scope=scope)
     return jsonify({
         'status': 'ok',
         **dados
@@ -988,6 +1084,7 @@ def estadual_rs_lote_info(certidao_id):
 def estadual_rs_lote_iniciar():
     dados = request.get_json() or {}
     certidao_id = dados.get('certidao_id')
+    scope = _parse_batch_scope(dados.get('scope'))
 
     if not certidao_id:
         return jsonify({'status': 'error', 'message': 'Certidão inválida.'}), 400
@@ -1002,7 +1099,7 @@ def estadual_rs_lote_iniciar():
         RS_BATCH_LOCK,
         RS_BATCH_STATE,
         certidao_id,
-        _calc_estadual_rs_targets,
+        lambda start_id: _calc_estadual_rs_targets_by_scope(start_id, scope=scope),
         _rs_batch_worker,
         app_factory=_current_app_object,
     )
@@ -1011,6 +1108,8 @@ def estadual_rs_lote_iniciar():
         return jsonify({'status': 'error', 'message': 'Já existe um lote Estadual RS em andamento.'}), 400
 
     if not dados_lote:
+        if scope == 'pendentes':
+            return jsonify({'status': 'error', 'message': 'Nenhuma certidão Estadual RS pendente para emissão.'}), 400
         return jsonify({'status': 'error', 'message': 'Nenhuma certidão Estadual RS vencida ou a vencer.'}), 400
 
     print(f"[ESTADUAL-RS-LOTE] Lote iniciado. Total={dados_lote['total']}.")
@@ -1621,7 +1720,7 @@ def marcar_pendente(certidao_id):
 
     return redirect(url_for('main.dashboard'))
 
-def _automatizar_fgts(contexto, driver, wait, certidao):
+def _automatizar_fgts(contexto, driver, wait, certidao, detectar_impedimento=False):
     def _parar_se_solicitado():
         if _fgts_stop_requested():
             try:
@@ -1644,6 +1743,12 @@ def _automatizar_fgts(contexto, driver, wait, certidao):
                 continue
         return None
 
+    def _marcar_impedimento_e_sair(mensagem):
+        contexto['impedimento_fgts'] = True
+        contexto['impedimento_msg'] = mensagem
+        _fgts_fechar_abas_extras(driver)
+        print(f"[FGTS][PENDENTES] {mensagem}")
+
     try:
         btn_consultar = _aguardar_clickable((By.ID, "mainForm:btnConsultar"))
         if not btn_consultar:
@@ -1654,14 +1759,30 @@ def _automatizar_fgts(contexto, driver, wait, certidao):
         btn_consultar.click()
         time.sleep(1)
 
+        if detectar_impedimento:
+            msg_impedimento = _fgts_detectar_mensagem_impedimento(driver)
+            if msg_impedimento:
+                _marcar_impedimento_e_sair(msg_impedimento)
+                return
+
         btn_certificado = _aguardar_clickable((By.ID, "mainForm:j_id51"))
         if not btn_certificado:
+            if detectar_impedimento:
+                msg_impedimento = _fgts_detectar_mensagem_impedimento(driver)
+                if msg_impedimento:
+                    _marcar_impedimento_e_sair(msg_impedimento)
             return
         print("clicando em Certificado")
         if _parar_se_solicitado():
             return
         btn_certificado.click()
         time.sleep(1)
+
+        if detectar_impedimento:
+            msg_impedimento = _fgts_detectar_mensagem_impedimento(driver)
+            if msg_impedimento:
+                _marcar_impedimento_e_sair(msg_impedimento)
+                return
 
         # tentar localizar data de validade na página
         if not contexto.get('data_encontrada'):
@@ -1681,6 +1802,10 @@ def _automatizar_fgts(contexto, driver, wait, certidao):
 
         btn_visualizar = _aguardar_clickable((By.ID, "mainForm:btnVisualizar"))
         if not btn_visualizar:
+            if detectar_impedimento:
+                msg_impedimento = _fgts_detectar_mensagem_impedimento(driver)
+                if msg_impedimento:
+                    _marcar_impedimento_e_sair(msg_impedimento)
             return
         print("clicando em Visualizar")
         if _parar_se_solicitado():

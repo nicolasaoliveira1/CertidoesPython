@@ -1,7 +1,7 @@
 from datetime import date, datetime, timedelta
 from threading import Thread
 
-from app.models import Certidao
+from app.models import Certidao, StatusEspecial
 
 
 def batch_state_defaults():
@@ -10,8 +10,10 @@ def batch_state_defaults():
         'ids': [],
         'index': 0,
         'total': 0,
+        'scope': 'default',
         'vencidas': 0,
         'a_vencer': 0,
+        'pendentes': 0,
         'falhas': 0,
         'current_id': None,
         'message': None,
@@ -37,10 +39,12 @@ def build_batch_status_payload(batch_state):
         'status': batch_state['status'],
         'total': batch_state['total'],
         'index': batch_state['index'],
+        'scope': batch_state.get('scope', 'default'),
         'falhas': batch_state['falhas'],
         'current_id': batch_state['current_id'],
         'vencidas': batch_state['vencidas'],
         'a_vencer': batch_state['a_vencer'],
+        'pendentes': batch_state.get('pendentes', 0),
         'message': batch_state['message'],
         'last_completed': batch_state.get('last_completed'),
         'success': batch_state.get('success', 0),
@@ -102,8 +106,10 @@ def init_batch_run(batch_lock, batch_state, start_id, calc_targets_fn, worker_fn
             'status': 'running',
             'ids': dados_lote['ids'],
             'total': dados_lote['total'],
+            'scope': dados_lote.get('scope', 'default'),
             'vencidas': dados_lote['vencidas'],
             'a_vencer': dados_lote['a_vencer'],
+            'pendentes': dados_lote.get('pendentes', 0),
             'started_at': datetime.utcnow(),
             'finished_at': None,
             'success': 0,
@@ -118,23 +124,33 @@ def status_payload_locked(batch_lock, batch_state):
         return build_batch_status_payload(batch_state)
 
 
-def calc_targets(start_certidao_id, extra_filter=None):
+def calc_targets(start_certidao_id, extra_filter=None, scope='default'):
     hoje = date.today()
     limite = hoje + timedelta(days=7)
 
-    query = (Certidao.query
-             .filter(Certidao.data_validade != None)
-             .filter(Certidao.data_validade <= limite)
-             .order_by(Certidao.id))
+    query = Certidao.query.order_by(Certidao.id)
 
     if extra_filter is not None:
         query = extra_filter(query)
 
+    scope_norm = (scope or 'default').strip().lower()
+    if scope_norm == 'pendentes':
+        query = query.filter(Certidao.status_especial == StatusEspecial.PENDENTE)
+    else:
+        scope_norm = 'default'
+        query = (query
+                 .filter(Certidao.data_validade != None)
+                 .filter(Certidao.data_validade <= limite))
+
     certidoes = query.all()
 
     ids = [c.id for c in certidoes if c.data_validade]
+    if scope_norm == 'pendentes':
+        ids = [c.id for c in certidoes]
+
     vencidas = sum(1 for c in certidoes if c.data_validade and c.data_validade < hoje)
     a_vencer = sum(1 for c in certidoes if c.data_validade and hoje <= c.data_validade <= limite)
+    pendentes = sum(1 for c in certidoes if c.status_especial == StatusEspecial.PENDENTE)
 
     if start_certidao_id in ids:
         ids.remove(start_certidao_id)
@@ -143,6 +159,8 @@ def calc_targets(start_certidao_id, extra_filter=None):
     return {
         'ids': ids,
         'total': len(ids),
+        'scope': scope_norm,
         'vencidas': vencidas,
         'a_vencer': a_vencer,
+        'pendentes': pendentes,
     }

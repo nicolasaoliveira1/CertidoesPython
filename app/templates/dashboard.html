@@ -287,7 +287,8 @@
                                                     data-id="{{ certidao.id }}"
                                                     data-tipo="{{ certidao.tipo.name }}"
                                                     data-subtipo="{{ certidao.subtipo.name | lower if certidao.subtipo else '' }}"
-                                                    data-manual-only="{{ '1' if sp_municipal_manual else '0' }}">
+                                                    data-manual-only="{{ '1' if sp_municipal_manual else '0' }}"
+                                                    data-status-especial="{{ certidao.status_especial.value if certidao.status_especial else '' }}">
                                                 <i class="bi bi-download fs-5"></i>
                                             </button>
                                         </div>
@@ -436,17 +437,18 @@
             </div>
             <div class="modal-body">
                 <p class="batch-modal-intro mb-3">Foram encontradas certidões FGTS:</p>
+                <p class="text-muted small mb-3 d-none" id="fgtsBatchScopeHint"></p>
                 <div class="batch-kpi-grid">
                     <div class="batch-kpi-card is-danger">
-                        <span class="batch-kpi-label">Vencidas</span>
+                        <span class="batch-kpi-label" id="fgtsBatchLabelVencidas">Vencidas</span>
                         <strong class="batch-kpi-value" id="fgtsBatchVencidas">0</strong>
                     </div>
                     <div class="batch-kpi-card is-warning">
-                        <span class="batch-kpi-label">A vencer</span>
+                        <span class="batch-kpi-label" id="fgtsBatchLabelAVencer">A vencer</span>
                         <strong class="batch-kpi-value" id="fgtsBatchAVencer">0</strong>
                     </div>
                     <div class="batch-kpi-card is-total">
-                        <span class="batch-kpi-label">Total do lote</span>
+                        <span class="batch-kpi-label" id="fgtsBatchLabelTotal">Total do lote</span>
                         <strong class="batch-kpi-value" id="fgtsBatchTotal">0</strong>
                     </div>
                 </div>
@@ -479,8 +481,8 @@
                         <strong class="batch-summary-value" id="fgtsBatchSummaryEmitidas">0</strong>
                     </div>
 
-                    <div class="batch-summary-card is-danger">
-                        <span class="batch-summary-label">Falhas</span>
+                    <div class="batch-summary-card is-danger" id="fgtsBatchSummaryOutcomeCard">
+                        <span class="batch-summary-label" id="fgtsBatchSummaryOutcomeLabel">Falhas</span>
                         <strong class="batch-summary-value" id="fgtsBatchSummaryFalhas">0</strong>
                     </div>
 
@@ -511,17 +513,18 @@
             </div>
             <div class="modal-body">
                 <p class="batch-modal-intro mb-3">Foram encontradas certidões Estadual RS:</p>
+                <p class="text-muted small mb-3 d-none" id="rsBatchScopeHint"></p>
                 <div class="batch-kpi-grid">
                     <div class="batch-kpi-card is-danger">
-                        <span class="batch-kpi-label">Vencidas</span>
+                        <span class="batch-kpi-label" id="rsBatchLabelVencidas">Vencidas</span>
                         <strong class="batch-kpi-value" id="rsBatchVencidas">0</strong>
                     </div>
                     <div class="batch-kpi-card is-warning">
-                        <span class="batch-kpi-label">A vencer</span>
+                        <span class="batch-kpi-label" id="rsBatchLabelAVencer">A vencer</span>
                         <strong class="batch-kpi-value" id="rsBatchAVencer">0</strong>
                     </div>
                     <div class="batch-kpi-card is-total">
-                        <span class="batch-kpi-label">Total do lote</span>
+                        <span class="batch-kpi-label" id="rsBatchLabelTotal">Total do lote</span>
                         <strong class="batch-kpi-value" id="rsBatchTotal">0</strong>
                     </div>
                 </div>
@@ -555,8 +558,8 @@
                         <strong class="batch-summary-value" id="rsBatchSummaryEmitidas">0</strong>
                     </div>
 
-                    <div class="batch-summary-card is-danger">
-                        <span class="batch-summary-label">Falhas</span>
+                    <div class="batch-summary-card is-danger" id="rsBatchSummaryOutcomeCard">
+                        <span class="batch-summary-label" id="rsBatchSummaryOutcomeLabel">Falhas</span>
                         <strong class="batch-summary-value" id="rsBatchSummaryFalhas">0</strong>
                     </div>
 
@@ -690,10 +693,16 @@ document.addEventListener('DOMContentLoaded', function() {
     const fgtsBatchVencidas = document.getElementById('fgtsBatchVencidas');
     const fgtsBatchAVencer = document.getElementById('fgtsBatchAVencer');
     const fgtsBatchTotal = document.getElementById('fgtsBatchTotal');
+    const fgtsBatchLabelVencidas = document.getElementById('fgtsBatchLabelVencidas');
+    const fgtsBatchLabelAVencer = document.getElementById('fgtsBatchLabelAVencer');
+    const fgtsBatchLabelTotal = document.getElementById('fgtsBatchLabelTotal');
+    const fgtsBatchScopeHint = document.getElementById('fgtsBatchScopeHint');
     const btnFgtsBatchStart = document.getElementById('btnFgtsBatchStart');
     const btnFgtsSingleEmit = document.getElementById('btnFgtsSingleEmit');
 
     const fgtsBatchSummaryEmitidas = document.getElementById('fgtsBatchSummaryEmitidas');
+    const fgtsBatchSummaryOutcomeCard = document.getElementById('fgtsBatchSummaryOutcomeCard');
+    const fgtsBatchSummaryOutcomeLabel = document.getElementById('fgtsBatchSummaryOutcomeLabel');
     const fgtsBatchSummaryFalhas = document.getElementById('fgtsBatchSummaryFalhas');
     const fgtsBatchSummaryTotal = document.getElementById('fgtsBatchSummaryTotal');
     const fgtsBatchSummaryTempo = document.getElementById('fgtsBatchSummaryTempo');
@@ -713,10 +722,16 @@ document.addEventListener('DOMContentLoaded', function() {
     const rsBatchVencidas = document.getElementById('rsBatchVencidas');
     const rsBatchAVencer = document.getElementById('rsBatchAVencer');
     const rsBatchTotal = document.getElementById('rsBatchTotal');
+    const rsBatchLabelVencidas = document.getElementById('rsBatchLabelVencidas');
+    const rsBatchLabelAVencer = document.getElementById('rsBatchLabelAVencer');
+    const rsBatchLabelTotal = document.getElementById('rsBatchLabelTotal');
+    const rsBatchScopeHint = document.getElementById('rsBatchScopeHint');
     const btnRsBatchStart = document.getElementById('btnRsBatchStart');
     const btnRsSingleEmit = document.getElementById('btnRsSingleEmit');
 
     const rsBatchSummaryEmitidas = document.getElementById('rsBatchSummaryEmitidas');
+    const rsBatchSummaryOutcomeCard = document.getElementById('rsBatchSummaryOutcomeCard');
+    const rsBatchSummaryOutcomeLabel = document.getElementById('rsBatchSummaryOutcomeLabel');
     const rsBatchSummaryFalhas = document.getElementById('rsBatchSummaryFalhas');
     const rsBatchSummaryPositivas = document.getElementById('rsBatchSummaryPositivas');
     const rsBatchSummaryNegativas = document.getElementById('rsBatchSummaryNegativas');
@@ -766,12 +781,14 @@ document.addEventListener('DOMContentLoaded', function() {
     let fgtsBatchSingleUrl = null;
     let fgtsBatchEmpresaNome = null;
     let fgtsBatchTipoCert = null;
+    let fgtsBatchScope = 'default';
     let rsBatchCertidaoId = null;
     let rsBatchPoller = null;
     let rsBatchLastCompletedId = null;
     let rsBatchSingleUrl = null;
     let rsBatchEmpresaNome = null;
     let rsBatchTipoCert = null;
+    let rsBatchScope = 'default';
     let caminhoArquivoParaModal = null;
     const loadingOverlay = document.getElementById('loading-overlay');
     const loadingDetalhes = document.getElementById('loading-detalhes');
@@ -795,6 +812,48 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     function hideLoading() {
         if (loadingOverlay) loadingOverlay.classList.add('d-none');
+    }
+
+    function normalizeBatchScope(scopeValue) {
+        const value = (scopeValue || '').toString().trim().toLowerCase();
+        return (value === 'pendente' || value === 'pendentes') ? 'pendentes' : 'default';
+    }
+
+    function isPendenteStatus(statusEspecial) {
+        return (statusEspecial || '').toString().trim().toLowerCase() === 'pendente';
+    }
+
+    function applyBatchModalData(config, data, scope) {
+        const scopeNorm = normalizeBatchScope(scope || data.scope);
+        const pendentes = Number(data.pendentes || 0);
+        const vencidas = Number(data.vencidas || 0);
+        const aVencer = Number(data.a_vencer || 0);
+        const total = Number(data.total || 0);
+
+        if (config.scopeHintEl) {
+            if (scopeNorm === 'pendentes') {
+                config.scopeHintEl.textContent = 'Modo pendentes: você pode emitir apenas esta empresa ou iniciar o lote com todas as pendentes deste tipo.';
+                config.scopeHintEl.classList.remove('d-none');
+            } else {
+                config.scopeHintEl.textContent = '';
+                config.scopeHintEl.classList.add('d-none');
+            }
+        }
+
+        if (scopeNorm === 'pendentes') {
+            if (config.labelVencidasEl) config.labelVencidasEl.textContent = 'Pendentes';
+            if (config.labelAVencerEl) config.labelAVencerEl.textContent = 'Outras situações';
+            if (config.valueVencidasEl) config.valueVencidasEl.textContent = pendentes;
+            if (config.valueAVencerEl) config.valueAVencerEl.textContent = Math.max(0, total - pendentes);
+        } else {
+            if (config.labelVencidasEl) config.labelVencidasEl.textContent = 'Vencidas';
+            if (config.labelAVencerEl) config.labelAVencerEl.textContent = 'A vencer';
+            if (config.valueVencidasEl) config.valueVencidasEl.textContent = vencidas;
+            if (config.valueAVencerEl) config.valueAVencerEl.textContent = aVencer;
+        }
+
+        if (config.labelTotalEl) config.labelTotalEl.textContent = 'Total do lote';
+        if (config.valueTotalEl) config.valueTotalEl.textContent = total;
     }
 
     function cleanupUiLocks(options = {}) {
@@ -1101,6 +1160,7 @@ document.addEventListener('DOMContentLoaded', function() {
         btn.addEventListener('click', function(event) {
             event.preventDefault();
             linhaAtualTabela = btn.closest('tr');
+            const clickedStatusEspecial = (btn.dataset.statusEspecial || '').trim();
             
             const originalHTML = btn.innerHTML;
             btn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>';
@@ -1121,7 +1181,9 @@ document.addEventListener('DOMContentLoaded', function() {
                     return;
                 }
 
-                fetch(`/fgts/lote/info/${certidaoId}`)
+                fgtsBatchScope = isPendenteStatus(clickedStatusEspecial) ? 'pendentes' : 'default';
+
+                fetch(`/fgts/lote/info/${certidaoId}?scope=${encodeURIComponent(fgtsBatchScope)}`)
                     .then(response => response.json())
                     .then(data => {
                         resetDownloadButton(btn, originalHTML);
@@ -1131,8 +1193,20 @@ document.addEventListener('DOMContentLoaded', function() {
                         }
 
                         const totalLote = Number(data.total || 0);
+                        const scopeAtual = normalizeBatchScope(data.scope || fgtsBatchScope);
+                        fgtsBatchScope = scopeAtual;
 
-                        if (totalLote <= 1) {
+                        applyBatchModalData({
+                            scopeHintEl: fgtsBatchScopeHint,
+                            labelVencidasEl: fgtsBatchLabelVencidas,
+                            labelAVencerEl: fgtsBatchLabelAVencer,
+                            labelTotalEl: fgtsBatchLabelTotal,
+                            valueVencidasEl: fgtsBatchVencidas,
+                            valueAVencerEl: fgtsBatchAVencer,
+                            valueTotalEl: fgtsBatchTotal
+                        }, data, scopeAtual);
+
+                        if (totalLote <= 1 && scopeAtual !== 'pendentes') {
                             if (!fgtsBatchSingleUrl) {
                                 showToast('URL de emissão indisponível.', 'error');
                                 return;
@@ -1152,10 +1226,6 @@ document.addEventListener('DOMContentLoaded', function() {
                                 });
                             return;
                         }
-
-                        if (fgtsBatchVencidas) fgtsBatchVencidas.textContent = data.vencidas || 0;
-                        if (fgtsBatchAVencer) fgtsBatchAVencer.textContent = data.a_vencer || 0;
-                        if (fgtsBatchTotal) fgtsBatchTotal.textContent = data.total || 0;
                         if (fgtsBatchModal) fgtsBatchModal.show();
                     })
                     .catch(() => {
@@ -1182,7 +1252,9 @@ document.addEventListener('DOMContentLoaded', function() {
                     return;
                 }
 
-                fetch(`/estadual-rs/lote/info/${rsBatchCertidaoId}`)
+                rsBatchScope = isPendenteStatus(clickedStatusEspecial) ? 'pendentes' : 'default';
+
+                fetch(`/estadual-rs/lote/info/${rsBatchCertidaoId}?scope=${encodeURIComponent(rsBatchScope)}`)
                     .then(response => response.json())
                     .then(data => {
                         resetDownloadButton(btn, originalHTML);
@@ -1192,8 +1264,20 @@ document.addEventListener('DOMContentLoaded', function() {
                         }
 
                         const totalLote = Number(data.total || 0);
+                        const scopeAtual = normalizeBatchScope(data.scope || rsBatchScope);
+                        rsBatchScope = scopeAtual;
 
-                        if (totalLote <= 1) {
+                        applyBatchModalData({
+                            scopeHintEl: rsBatchScopeHint,
+                            labelVencidasEl: rsBatchLabelVencidas,
+                            labelAVencerEl: rsBatchLabelAVencer,
+                            labelTotalEl: rsBatchLabelTotal,
+                            valueVencidasEl: rsBatchVencidas,
+                            valueAVencerEl: rsBatchAVencer,
+                            valueTotalEl: rsBatchTotal
+                        }, data, scopeAtual);
+
+                        if (totalLote <= 1 && scopeAtual !== 'pendentes') {
                             if (!rsBatchSingleUrl) {
                                 showToast('URL de emissão indisponível.', 'error');
                                 return;
@@ -1213,10 +1297,6 @@ document.addEventListener('DOMContentLoaded', function() {
                                 });
                             return;
                         }
-
-                        if (rsBatchVencidas) rsBatchVencidas.textContent = data.vencidas || 0;
-                        if (rsBatchAVencer) rsBatchAVencer.textContent = data.a_vencer || 0;
-                        if (rsBatchTotal) rsBatchTotal.textContent = data.total || 0;
                         if (rsBatchModal) rsBatchModal.show();
                     })
                     .catch(() => {
@@ -1303,6 +1383,17 @@ document.addEventListener('DOMContentLoaded', function() {
         return `${Math.round((sucessoNum / totalNum) * 100)}%`;
     }
 
+    function applySummaryOutcomeVisual(scope, labelEl, cardEl) {
+        if (!labelEl || !cardEl) return;
+
+        const scopeNorm = normalizeBatchScope(scope);
+        const isPendentes = scopeNorm === 'pendentes';
+
+        labelEl.textContent = isPendentes ? 'Pendentes' : 'Falhas';
+        cardEl.classList.remove('is-warning');
+        cardEl.classList.add('is-danger');
+    }
+
     function atualizarUltimaLinhaConcluida(data, getLastId, setLastId) {
         if (!(data && data.last_completed && data.last_completed.certidao_id)) return;
 
@@ -1348,6 +1439,15 @@ document.addEventListener('DOMContentLoaded', function() {
                         const success = Number(data.success || 0);
                         const falhas = Number(data.falhas || 0);
                         const total = Number(data.total || 0);
+                        const scopeAtual = normalizeBatchScope(
+                            data.scope || (config.getBatchScope ? config.getBatchScope() : 'default')
+                        );
+
+                        applySummaryOutcomeVisual(
+                            scopeAtual,
+                            config.summaryOutcomeLabelEl,
+                            config.summaryOutcomeCardEl
+                        );
 
                         if (config.summaryEmitidasEl) config.summaryEmitidasEl.textContent = success;
                         if (config.summaryFalhasEl) config.summaryFalhasEl.textContent = falhas;
@@ -1390,7 +1490,10 @@ document.addEventListener('DOMContentLoaded', function() {
                 fetch(config.endpoints.start, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ certidao_id: config.getCertidaoId() })
+                    body: JSON.stringify({
+                        certidao_id: config.getCertidaoId(),
+                        scope: config.getBatchScope ? config.getBatchScope() : 'default'
+                    })
                 })
                     .then(r => r.json())
                     .then(data => {
@@ -1493,6 +1596,7 @@ document.addEventListener('DOMContentLoaded', function() {
         getLastCompletedId: () => fgtsBatchLastCompletedId,
         setLastCompletedId: (value) => { fgtsBatchLastCompletedId = value; },
         getCertidaoId: () => fgtsBatchCertidaoId,
+        getBatchScope: () => fgtsBatchScope,
         getSingleUrl: () => fgtsBatchSingleUrl,
         getEmpresaNome: () => fgtsBatchEmpresaNome,
         getTipoCert: () => fgtsBatchTipoCert,
@@ -1507,6 +1611,8 @@ document.addEventListener('DOMContentLoaded', function() {
         batchModal: fgtsBatchModal,
         summaryModal: fgtsBatchSummaryModal,
         summaryEmitidasEl: fgtsBatchSummaryEmitidas,
+        summaryOutcomeCardEl: fgtsBatchSummaryOutcomeCard,
+        summaryOutcomeLabelEl: fgtsBatchSummaryOutcomeLabel,
         summaryFalhasEl: fgtsBatchSummaryFalhas,
         summaryTotalEl: fgtsBatchSummaryTotal,
         summaryTempoEl: fgtsBatchSummaryTempo,
@@ -1538,6 +1644,7 @@ document.addEventListener('DOMContentLoaded', function() {
         getLastCompletedId: () => rsBatchLastCompletedId,
         setLastCompletedId: (value) => { rsBatchLastCompletedId = value; },
         getCertidaoId: () => rsBatchCertidaoId,
+        getBatchScope: () => rsBatchScope,
         getSingleUrl: () => rsBatchSingleUrl,
         getEmpresaNome: () => rsBatchEmpresaNome,
         getTipoCert: () => rsBatchTipoCert,
@@ -1552,6 +1659,8 @@ document.addEventListener('DOMContentLoaded', function() {
         batchModal: rsBatchModal,
         summaryModal: rsBatchSummaryModal,
         summaryEmitidasEl: rsBatchSummaryEmitidas,
+        summaryOutcomeCardEl: rsBatchSummaryOutcomeCard,
+        summaryOutcomeLabelEl: rsBatchSummaryOutcomeLabel,
         summaryFalhasEl: rsBatchSummaryFalhas,
         summaryTotalEl: rsBatchSummaryTotal,
         summaryTempoEl: rsBatchSummaryTempo,
