@@ -762,6 +762,37 @@ footer {
     box-shadow: none !important;
 }
 
+.copy-cnpj {
+    font-size: inherit;
+    line-height: 1.5;
+    color: inherit;
+    
+    display: inline-flex;
+    align-items: center;
+    gap: 0.2rem;
+    vertical-align: middle;
+    border: 0;
+    cursor: pointer;
+    transition: opacity 0.15s ease, text-decoration-color 0.15s ease;
+}
+
+.copy-cnpj:hover,
+.copy-cnpj:focus {
+    color: inherit;
+    opacity: 1;
+}
+
+.copy-cnpj:focus-visible {
+    outline: 2px solid rgba(13, 110, 253, 0.3);
+    outline-offset: 2px;
+    border-radius: 0.25rem;
+}
+
+.copy-cnpj i {
+    font-size: 0.95em;
+    line-height: 1.5;
+}
+
 /* dark mode */
 
 [data-bs-theme="dark"] .table-bordered,
