@@ -2,6 +2,11 @@ import json
 
 from twocaptcha import TwoCaptcha
 
+from app.errors import ErrorType, map_exception_to_error_type
+from app.services.correlation import CorrelationContext
+from app.services.execution_logger import log_event
+from app.services.retry import retry_call
+
 
 class AltchaSolverError(Exception):
     pass
@@ -45,7 +50,10 @@ def _extract_code(result):
     return ''
 
 
-def solve_altcha(config, page_url, challenge_json=None, challenge_url=None):
+def solve_altcha(config, page_url, challenge_json=None, challenge_url=None, execution_id=None):
+    if execution_id:
+        CorrelationContext.set_execution_id(execution_id)
+
     api_key = (config.get('CAPTCHA_2_API_KEY') or '').strip()
     if not api_key:
         raise AltchaSolverConfigError('CAPTCHA_2_API_KEY não configurada.')
@@ -72,14 +80,44 @@ def solve_altcha(config, page_url, challenge_json=None, challenge_url=None):
     else:
         payload['challenge_url'] = str(challenge_url)
 
+    def _resolver():
+        return solver.altcha(**payload)
+
+    def _retry_if(exc):
+        err_type = map_exception_to_error_type(exc)
+        return err_type in {ErrorType.TIMEOUT, ErrorType.NETWORK_PATH, ErrorType.PORTAL}
+
     try:
-        result = solver.altcha(**payload)
+        result = retry_call(
+            _resolver,
+            max_attempts=3,
+            base_delay=0.5,
+            jitter=0.2,
+            retry_if=_retry_if,
+            on_retry=lambda attempt, delay, exc: log_event(
+                'altcha_retry',
+                level='WARNING',
+                attempt=attempt,
+                delay_ms=int(delay * 1000),
+                error_type=map_exception_to_error_type(exc).value,
+                error=str(exc),
+            ),
+        )
     except Exception as exc:
+        err_type = map_exception_to_error_type(exc)
+        log_event(
+            'altcha_error',
+            level='ERROR',
+            error_type=err_type.value,
+            error=str(exc),
+        )
         raise AltchaSolverRuntimeError(f'Falha ao resolver ALTCHA no 2captcha: {exc}') from exc
 
     code = _extract_code(result)
     if not code:
         raise AltchaSolverRuntimeError(f'Resposta ALTCHA sem token reutilizável: {result}')
+
+    log_event('altcha_solved', status='ok')
 
     return {
         'code': code,

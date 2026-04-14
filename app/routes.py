@@ -15,7 +15,7 @@ except ImportError:
     winreg = None
 
 from flask import (Blueprint, flash, jsonify, redirect, render_template,
-                   request, url_for, send_file, current_app)
+                   request, url_for, send_file, current_app, g)
 from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
 from selenium import webdriver
 from selenium.common.exceptions import (InvalidSessionIdException,
@@ -35,9 +35,14 @@ import pdfplumber
 
 from app import db, file_manager
 from app.automation import SITES_CERTIDOES, VALIDADES_CERTIDOES
+from app.errors import map_exception_to_error_type
 from app.models import (Certidao, Empresa, Municipio, StatusEspecial,
                         SubtipoCertidao, TipoCertidao)
 from app.services import batch_engine
+from app.services.correlation import CorrelationContext
+from app.services.execution_logger import log_event
+from app.services.health import run_health_checks
+from app.services.retry import retry_call
 from app.services.rs_altcha import (clicar_enviar_estadual_rs as _clicar_enviar_estadual_rs,
                                     resolver_altcha_rs_com_2captcha as _resolver_altcha_rs_com_2captcha)
 
@@ -51,6 +56,36 @@ RS_CERT_POLICY_ACTIVE_COUNT = 0
 FGTS_BATCH_STATE = batch_engine.batch_state_defaults()
 
 RS_BATCH_STATE = batch_engine.batch_state_defaults()
+
+
+@bp.before_app_request
+def _before_request_observability():
+    g.req_start = time.time()
+    CorrelationContext.new_request_id()
+
+
+@bp.after_app_request
+def _after_request_observability(response):
+    duration_ms = int((time.time() - getattr(g, 'req_start', time.time())) * 1000)
+
+    path = request.path or ''
+    is_static = path.startswith('/static/') or path == '/favicon.ico'
+    is_batch_poll = path in {'/fgts/lote/status', '/estadual-rs/lote/status'}
+    is_health_ok = path == '/health' and response.status_code == 200
+
+    if is_static or is_health_ok or (is_batch_poll and response.status_code == 200):
+        CorrelationContext.clear()
+        return response
+
+    log_event(
+        'http_request',
+        method=request.method,
+        path=path,
+        status_code=response.status_code,
+        duration_ms=duration_ms,
+    )
+    CorrelationContext.clear()
+    return response
 
 
 def _current_app_object():
@@ -392,13 +427,33 @@ def _preparar_pagina_fgts(driver, url, cnpj_field_id):
     except Exception:
         pass
 
-    try:
-        driver.get(url)
-    except TimeoutException:
+    def _carregar_url_fgts():
         try:
-            driver.execute_script("window.stop();")
-        except Exception:
-            pass
+            driver.get(url)
+        except TimeoutException:
+            try:
+                driver.execute_script("window.stop();")
+            except Exception:
+                pass
+            raise
+
+    try:
+        retry_call(
+            _carregar_url_fgts,
+            max_attempts=3,
+            base_delay=0.5,
+            jitter=0.2,
+            retry_if=lambda exc: isinstance(exc, TimeoutException),
+            on_retry=lambda attempt, delay, exc: log_event(
+                'fgts_page_retry',
+                level='WARNING',
+                attempt=attempt,
+                delay_ms=int(delay * 1000),
+                error=str(exc),
+            ),
+        )
+    except TimeoutException:
+        pass
 
     deadline = time.time() + 20
     while time.time() < deadline:
@@ -566,7 +621,9 @@ def _rs_preencher_cnpj_com_confirmacao(driver, cnpj_field_name, cnpj_limpo, tent
     return False
 
 
-def _emitir_estadual_rs_certidao(certidao_id, driver=None, usar_2captcha=False):
+def _emitir_estadual_rs_certidao(certidao_id, driver=None, usar_2captcha=False, execution_id=None):
+    if execution_id:
+        CorrelationContext.set_execution_id(execution_id)
     if _rs_batch_stop_requested():
         return False, False, 'Lote interrompido.'
 
@@ -591,6 +648,15 @@ def _emitir_estadual_rs_certidao(certidao_id, driver=None, usar_2captcha=False):
         state = _rs_get_page_state(local_driver)
         elapsed = time.time() - inicio_fluxo
         sufixo = f" | {extra}" if extra else ''
+        log_event(
+            'rs_batch_stage',
+            certidao_id=certidao_id,
+            empresa_id=certidao.empresa_id if certidao else None,
+            stage=etapa,
+            duration_ms=int(elapsed * 1000),
+            status='running',
+            extra=extra,
+        )
         print(
             f"[ESTADUAL-RS-LOTE][ID={certidao_id}] {etapa} "
             f"| +{elapsed:.1f}s | url={state['url']} | title={state['title']}{sufixo}"
@@ -648,6 +714,16 @@ def _emitir_estadual_rs_certidao(certidao_id, driver=None, usar_2captcha=False):
             if not altcha_resultado or altcha_resultado.get('status') != 'solved':
                 detalhe = (altcha_resultado or {}).get('message') if altcha_resultado else None
                 detalhe_upper = (detalhe or '').upper()
+                if detalhe:
+                    err_type = map_exception_to_error_type(detalhe)
+                    log_event(
+                        'rs_altcha_attempt_failed',
+                        level='WARNING',
+                        certidao_id=certidao_id,
+                        empresa_id=certidao.empresa_id if certidao else None,
+                        error_type=err_type.value,
+                        error=detalhe,
+                    )
                 if 'ERROR_KEY_DOES_NOT_EXIST' in detalhe_upper:
                     return (
                         False,
@@ -759,6 +835,14 @@ def _emitir_estadual_rs_certidao(certidao_id, driver=None, usar_2captcha=False):
         return True, False, None
     except Exception as exc:
         db.session.rollback()
+        log_event(
+            'rs_batch_error',
+            level='ERROR',
+            certidao_id=certidao_id,
+            empresa_id=certidao.empresa_id if certidao else None,
+            error_type=map_exception_to_error_type(exc).value,
+            error=str(exc),
+        )
         return False, True, f'Erro grave no lote Estadual RS: {exc}'
     finally:
         if criado_localmente:
@@ -775,6 +859,10 @@ def _rs_batch_worker(app):
         driver = None
         rs_policy_ativa = False
         print("[ESTADUAL-RS-LOTE] Worker iniciado.")
+        execution_id = RS_BATCH_STATE.get('execution_id')
+        if execution_id:
+            CorrelationContext.set_execution_id(execution_id)
+        log_event('rs_batch_worker_start', status='running')
 
         try:
             rs_policy_ativa = _ativar_politica_autoselect_rs_temporaria()
@@ -808,7 +896,8 @@ def _rs_batch_worker(app):
                 sucesso, grave, mensagem = _emitir_estadual_rs_certidao(
                     certidao_id,
                     driver=driver,
-                    usar_2captcha=True
+                    usar_2captcha=True,
+                    execution_id=execution_id,
                 )
 
                 with RS_BATCH_LOCK:
@@ -841,10 +930,16 @@ def _rs_batch_worker(app):
                     pass
             if rs_policy_ativa:
                 _desativar_politica_autoselect_rs_temporaria()
+            log_event('rs_batch_worker_end', status=RS_BATCH_STATE.get('status'))
+            CorrelationContext.clear()
             print("[ESTADUAL-RS-LOTE] Worker encerrado.")
 
 
-def _emitir_fgts_certidao(certidao_id, driver=None):
+def _emitir_fgts_certidao(certidao_id, driver=None, execution_id=None):
+    if execution_id:
+        CorrelationContext.set_execution_id(execution_id)
+
+    inicio_fluxo = time.time()
     if _fgts_stop_requested():
         return False, False, 'Lote interrompido.'
 
@@ -859,6 +954,7 @@ def _emitir_fgts_certidao(certidao_id, driver=None):
     local_driver = driver
     criado_localmente = False
     try:
+        log_event('fgts_emit_start', certidao_id=certidao_id, empresa_id=certidao.empresa_id)
         if _fgts_stop_requested():
             return False, False, 'Lote interrompido.'
 
@@ -935,9 +1031,25 @@ def _emitir_fgts_certidao(certidao_id, driver=None):
                     'data_formatada': nova_data.strftime('%d/%m/%Y') if nova_data else None,
                     'nova_classe': _fgts_status_por_data(nova_data)
                 }
+            log_event(
+                'fgts_emit_success',
+                certidao_id=certidao_id,
+                empresa_id=certidao.empresa_id,
+                duration_ms=int((time.time() - inicio_fluxo) * 1000),
+                status='ok',
+            )
             return True, False, None
         return False, False, 'Falha ao gerar PDF FGTS.'
     except Exception as exc:
+        log_event(
+            'fgts_emit_error',
+            level='ERROR',
+            certidao_id=certidao_id,
+            empresa_id=certidao.empresa_id if certidao else None,
+            duration_ms=int((time.time() - inicio_fluxo) * 1000),
+            error_type=map_exception_to_error_type(exc).value,
+            error=str(exc),
+        )
         return False, True, f'Erro grave no FGTS: {exc}'
     finally:
         if criado_localmente:
@@ -953,6 +1065,10 @@ def _fgts_batch_worker(app):
     with app.app_context():
         driver = None
         print("[FGTS-LOTE] Worker iniciado.")
+        execution_id = FGTS_BATCH_STATE.get('execution_id')
+        if execution_id:
+            CorrelationContext.set_execution_id(execution_id)
+        log_event('fgts_batch_worker_start', status='running')
         while True:
             with FGTS_BATCH_LOCK:
                 if FGTS_BATCH_STATE['stop_requested']:
@@ -978,7 +1094,7 @@ def _fgts_batch_worker(app):
             if driver is None:
                 driver = _criar_driver_chrome()
 
-            sucesso, grave, mensagem = _emitir_fgts_certidao(certidao_id, driver=driver)
+            sucesso, grave, mensagem = _emitir_fgts_certidao(certidao_id, driver=driver, execution_id=execution_id)
 
             if grave and mensagem == 'Erro ao carregar página FGTS.':
                 try:
@@ -987,7 +1103,7 @@ def _fgts_batch_worker(app):
                     pass
                 driver = _criar_driver_chrome()
                 print("[FGTS-LOTE] Recriando driver após falha de carregamento.")
-                sucesso, grave, mensagem = _emitir_fgts_certidao(certidao_id, driver=driver)
+                sucesso, grave, mensagem = _emitir_fgts_certidao(certidao_id, driver=driver, execution_id=execution_id)
 
             with FGTS_BATCH_LOCK:
                 if FGTS_BATCH_STATE['stop_requested']:
@@ -1019,6 +1135,8 @@ def _fgts_batch_worker(app):
                 driver.quit()
             except Exception:
                 pass
+        log_event('fgts_batch_worker_end', status=FGTS_BATCH_STATE.get('status'))
+        CorrelationContext.clear()
         print("[FGTS-LOTE] Worker encerrado.")
 
 
@@ -1058,6 +1176,13 @@ def fgts_lote_iniciar():
             return jsonify({'status': 'error', 'message': 'Nenhuma certidão FGTS pendente para emissão.'}), 400
         return jsonify({'status': 'error', 'message': 'Nenhuma certidão FGTS vencida ou a vencer.'}), 400
 
+    log_event(
+        'fgts_batch_started',
+        status='running',
+        scope=scope,
+        total=dados_lote['total'],
+        execution_id=FGTS_BATCH_STATE.get('execution_id'),
+    )
     print(f"[FGTS-LOTE] Lote iniciado. Total={dados_lote['total']}.")
 
     return jsonify({'status': 'ok'})
@@ -1103,6 +1228,14 @@ def fgts_lote_status():
     return jsonify(batch_engine.status_payload_locked(FGTS_BATCH_LOCK, FGTS_BATCH_STATE))
 
 
+@bp.route('/health')
+def health():
+    checks = run_health_checks(current_app.config)
+    has_failure = any(not item.get('ok') for item in checks.values())
+    code = 200 if not has_failure else 503
+    return jsonify({'status': 'ok' if not has_failure else 'degraded', 'checks': checks}), code
+
+
 @bp.route('/estadual-rs/lote/info/<int:certidao_id>')
 def estadual_rs_lote_info(certidao_id):
     scope = _parse_batch_scope(request.args.get('scope'))
@@ -1145,6 +1278,13 @@ def estadual_rs_lote_iniciar():
             return jsonify({'status': 'error', 'message': 'Nenhuma certidão Estadual RS pendente para emissão.'}), 400
         return jsonify({'status': 'error', 'message': 'Nenhuma certidão Estadual RS vencida ou a vencer.'}), 400
 
+    log_event(
+        'rs_batch_started',
+        status='running',
+        scope=scope,
+        total=dados_lote['total'],
+        execution_id=RS_BATCH_STATE.get('execution_id'),
+    )
     print(f"[ESTADUAL-RS-LOTE] Lote iniciado. Total={dados_lote['total']}.")
 
     return jsonify({'status': 'ok'})
@@ -1202,7 +1342,8 @@ def fgts_emitir_unico():
         if FGTS_BATCH_STATE['status'] == 'running':
             return jsonify({'status': 'error', 'message': 'Lote em andamento. Pare o lote para emitir individual.'}), 400
 
-    sucesso, grave, mensagem = _emitir_fgts_certidao(certidao_id)
+    execution_id = CorrelationContext.new_execution_id()
+    sucesso, grave, mensagem = _emitir_fgts_certidao(certidao_id, execution_id=execution_id)
 
     if grave:
         return jsonify({'status': 'error', 'message': mensagem or 'Erro grave no FGTS.'}), 500

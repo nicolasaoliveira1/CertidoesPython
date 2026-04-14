@@ -5,6 +5,10 @@ import glob
 import unicodedata
 from thefuzz import process, fuzz
 
+from app.errors import map_exception_to_error_type
+from app.services.execution_logger import log_event
+from app.services.retry import retry_call
+
 CAMINHO_REDE = r"Z:\PASTAS EMPRESAS"
 CAMINHO_SEM_MOVIMENTO = os.path.join(
     CAMINHO_REDE, "A a Z", "EMPRESAS SEM MOVIMENTO")
@@ -48,7 +52,22 @@ def buscar_na_pasta_especifica(caminho_base, nome_banco):
         return None
 
     try:
-        todas_pastas_brutas = os.listdir(caminho_base)
+        todas_pastas_brutas = retry_call(
+            lambda: os.listdir(caminho_base),
+            max_attempts=3,
+            base_delay=0.4,
+            jitter=0.2,
+            retry_if=lambda exc: isinstance(exc, OSError),
+            on_retry=lambda attempt, delay, exc: log_event(
+                'network_path_retry',
+                level='WARNING',
+                path=caminho_base,
+                attempt=attempt,
+                delay_ms=int(delay * 1000),
+                error_type=map_exception_to_error_type(exc).value,
+                error=str(exc),
+            ),
+        )
 
         todas_pastas = [
             pasta for pasta in todas_pastas_brutas
@@ -87,14 +106,31 @@ def buscar_na_pasta_especifica(caminho_base, nome_banco):
                 return os.path.join(caminho_base, pasta)
 
     except Exception as e:
+        log_event(
+            'network_path_read_error',
+            level='ERROR',
+            path=caminho_base,
+            empresa_nome=nome_banco,
+            error_type=map_exception_to_error_type(e).value,
+            error=str(e),
+            status='error',
+        )
         print(f"Erro ao ler pasta {caminho_base}: {e}")
 
     return None
 
 
 def encontrar_pasta_empresa(nome_banco):
+    inicio = time.time()
     resultado_principal = buscar_na_pasta_especifica(CAMINHO_REDE, nome_banco)
     if resultado_principal:
+        log_event(
+            'empresa_pasta_encontrada',
+            empresa_nome=nome_banco,
+            origem='principal',
+            duration_ms=int((time.time() - inicio) * 1000),
+            status='ok',
+        )
         return resultado_principal
 
     print(
@@ -103,11 +139,25 @@ def encontrar_pasta_empresa(nome_banco):
         CAMINHO_SEM_MOVIMENTO, nome_banco)
 
     if resultado_sem_movimento:
+        log_event(
+            'empresa_pasta_encontrada',
+            empresa_nome=nome_banco,
+            origem='sem_movimento',
+            duration_ms=int((time.time() - inicio) * 1000),
+            status='ok',
+        )
         return resultado_sem_movimento
 
     print(
         f"ALERTA DE SEGURANÇA: Nenhuma pasta confiável encontrada para: '{nome_banco}'")
     print("O arquivo permanecerá na pasta Downloads para evitar erros.")
+    log_event(
+        'empresa_pasta_nao_encontrada',
+        level='WARNING',
+        empresa_nome=nome_banco,
+        duration_ms=int((time.time() - inicio) * 1000),
+        status='error',
+    )
     return None
 
 
@@ -116,7 +166,24 @@ def encontrar_caminho_final(caminho_empresa):
 
     for variacao in VARIACOES_DOCS:
         try:
-            for pasta_encontrada in os.listdir(caminho_empresa):
+            pastas_da_empresa = retry_call(
+                lambda: os.listdir(caminho_empresa),
+                max_attempts=3,
+                base_delay=0.4,
+                jitter=0.2,
+                retry_if=lambda exc: isinstance(exc, OSError),
+                on_retry=lambda attempt, delay, exc: log_event(
+                    'network_path_retry',
+                    level='WARNING',
+                    path=caminho_empresa,
+                    attempt=attempt,
+                    delay_ms=int(delay * 1000),
+                    error_type=map_exception_to_error_type(exc).value,
+                    error=str(exc),
+                ),
+            )
+
+            for pasta_encontrada in pastas_da_empresa:
                 caminho_completo = os.path.join(caminho_empresa, pasta_encontrada)
                 if os.path.isdir(caminho_completo) and variacao.upper() in pasta_encontrada.upper():
                     pasta_destino = caminho_completo
@@ -126,6 +193,14 @@ def encontrar_caminho_final(caminho_empresa):
                 continue
             break
         except Exception as e:
+            log_event(
+                'network_path_read_error',
+                level='ERROR',
+                path=caminho_empresa,
+                error_type=map_exception_to_error_type(e).value,
+                error=str(e),
+                status='error',
+            )
             print(f"Erro ao procurar pasta em {caminho_empresa}: {e}")
 
     variacoes_certidoes = ["CERTIDOES", "CERTIDÕES", "Certidoes", "Certidões"]
@@ -217,10 +292,20 @@ def verificar_novo_arquivo(tempo_inicio, termos_ignorar=None, extensoes_permitid
 
 
 def mover_e_renomear(caminho_arquivo_origem, nome_empresa, tipo_certidao):
+    inicio = time.time()
     print(f"[DEBUG] Emitindo certidão para empresa: {nome_empresa}")
     caminho_empresa = encontrar_pasta_empresa(nome_empresa)
 
     if not caminho_empresa:
+        log_event(
+            'arquivo_mover_falha',
+            level='ERROR',
+            empresa_nome=nome_empresa,
+            tipo_certidao=tipo_certidao,
+            status='error',
+            error='Pasta da empresa nao encontrada no Z:',
+            duration_ms=int((time.time() - inicio) * 1000),
+        )
         return False, "Pasta da empresa não encontrada no Z:"
 
     destino_final = encontrar_caminho_final(caminho_empresa)
@@ -238,13 +323,39 @@ def mover_e_renomear(caminho_arquivo_origem, nome_empresa, tipo_certidao):
 
     try:
         shutil.move(caminho_arquivo_origem, caminho_destino_completo)
+        log_event(
+            'arquivo_movido',
+            empresa_nome=nome_empresa,
+            tipo_certidao=tipo_certidao,
+            caminho_destino=caminho_destino_completo,
+            status='ok',
+            duration_ms=int((time.time() - inicio) * 1000),
+        )
         return True, caminho_destino_completo
     except (OSError, PermissionError):
         try:
             shutil.copy2(caminho_arquivo_origem, caminho_destino_completo)
             os.remove(caminho_arquivo_origem)
+            log_event(
+                'arquivo_movido_fallback_copy',
+                level='WARNING',
+                empresa_nome=nome_empresa,
+                tipo_certidao=tipo_certidao,
+                caminho_destino=caminho_destino_completo,
+                status='ok',
+                duration_ms=int((time.time() - inicio) * 1000),
+            )
             return True, caminho_destino_completo
         except (OSError, PermissionError) as e2:
+            log_event(
+                'arquivo_mover_falha',
+                level='ERROR',
+                empresa_nome=nome_empresa,
+                tipo_certidao=tipo_certidao,
+                status='error',
+                error=str(e2),
+                duration_ms=int((time.time() - inicio) * 1000),
+            )
             return False, str(e2)
 
 
