@@ -207,7 +207,7 @@ app/
   routes.py                # Rotas e fluxos de negócio
   automation.py            # URLs, seletores e validades
   file_manager.py          # Detecção/movimentação de PDFs
-  stop_federal_monitor.txt # Controle de interrupção de monitoramento
+  # stop_federal_monitor.txt é criado/removido em runtime (não versionado)
   services/
     __init__.py
     batch_engine.py        # Motor compartilhado de lotes
