@@ -3,14 +3,23 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
 from config import Config
 import os
+import logging
+
+from app.services.execution_logger import configure_logging, log_event
+from app.services.health import run_health_checks
 
 db = SQLAlchemy()
 migrate = Migrate()
 
 def create_app(config_class=Config):
     app = Flask(__name__, instance_relative_config=True)
-    
+
     app.config.from_object(config_class)
+
+    configure_logging(app.config.get('LOG_LEVEL', 'INFO'))
+
+    if app.config.get('QUIET_WERKZEUG_LOGS', True):
+        logging.getLogger('werkzeug').setLevel(logging.WARNING)
     
     try:
         os.makedirs(app.instance_path)
@@ -22,6 +31,10 @@ def create_app(config_class=Config):
     
     db.init_app(app)
     migrate.init_app(app, db)
+
+    with app.app_context():
+        checks = run_health_checks(app.config)
+        log_event('startup_health_checks', checks=checks)
     
     from app import routes, models
     app.register_blueprint(routes.bp)
