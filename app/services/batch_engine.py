@@ -2,6 +2,7 @@ from datetime import date, datetime, timedelta
 from threading import Thread
 
 from app.models import Certidao, StatusEspecial
+from app.services.correlation import CorrelationContext
 
 
 def batch_state_defaults():
@@ -28,6 +29,7 @@ def batch_state_defaults():
         'positivas': 0,
         'negativas': 0,
         'efeito_negativas': 0,
+        'execution_id': None,
     }
 
 
@@ -49,6 +51,7 @@ def build_batch_status_payload(batch_state):
         'message': batch_state['message'],
         'last_completed': batch_state.get('last_completed'),
         'success': batch_state.get('success', 0),
+        'execution_id': batch_state.get('execution_id'),
         'fgts_marcadas_pendente': batch_state.get('fgts_marcadas_pendente', 0),
         'positivas': batch_state.get('positivas', 0),
         'negativas': batch_state.get('negativas', 0),
@@ -115,6 +118,7 @@ def init_batch_run(batch_lock, batch_state, start_id, calc_targets_fn, worker_fn
             'started_at': datetime.utcnow(),
             'finished_at': None,
             'success': 0,
+            'execution_id': CorrelationContext.new_execution_id(),
         })
 
     run_worker(worker_fn, app_factory)
