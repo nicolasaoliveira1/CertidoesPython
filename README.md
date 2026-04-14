@@ -88,6 +88,14 @@ O sistema combina:
 - Visualização de PDF com token assinado e expirável.
 - Download automático no Chrome (incluindo fluxos em modo anônimo), reduzindo necessidade de interação manual no diálogo de salvar.
 
+### Observabilidade e diagnóstico
+
+- Logs estruturados em JSON no terminal de execução da aplicação.
+- `request_id` por requisição HTTP e `execution_id` por execução de lote.
+- Taxonomia inicial de erros (`TIMEOUT`, `CAPTCHA`, `PORTAL`, `SELECTOR`, `NETWORK_PATH`, `PERMISSION`, `DB`, `UNKNOWN`).
+- Retry com limite e backoff em pontos recuperáveis (ex.: timeout de carregamento e leitura de caminho de rede).
+- Endpoint de health check em `GET /health`.
+
 ## Requisitos
 
 - Python 3.10+
@@ -179,6 +187,16 @@ O caminho base é definido no arquivo de gerenciamento de arquivos. Ajuste confo
 - Se a chave estiver inválida, o lote RS encerra com erro explícito para evitar tentativas improdutivas.
 - Se alterar variáveis no `.env`, reinicie a aplicação.
 
+### Logs e health check
+
+- Os eventos de observabilidade aparecem no mesmo terminal em que o Flask está rodando.
+- O endpoint `GET /health` retorna `ok` ou `degraded` com detalhes de:
+  - banco de dados,
+  - caminho de rede,
+  - profile do Chrome,
+  - configuração do solver.
+- Para reduzir ruído local, logs HTTP de estáticos/polling são filtrados e o log padrão fica em nível `WARNING`.
+
 ### Municípios
 
 As automações municipais dependem da configuração de seletores e steps na tabela Município. Para novas cidades, é necessário mapear o portal e registrar a configuração correspondente.
@@ -209,8 +227,11 @@ app/
   file_manager.py          # Detecção/movimentação de PDFs
   # stop_federal_monitor.txt é criado/removido em runtime (não versionado)
   services/
-    __init__.py
     batch_engine.py        # Motor compartilhado de lotes
+    correlation.py         # Contexto de correlação (request_id/execution_id)
+    execution_logger.py    # Logger estruturado em JSON
+    health.py              # Health checks de dependências
+    retry.py               # Retry com backoff/jitter
     rs_altcha.py           # Resolver/injetar ALTCHA no RS
   static/
     css/
