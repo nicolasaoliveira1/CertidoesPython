@@ -295,8 +295,11 @@ def localizar_certidao_existente(nome_empresa, tipo_certidao, subtipo=None):
         except OSError:
             mtime = 0
 
-        if melhor is None or score > melhor[0] or (score == melhor[0] and mtime > melhor[2]):
+        if melhor is None:
             melhor = (score, caminho, mtime)
+        else:
+            if score > melhor[0] or (score == melhor[0] and mtime > melhor[2]):
+                melhor = (score, caminho, mtime)
 
     if melhor and melhor[0] >= 80:
         return melhor[1]
