@@ -484,7 +484,8 @@
         </div>
     </div>
 
-    <div class="modal fade" id="fgtsBatchSummaryModal" tabindex="-1" aria-hidden="true">
+    <div class="modal fade" id="fgtsBatchSummaryModal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static"
+        data-bs-keyboard="false">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content batch-summary-modal">
                 <div class="modal-header border-0 pb-0">
@@ -565,7 +566,8 @@
         </div>
     </div>
 
-    <div class="modal fade" id="rsBatchSummaryModal" tabindex="-1" aria-hidden="true">
+    <div class="modal fade" id="rsBatchSummaryModal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static"
+        data-bs-keyboard="false">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content batch-summary-modal">
                 <div class="modal-header border-0 pb-0">
@@ -764,7 +766,9 @@
             const fgtsBatchModalElement = document.getElementById('fgtsBatchModal');
             let fgtsBatchModal = fgtsBatchModalElement ? new bootstrap.Modal(fgtsBatchModalElement) : null;
             const fgtsBatchSummaryModalElement = document.getElementById('fgtsBatchSummaryModal');
-            let fgtsBatchSummaryModal = fgtsBatchSummaryModalElement ? new bootstrap.Modal(fgtsBatchSummaryModalElement) : null;
+            let fgtsBatchSummaryModal = fgtsBatchSummaryModalElement
+                ? new bootstrap.Modal(fgtsBatchSummaryModalElement, { backdrop: 'static', keyboard: false })
+                : null;
             const fgtsBatchVencidas = document.getElementById('fgtsBatchVencidas');
             const fgtsBatchAVencer = document.getElementById('fgtsBatchAVencer');
             const fgtsBatchTotal = document.getElementById('fgtsBatchTotal');
@@ -794,7 +798,9 @@
             const rsBatchModalElement = document.getElementById('rsBatchModal');
             let rsBatchModal = rsBatchModalElement ? new bootstrap.Modal(rsBatchModalElement) : null;
             const rsBatchSummaryModalElement = document.getElementById('rsBatchSummaryModal');
-            let rsBatchSummaryModal = rsBatchSummaryModalElement ? new bootstrap.Modal(rsBatchSummaryModalElement) : null;
+            let rsBatchSummaryModal = rsBatchSummaryModalElement
+                ? new bootstrap.Modal(rsBatchSummaryModalElement, { backdrop: 'static', keyboard: false })
+                : null;
             const rsBatchVencidas = document.getElementById('rsBatchVencidas');
             const rsBatchAVencer = document.getElementById('rsBatchAVencer');
             const rsBatchTotal = document.getElementById('rsBatchTotal');
@@ -869,6 +875,26 @@
             const loadingOverlay = document.getElementById('loading-overlay');
             const loadingDetalhes = document.getElementById('loading-detalhes');
             const statusesComModal = new Set(['success_file_saved', 'window_closed_no_file', 'estadual_rs_positiva', 'municipal_pdf_positiva']);
+
+            function bindStaticModalShake(modalElement) {
+                if (!modalElement) return;
+
+                modalElement.addEventListener('hidePrevented.bs.modal', function () {
+                    const dialog = modalElement.querySelector('.modal-dialog');
+                    if (!dialog) return;
+
+                    dialog.classList.remove('modal-shake');
+                    // Forca reflow para reiniciar animacao em cliques consecutivos no backdrop.
+                    void dialog.offsetWidth;
+                    dialog.classList.add('modal-shake');
+
+                    const removeShake = () => dialog.classList.remove('modal-shake');
+                    dialog.addEventListener('animationend', removeShake, { once: true });
+                });
+            }
+
+            bindStaticModalShake(fgtsBatchSummaryModalElement);
+            bindStaticModalShake(rsBatchSummaryModalElement);
 
             function showLoading(nomeEmpresa = '', tipoCertidao = '') {
                 if (loadingOverlay) loadingOverlay.classList.remove('d-none');

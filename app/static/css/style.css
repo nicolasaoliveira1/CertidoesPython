@@ -404,6 +404,36 @@ footer {
     border-radius: 0.85rem;
 }
 
+.modal-dialog.modal-shake {
+    animation: modalShake 0.24s ease-in-out;
+}
+
+@keyframes modalShake {
+    0% {
+        transform: translateX(0);
+    }
+
+    20% {
+        transform: translateX(-10px);
+    }
+
+    40% {
+        transform: translateX(10px);
+    }
+
+    60% {
+        transform: translateX(-6px);
+    }
+
+    80% {
+        transform: translateX(6px);
+    }
+
+    100% {
+        transform: translateX(0);
+    }
+}
+
 .batch-action-modal {
     border: 1px solid var(--bs-border-color-translucent);
     border-radius: 0.85rem;

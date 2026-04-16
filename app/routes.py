@@ -742,10 +742,31 @@ def _emitir_estadual_rs_certidao(certidao_id, driver=None, usar_2captcha=False, 
             time.sleep(0.5)
             _log_etapa('Tentando clicar Enviar')
             snapshot_downloads_antes_envio = _snapshot_downloads_pdf()
+            try:
+                handle_principal_rs = local_driver.current_window_handle
+            except Exception:
+                handle_principal_rs = None
             envio_rs = _clicar_enviar_estadual_rs(local_driver, timeout=8, retries=4, post_wait=0.5)
             _log_etapa('Resultado clique Enviar', extra=f"clicked={envio_rs.get('clicked')} method={envio_rs.get('method')}")
             if not envio_rs.get('clicked'):
                 return False, False, 'Não foi possível acionar o botão Enviar no lote RS.'
+
+            time.sleep(0.7)
+            if _rs_fechar_abas_processamento(local_driver, handle_principal=handle_principal_rs):
+                _log_etapa('Certidão em processamento detectada; mantendo pendente e seguindo lote')
+                certidao.caminho_arquivo = None
+                certidao.status_especial = StatusEspecial.PENDENTE
+                certidao.data_validade = None
+                db.session.commit()
+
+                with RS_BATCH_LOCK:
+                    RS_BATCH_STATE['last_completed'] = {
+                        'certidao_id': certidao.id,
+                        'data_formatada': 'PENDENTE',
+                        'nova_classe': 'status-vermelho'
+                    }
+
+                return True, False, None
 
             if _rs_sessao_expirada(local_driver):
                 _log_etapa('Sessão expirada detectada após clicar Enviar')
@@ -1511,6 +1532,60 @@ def _rs_sessao_expirada(driver):
         'feche a janela do seu navegador e acesse-o novamente',
     )
     return any(marcador in body for marcador in marcadores)
+
+
+def _rs_certidao_em_processamento(driver):
+    state = _rs_get_page_state(driver)
+    texto = file_manager.remover_acentos(
+        f"{state.get('title', '')} {state.get('body_text', '')}"
+    ).upper()
+
+    if 'CERTIDAO EM PROCESSAMENTO' in texto:
+        return True
+
+    # Mensagem comum da pagina de resultado do RS.
+    return 'CONSULTE NOVAMENTE EM ALGUNS MINUTOS' in texto
+
+
+def _rs_fechar_abas_processamento(driver, handle_principal=None):
+    if not driver:
+        return False
+
+    try:
+        handles = list(driver.window_handles)
+    except Exception:
+        return False
+
+    if not handles:
+        return False
+
+    principal = handle_principal if handle_principal in handles else handles[0]
+    encontrou_processamento = False
+
+    for handle in list(handles):
+        try:
+            driver.switch_to.window(handle)
+        except Exception:
+            continue
+
+        if _rs_certidao_em_processamento(driver):
+            encontrou_processamento = True
+            if handle != principal:
+                try:
+                    driver.close()
+                except Exception:
+                    pass
+
+    try:
+        restantes = list(driver.window_handles)
+        if principal in restantes:
+            driver.switch_to.window(principal)
+        elif restantes:
+            driver.switch_to.window(restantes[0])
+    except Exception:
+        pass
+
+    return encontrou_processamento
 
 def _login_certificado_rs(driver, login_url, cert_url, timeout=120):
     driver.get(login_url)
