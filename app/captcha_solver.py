@@ -1,4 +1,5 @@
 import json
+import time
 
 from twocaptcha import TwoCaptcha
 
@@ -87,6 +88,7 @@ def solve_altcha(config, page_url, challenge_json=None, challenge_url=None, exec
         err_type = map_exception_to_error_type(exc)
         return err_type in {ErrorType.TIMEOUT, ErrorType.NETWORK_PATH, ErrorType.PORTAL}
 
+    start_time = time.time()
     try:
         result = retry_call(
             _resolver,
@@ -113,11 +115,12 @@ def solve_altcha(config, page_url, challenge_json=None, challenge_url=None, exec
         )
         raise AltchaSolverRuntimeError(f'Falha ao resolver ALTCHA no 2captcha: {exc}') from exc
 
+    duration_ms = int((time.time() - start_time) * 1000)
     code = _extract_code(result)
     if not code:
         raise AltchaSolverRuntimeError(f'Resposta ALTCHA sem token reutilizável: {result}')
 
-    log_event('altcha_solved', status='ok')
+    log_event('altcha_solved', status='ok', duration_ms=duration_ms)
 
     return {
         'code': code,
