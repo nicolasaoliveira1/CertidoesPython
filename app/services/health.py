@@ -24,7 +24,14 @@ def _check_network_path():
 
     path = file_manager.CAMINHO_REDE
     exists = os.path.exists(path)
-    return exists, path
+    readable = os.access(path, os.R_OK) if exists else False
+    writable = os.access(path, os.W_OK) if exists else False
+    return exists, {
+        'path': path,
+        'exists': exists,
+        'readable': readable,
+        'writable': writable,
+    }
 
 
 def _check_chrome_profile(config):
