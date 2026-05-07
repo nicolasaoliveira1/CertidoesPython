@@ -145,7 +145,7 @@ def calc_targets(start_certidao_id, extra_filter=None, scope='default'):
     else:
         scope_norm = 'default'
         query = (query
-                 .filter(Certidao.data_validade != None)
+                 .filter(Certidao.data_validade.isnot(None))
                  .filter(Certidao.data_validade <= limite))
 
     certidoes = query.all()
