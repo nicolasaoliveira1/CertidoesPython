@@ -38,6 +38,8 @@ class Config:
         os.path.join(basedir, 'chrome-profile')
     CHROME_PROFILE_NAME = os.environ.get('CHROME_PROFILE_NAME') or 'Certidoes'
 
+    CAMINHO_REDE = os.environ.get('CAMINHO_REDE') or r"Z:\\PASTAS EMPRESAS"
+
     RS_CERT_AUTOSELECT_ENABLED = _env_bool('RS_CERT_AUTOSELECT_ENABLED', False)
     RS_CERT_AUTOSELECT_PATTERN = os.environ.get('RS_CERT_AUTOSELECT_PATTERN') or \
         'https://www.sefaz.rs.gov.br'

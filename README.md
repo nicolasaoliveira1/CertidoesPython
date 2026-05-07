@@ -134,6 +134,9 @@ SECRET_KEY=uma_chave_segura
 # DATABASE_URL=mysql+pymysql://usuario:senha@host/banco
 # DATABASE_URL=sqlite:///instance/database.db
 
+# Caminho de rede (opcional)
+# CAMINHO_REDE=Z:\\PASTAS EMPRESAS
+
 # Perfil do Chrome (opcional)
 # CHROME_PROFILE_DIR=C:\CertidoesPython\chrome-profile
 # CHROME_PROFILE_NAME=Certidoes
@@ -179,7 +182,7 @@ Acesso local: http://localhost:5000
 
 ### Caminho de rede para salvar certidões
 
-O caminho base é definido no arquivo de gerenciamento de arquivos. Ajuste conforme sua estrutura de pastas de rede.
+O caminho base pode ser configurado via variável `CAMINHO_REDE`. Ajuste conforme sua estrutura de pastas de rede.
 
 ### Estadual RS e 2captcha
 

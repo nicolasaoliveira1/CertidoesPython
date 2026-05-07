@@ -9,7 +9,7 @@ from app.errors import map_exception_to_error_type
 from app.services.execution_logger import log_event
 from app.services.retry import retry_call
 
-CAMINHO_REDE = r"Z:\PASTAS EMPRESAS"
+CAMINHO_REDE = os.environ.get('CAMINHO_REDE') or r"Z:\\PASTAS EMPRESAS"
 CAMINHO_SEM_MOVIMENTO = os.path.join(
     CAMINHO_REDE, "A a Z", "EMPRESAS SEM MOVIMENTO")
 VARIACOES_DOCS = [
