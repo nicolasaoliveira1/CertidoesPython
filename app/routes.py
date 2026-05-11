@@ -659,7 +659,7 @@ def _rs_preencher_cnpj_com_confirmacao(driver, cnpj_field_name, cnpj_limpo, tent
             campo_cnpj.clear()
             campo_cnpj.send_keys(cnpj_limpo)
 
-            valor = ''.join(filter(str.isdigit, campo_cnpj.get_attribute('value') or ''))
+            valor = _normalizar_cnpj(campo_cnpj.get_attribute('value') or '')
             if valor == cnpj_limpo:
                 return True
         except Exception:
@@ -687,7 +687,7 @@ def _emitir_estadual_rs_certidao(certidao_id, driver=None, usar_2captcha=False, 
     if not info_site.get('url') or not info_site.get('login_cert_url'):
         return False, True, 'Configuração Estadual RS ausente.'
 
-    cnpj_limpo = ''.join(filter(str.isdigit, certidao.empresa.cnpj or ''))
+    cnpj_limpo = _normalizar_cnpj(certidao.empresa.cnpj)
 
     local_driver = driver
     criado_localmente = False
@@ -1111,7 +1111,7 @@ def _emitir_fgts_certidao(certidao_id, driver=None, execution_id=None):
         if _fgts_stop_requested():
             return False, False, 'Lote interrompido.'
         campo_cnpj.click()
-        cnpj_limpo = ''.join(filter(str.isdigit, certidao.empresa.cnpj or ''))
+        cnpj_limpo = _normalizar_cnpj(certidao.empresa.cnpj)
         campo_cnpj.send_keys(cnpj_limpo)
 
         contexto = {
@@ -2728,7 +2728,7 @@ def baixar_certidao(certidao_id):
     if tipo_certidao_chave == 'MUNICIPAL' and not usar_config_municipal:
         return _json_error('Municipio sem automacao. Configure para prosseguir.', 409)
 
-    cnpj_limpo = ''.join(filter(str.isdigit, certidao.empresa.cnpj))
+    cnpj_limpo = _normalizar_cnpj(certidao.empresa.cnpj)
     inscricao_limpa = certidao.empresa.inscricao_mobiliaria or ''
 
     nome_certidao_arquivo = certidao.tipo.value
@@ -2883,7 +2883,7 @@ def baixar_certidao(certidao_id):
                         (field_by, info_site['cnpj_field_id'])))
                     if info_site.get('slow_typing'):
                         campo1.clear()
-                        apenas_numeros = ''.join(filter(str.isdigit, cnpj_limpo))
+                        apenas_numeros = _normalizar_cnpj(cnpj_limpo)
                         campo1.click()
                         for digito in apenas_numeros:
                             campo1.send_keys(digito)
