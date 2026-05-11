@@ -124,7 +124,7 @@ python -m venv venv
 pip install -r requirements.txt
 ```
 
-4. Crie o arquivo `.env` na raiz:
+4. Copie `.env.example` para `.env` e ajuste os valores:
 
 ```env
 # Obrigatória
