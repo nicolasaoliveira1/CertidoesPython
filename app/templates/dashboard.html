@@ -699,6 +699,17 @@
                 toastBootstrap.show();
             }
 
+            function appendRequestId(message, requestId) {
+                if (!requestId) return message;
+                return `${message} (req: ${requestId})`;
+            }
+
+            function buildErrorMessage(data, fallback) {
+                const msg = (data && data.message) ? data.message : (fallback || 'Erro');
+                const requestId = data && data.request_id ? data.request_id : '';
+                return appendRequestId(msg, requestId);
+            }
+
             async function copyToClipboard(text) {
                 if (!text) return false;
 
@@ -1132,7 +1143,10 @@
                     if (estadualRsPositivaModal) {
                         estadualRsPositivaModal.show();
                     } else {
-                        showToast(data.message || 'Certidão POSITIVA detectada. Marcada como pendente.', 'error');
+                        showToast(buildErrorMessage(
+                            data,
+                            'Certidão POSITIVA detectada. Marcada como pendente.'
+                        ), 'error');
                     }
                     return;
                 }
@@ -1145,7 +1159,13 @@
                 }
 
                 limparInfoArquivoModal();
-                showToast('Aviso: ' + (data.message || 'Erro desconhecido'), 'error');
+                showToast(
+                    appendRequestId(
+                        'Aviso: ' + (data.message || 'Erro desconhecido'),
+                        data.request_id
+                    ),
+                    'error'
+                );
             }
 
             // BOTAO ABRIR SITE
@@ -1624,7 +1644,7 @@
                                 clearInterval(config.getPoller());
                                 config.setPoller(null);
                                 if (config.overlayEl) config.overlayEl.classList.add('d-none');
-                                showToast(data.message || config.messages.error, 'error');
+                                showToast(buildErrorMessage(data, config.messages.error), 'error');
                                 return;
                             }
 
@@ -1659,7 +1679,7 @@
                             .then(r => r.json())
                             .then(data => {
                                 if (data.status !== 'ok') {
-                                    showToast(data.message || config.messages.startError, 'error');
+                                    showToast(buildErrorMessage(data, config.messages.startError), 'error');
                                     return;
                                 }
                                 if (config.batchModal) config.batchModal.hide();
@@ -1712,7 +1732,7 @@
                             .then(r => r.json())
                             .then(data => {
                                 if (data.status !== 'ok') {
-                                    showToast(data.message || config.messages.resumeError, 'error');
+                                    showToast(buildErrorMessage(data, config.messages.resumeError), 'error');
                                     return;
                                 }
                                 showToast(config.messages.resumed, 'success');
@@ -1861,7 +1881,13 @@
                                     }
                                     showToast(data.message, "success");
                                 } else {
-                                    showToast('Erro ao salvar: ' + data.message, "error");
+                                    showToast(
+                                        appendRequestId(
+                                            'Erro ao salvar: ' + (data.message || 'Erro desconhecido'),
+                                            data.request_id
+                                        ),
+                                        "error"
+                                    );
                                 }
                             });
                     }
@@ -1883,7 +1909,13 @@
                                     }
                                     showToast("Certidão marcada como Pendente.", "success");
                                 } else {
-                                    showToast('Erro: ' + data.message, "error");
+                                    showToast(
+                                        appendRequestId(
+                                            'Erro: ' + (data.message || 'Erro desconhecido'),
+                                            data.request_id
+                                        ),
+                                        "error"
+                                    );
                                 }
                             });
                     }
@@ -1924,7 +1956,13 @@
                                     }
                                     showToast(data.message, "success");
                                 } else {
-                                    showToast("Erro: " + data.message, "error");
+                                    showToast(
+                                        appendRequestId(
+                                            'Erro: ' + (data.message || 'Erro desconhecido'),
+                                            data.request_id
+                                        ),
+                                        "error"
+                                    );
                                 }
                             })
                             .catch(error => { console.error(error); showToast('Erro de comunicação.', "error"); });
@@ -1947,7 +1985,13 @@
                                     }
                                     showToast("Certidão marcada como Pendente.", "success");
                                 } else {
-                                    showToast('Erro: ' + data.message, "error");
+                                    showToast(
+                                        appendRequestId(
+                                            'Erro: ' + (data.message || 'Erro desconhecido'),
+                                            data.request_id
+                                        ),
+                                        "error"
+                                    );
                                 }
                             })
                             .catch(error => { console.error(error); showToast('Erro de comunicação.', "error"); });
