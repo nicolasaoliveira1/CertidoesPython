@@ -39,7 +39,14 @@ def _check_chrome_profile(config):
     if not profile_dir:
         return False, 'CHROME_PROFILE_DIR nao configurado'
     exists = os.path.isdir(profile_dir)
-    return exists, profile_dir
+    readable = os.access(profile_dir, os.R_OK) if exists else False
+    writable = os.access(profile_dir, os.W_OK) if exists else False
+    return exists, {
+        'path': profile_dir,
+        'exists': exists,
+        'readable': readable,
+        'writable': writable,
+    }
 
 
 def _check_solver_config(config):
