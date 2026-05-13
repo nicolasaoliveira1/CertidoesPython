@@ -1869,6 +1869,9 @@ def _escolher_cidade_canonica_dashboard(variantes):
 
     return sorted(variantes.items(), key=_ordenacao)[0][0]
 
+@bp.context_processor
+def inject_year():
+    return {'year': datetime.now().year}
 
 @bp.route('/')
 def dashboard():
