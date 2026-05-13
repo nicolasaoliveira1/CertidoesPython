@@ -62,9 +62,10 @@ def solve_altcha(config, page_url, challenge_json=None, challenge_url=None, exec
     if not challenge_json and not challenge_url:
         raise AltchaSolverConfigError('Challenge ALTCHA não disponível para envio ao 2captcha.')
 
+    server = (config.get('CAPTCHA_2_SERVER') or '2captcha.com').strip() or '2captcha.com'
     solver = TwoCaptcha(
         apiKey=api_key,
-        server=(config.get('CAPTCHA_2_SERVER') or '2captcha.com').strip() or '2captcha.com',
+        server=server,
         defaultTimeout=_parse_int(config.get('CAPTCHA_2_DEFAULT_TIMEOUT'), 180),
         pollingInterval=_parse_int(config.get('CAPTCHA_2_POLLING_INTERVAL'), 10),
     )
@@ -112,6 +113,7 @@ def solve_altcha(config, page_url, challenge_json=None, challenge_url=None, exec
             level='ERROR',
             error_type=err_type.value,
             error=str(exc),
+            server=server,
         )
         raise AltchaSolverRuntimeError(f'Falha ao resolver ALTCHA no 2captcha: {exc}') from exc
 
@@ -120,7 +122,7 @@ def solve_altcha(config, page_url, challenge_json=None, challenge_url=None, exec
     if not code:
         raise AltchaSolverRuntimeError(f'Resposta ALTCHA sem token reutilizável: {result}')
 
-    log_event('altcha_solved', status='ok', duration_ms=duration_ms)
+    log_event('altcha_solved', status='ok', duration_ms=duration_ms, server=server)
 
     return {
         'code': code,
