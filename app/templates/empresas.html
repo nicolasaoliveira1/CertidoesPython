@@ -87,12 +87,10 @@
                             <a class="btn btn-sm btn-outline-primary" href="{{ url_for('main.empresa_detalhe', empresa_id=empresa.id) }}">
                                 Ver/Editar
                             </a>
-                            <form method="POST" action="{{ url_for('main.empresa_remover', empresa_id=empresa.id) }}" class="d-inline"
-                                  onsubmit="return confirm('Remover a empresa {{ empresa.nome }}? Esta acao e definitiva.');">
-                                <input type="hidden" name="confirm" value="1">
-                                <input type="hidden" name="next" value="{{ request.full_path }}">
-                                <button type="submit" class="btn btn-sm btn-outline-danger">Remover</button>
-                            </form>
+                            <a class="btn btn-sm btn-outline-danger"
+                               href="{{ url_for('main.empresa_remover', empresa_id=empresa.id, next=request.full_path) }}">
+                                Remover
+                            </a>
                         </td>
                     </tr>
                     {% endfor %}
