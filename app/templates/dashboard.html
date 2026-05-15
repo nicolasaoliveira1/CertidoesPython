@@ -269,29 +269,34 @@
 
                                     <td class="text-center pe-4">
                                         <div class="d-flex justify-content-center gap-2">
-                                            <a href="#" class="btn btn-sm btn-outline-info border-0 btn-abrir-site"
-                                                title="Abrir Site" data-id="{{ certidao.id }}"
+                                            <button type="button" class="btn btn-sm btn-outline-info border-0 btn-abrir-site"
+                                                title="Abrir Site"
+                                                aria-label="Abrir site da certidao {{ tipo_exibicao }} de {{ empresa.nome }}"
+                                                data-id="{{ certidao.id }}"
                                                 data-tipo="{{ certidao.tipo.name }}" data-url="{{ data_url_final }}"
                                                 data-cnpj="{{ certidao.empresa.cnpj | replace('.', '') | replace('/', '') | replace('-', '') }}">
                                                 <i class="bi bi-box-arrow-up-right fs-5"></i>
-                                            </a>
+                                            </button>
 
-                                            <a href="#"
+                                            <button type="button"
                                                 class="btn btn-sm btn-outline-secondary border-0 btn-visualizar-certidao"
                                                 title="Visualizar"
+                                                aria-label="Visualizar certidao {{ tipo_exibicao }} de {{ empresa.nome }}"
                                                 data-url="{{ url_for('main.visualizar_certidao', token=visualizar_token(certidao.id)) }}">
                                                 <i class="bi bi-eye fs-5"></i>
-                                            </a>
+                                            </button>
 
-                                            <button class="btn btn-sm btn-outline-warning border-0" title="Editar"
+                                            <button type="button" class="btn btn-sm btn-outline-warning border-0" title="Editar"
+                                                aria-label="Editar validade da certidao {{ tipo_exibicao }} de {{ empresa.nome }}"
                                                 data-bs-toggle="modal" data-bs-target="#editModal"
                                                 data-certidao-id="{{ certidao.id }}"
                                                 data-certidao-info="{{ tipo_exibicao }} - {{ certidao.empresa.nome }}">
                                                 <i class="bi bi-pencil-square fs-5"></i>
                                             </button>
 
-                                            <button class="btn btn-sm btn-outline-primary border-0 btn-baixar-certidao"
+                                            <button type="button" class="btn btn-sm btn-outline-primary border-0 btn-baixar-certidao"
                                                 title="Emitir"
+                                                aria-label="Emitir certidao {{ tipo_exibicao }} de {{ empresa.nome }}"
                                                 data-href="{{ url_for('main.baixar_certidao', certidao_id=certidao.id) }}"
                                                 data-id="{{ certidao.id }}" data-tipo="{{ certidao.tipo.name }}"
                                                 data-subtipo="{{ certidao.subtipo.name | lower if certidao.subtipo else '' }}"
