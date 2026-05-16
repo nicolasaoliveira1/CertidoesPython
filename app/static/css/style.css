@@ -8,6 +8,13 @@
     color: #2f343a;
 }
 
+.menu-button:focus-visible,
+.sidebar-toggle-menu:focus-visible,
+.navbar-toggler:focus-visible {
+    outline: 2px solid var(--bs-primary);
+    outline-offset: 2px;
+}
+
 [data-bs-theme="dark"] .menu-button,
 [data-bs-theme="dark"] .sidebar-toggle-menu {
     color: #e9ecef;
@@ -187,6 +194,11 @@ body.navbar-hidden.sidebar-open .sidebar-toggle-menu {
     background: var(--bs-primary-bg-subtle);
     color: var(--bs-primary-text-emphasis);
     border-color: var(--bs-primary-border-subtle);
+}
+
+.sidebar-link:focus-visible {
+    outline: 2px solid var(--bs-primary);
+    outline-offset: 3px;
 }
 
 body.sidebar-open .app-sidebar {
