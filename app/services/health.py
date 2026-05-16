@@ -23,6 +23,14 @@ def _check_network_path():
     from app import file_manager
 
     path = file_manager.CAMINHO_REDE
+    if not path:
+        return False, {
+            'path': None,
+            'exists': False,
+            'readable': False,
+            'writable': False,
+            'message': 'CAMINHO_REDE nao configurado',
+        }
     exists = os.path.exists(path)
     readable = os.access(path, os.R_OK) if exists else False
     writable = os.access(path, os.W_OK) if exists else False
