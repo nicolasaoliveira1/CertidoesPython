@@ -16,7 +16,7 @@
     <div>
         <h4 class="mb-1 fw-bold">Empresas</h4>
     </div>
-    <a class="btn btn-success" href="{{ url_for('main.nova_empresa') }}">
+    <a class="btn btn-success" href="{{ url_for('main.nova_empresa') }}" aria-label="Cadastrar nova empresa">
         <i class="bi bi-building-add me-1"></i> Nova Empresa
     </a>
 </div>
@@ -84,10 +84,12 @@
                         <td>{{ empresa.inscricao_mobiliaria or '-' }}</td>
                         <td>{{ empresa.certidoes.count() }}</td>
                         <td class="text-end pe-4">
-                            <a class="btn btn-sm btn-outline-primary" href="{{ url_for('main.empresa_detalhe', empresa_id=empresa.id) }}">
+                                     <a class="btn btn-sm btn-outline-primary" href="{{ url_for('main.empresa_detalhe', empresa_id=empresa.id) }}"
+                                         aria-label="Ver ou editar empresa {{ empresa.nome }}">
                                 Ver/Editar
                             </a>
-                            <a class="btn btn-sm btn-outline-danger"
+                                     <a class="btn btn-sm btn-outline-danger"
+                                         aria-label="Remover empresa {{ empresa.nome }}"
                                href="{{ url_for('main.empresa_remover', empresa_id=empresa.id, next=request.full_path) }}">
                                 Remover
                             </a>
