@@ -116,3 +116,32 @@ class Municipio(db.Model):
 
     def __repr__(self):
         return f'<Municipio {self.nome}>'
+
+
+class ConfiguracaoSistema(db.Model):
+    __tablename__ = 'configuracao_sistema'
+
+    id = db.Column(db.Integer, primary_key=True)
+    a_vencer_dias = db.Column(db.Integer, nullable=False, default=7)
+
+    def __repr__(self):
+        return f'<ConfiguracaoSistema {self.id}>'
+
+
+def get_a_vencer_dias(default=7):
+    try:
+        config = ConfiguracaoSistema.query.get(1)
+    except Exception:
+        return default
+
+    if not config or config.a_vencer_dias is None:
+        return default
+
+    try:
+        valor = int(config.a_vencer_dias)
+    except (TypeError, ValueError):
+        return default
+
+    if 1 <= valor <= 30:
+        return valor
+    return default
