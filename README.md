@@ -60,9 +60,10 @@ O sistema combina:
 - Filtros por status e busca por nome em tempo real.
 - Status visual de certidões:
   - Verde: válida
-  - Amarelo: a vencer
+  - Amarelo: a vencer (limite configurável)
   - Vermelho: vencida ou pendente
   - Cinza: sem data definida
+- Tela de Empresas com listagem, filtros, edição e remoção com confirmação.
 - Sidebar responsiva com estado persistente.
 - Tema claro/escuro com persistência local.
 
@@ -174,7 +175,8 @@ Acesso local: http://localhost:5000
    - use Emitir para automações suportadas,
    - use Abrir Site quando o fluxo for assistido,
    - use Visualizar para abrir PDF salvo.
-4. Para lotes:
+4. Acesse `/empresas` para gerenciar cadastro, edição e remoção com confirmação.
+5. Para lotes:
    - FGTS: fluxo de lote quando houver mais de 1 item elegível.
    - Estadual RS: lote com controles de pausar, retomar e parar.
 
@@ -202,6 +204,10 @@ O caminho base pode ser configurado via variável `CAMINHO_REDE`. Ajuste conform
 - As respostas HTTP incluem o header `X-Request-Id` para correlacionar logs e requisições.
 - O check de caminho de rede também informa leitura e escrita (útil para diagnosticar permissões).
 - Para reduzir ruído local, logs HTTP de estáticos/polling são filtrados e o log padrão fica em nível `WARNING`.
+
+### Limite de "a vencer"
+
+Na tela de Configurações, é possível ajustar o limite de dias para uma certidão ficar "a vencer" (1 a 30 dias). O valor é global e afeta dashboard, relatórios e lotes.
 
 ### Municípios
 
@@ -246,6 +252,9 @@ app/
     base.html
     dashboard.html
     nova_empresa.html
+    empresas.html
+    empresa_detalhe.html
+    empresa_remover_confirm.html
     relatorios.html
     configuracoes.html
 ```
