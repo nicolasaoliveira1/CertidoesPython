@@ -1897,63 +1897,18 @@ def dashboard():
 
     if not status_filtros:
         status_filtros = ['todas']
-
-    if 'todas' in status_filtros or not status_filtros:
+    elif 'todas' in status_filtros:
         status_filtros = ['todas']
-    else:
-        query = query.join(Certidao)
-        join_certidao_feito = True
 
-        conditions = []
-
-        if 'validas' in status_filtros:
-            conditions.append(Certidao.data_validade >
-                              (hoje + timedelta(days=a_vencer_dias)))
-
-        if 'a_vencer' in status_filtros:
-            conditions.append(Certidao.data_validade.between(
-                hoje, hoje + timedelta(days=a_vencer_dias)))
-
-        if 'vencidas' in status_filtros:
-            conditions.append(
-                (Certidao.data_validade < hoje) & (
-                    Certidao.status_especial == None)
-            )
-
-        if 'pendentes' in status_filtros:
-            conditions.append(Certidao.status_especial ==
-                              StatusEspecial.PENDENTE)
-
-        if 'nao_definida' in status_filtros:
-            conditions.append(Certidao.data_validade == None)
-
-        if conditions:
-            query = query.filter(or_(*conditions))
-        else:
-            query = query.filter(Empresa.id == -1)
-
-    if not tipo_filtros or 'todas' in tipo_filtros:
+    if not tipo_filtros:
+        tipo_filtros = ['todas']
+    elif 'todas' in tipo_filtros:
         tipo_filtros = ['todas']
     else:
-        tipos_enum = []
-        mapa_tipo = {
-            'federal': TipoCertidao.FEDERAL,
-            'fgts': TipoCertidao.FGTS,
-            'estadual': TipoCertidao.ESTADUAL,
-            'municipal': TipoCertidao.MUNICIPAL,
-            'trabalhista': TipoCertidao.TRABALHISTA,
-        }
-        for t in tipo_filtros:
-            enum_val = mapa_tipo.get(t)
-            if enum_val:
-                tipos_enum.append(enum_val)
-        if tipos_enum:
-            if not join_certidao_feito:
-                query = query.join(Certidao)
-                join_certidao_feito = True
-            query = query.filter(Certidao.tipo.in_(tipos_enum))
-        else:
-            query = query.filter(Empresa.id == -1)
+        tipos_validos = {'federal', 'fgts', 'estadual', 'municipal', 'trabalhista'}
+        tipo_filtros = [t for t in tipo_filtros if t in tipos_validos]
+        if not tipo_filtros:
+            tipo_filtros = ['todas']
 
     if estado_filtro:
         query = query.filter(Empresa.estado == estado_filtro)
