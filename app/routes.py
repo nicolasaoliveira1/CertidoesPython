@@ -1888,12 +1888,14 @@ def dashboard():
     tipo_filtros = request.args.getlist('tipo')
     estado_filtro = request.args.get('estado', '')
     cidade_filtro = (request.args.get('cidade', '') or '').strip()
+    ordem = (request.args.get('ordem') or 'urgencia').strip().lower()
 
     query = db.session.query(Empresa).distinct()
 
     hoje = date.today()
     a_vencer_dias = get_a_vencer_dias()
-    join_certidao_feito = False
+    if ordem not in {'urgencia', 'az', 'vencimento'}:
+        ordem = 'urgencia'
 
     if not status_filtros:
         status_filtros = ['todas']
@@ -1952,6 +1954,75 @@ def dashboard():
         db.session.query(Empresa.estado).distinct().order_by(Empresa.estado).all()
     ]
 
+    tipo_set = None
+    if tipo_filtros and 'todas' not in tipo_filtros:
+        tipo_set = set(tipo_filtros)
+
+    certidoes_por_empresa = {}
+    for empresa in empresas:
+        certidoes = empresa.certidoes.all()
+        if tipo_set:
+            certidoes = [
+                cert for cert in certidoes
+                if cert.tipo and cert.tipo.name.lower() in tipo_set
+            ]
+        certidoes_por_empresa[empresa.id] = certidoes
+
+    def _status_certidao(certidao):
+        if certidao.status_especial == StatusEspecial.PENDENTE:
+            return 'pendentes'
+        if not certidao.data_validade:
+            return 'nao_definida'
+        if certidao.data_validade < hoje:
+            return 'vencidas'
+        if (certidao.data_validade - hoje).days <= a_vencer_dias:
+            return 'a_vencer'
+        return 'validas'
+
+    def _urgencia_bucket(empresa):
+        certidoes = certidoes_por_empresa.get(empresa.id, [])
+        tem_vencida = False
+        tem_a_vencer = False
+        tem_pendente = False
+        tem_nao_definida = False
+        for certidao in certidoes:
+            status = _status_certidao(certidao)
+            if status == 'vencidas':
+                tem_vencida = True
+            elif status == 'a_vencer':
+                tem_a_vencer = True
+            elif status == 'pendentes':
+                tem_pendente = True
+            elif status == 'nao_definida':
+                tem_nao_definida = True
+        if tem_vencida:
+            return 0
+        if tem_a_vencer:
+            return 1
+        if tem_pendente:
+            return 2
+        if tem_nao_definida:
+            return 3
+        return 4
+
+    def _nome_empresa(empresa):
+        return (empresa.nome or '').strip().upper()
+
+    def _menor_validade(empresa):
+        certidoes = certidoes_por_empresa.get(empresa.id, [])
+        datas = [
+            cert.data_validade for cert in certidoes
+            if cert.data_validade and cert.status_especial != StatusEspecial.PENDENTE
+        ]
+        return min(datas) if datas else date.max
+
+    if ordem == 'az':
+        empresas.sort(key=_nome_empresa)
+    elif ordem == 'vencimento':
+        empresas.sort(key=lambda emp: (_menor_validade(emp), _nome_empresa(emp)))
+    else:
+        empresas.sort(key=lambda emp: (_urgencia_bucket(emp), _nome_empresa(emp)))
+
     municipios = Municipio.query.all()
 
     urls_municipais = {}
@@ -1976,6 +2047,7 @@ def dashboard():
         cidades_disponiveis=cidades_disponiveis,
         hoje=hoje,
         a_vencer_dias=a_vencer_dias,
+        ordem=ordem,
         sites_urls=SITES_CERTIDOES,
         urls_municipais=urls_municipais
     )
