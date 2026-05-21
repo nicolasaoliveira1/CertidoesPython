@@ -2763,6 +2763,22 @@ def _executar_steps_municipio(driver, wait, steps, cnpj_limpo, inscricao_limpa, 
             WebDriverWait(driver, timeout).until(cond((by, locator)))
             continue
 
+        if tipo == 'press_tab':
+            by = by_map.get(step.get('by'))
+            locator = step.get('locator')
+            sleep_after = float(step.get('sleep', 0.2))
+
+            try:
+                if by and locator:
+                    elemento = wait.until(EC.element_to_be_clickable((by, locator)))
+                else:
+                    elemento = driver.switch_to.active_element
+                elemento.send_keys(Keys.TAB)
+                time.sleep(sleep_after)
+            except Exception as exc:
+                print(f"[MUNICIPAL] Aviso: falha ao enviar TAB: {exc}")
+            continue
+
         if tipo in ['click', 'click_js', 'select', 'fill']:
             by = by_map.get(step.get('by'))
             locator = step.get('locator')
@@ -2868,6 +2884,19 @@ def baixar_certidao(certidao_id):
         )
         info_site_cfg['inscricao_field_id'] = None
         info_site_cfg['inscricao_field_by'] = None
+        if config_cfg is None:
+            return
+
+        after_cnpj = config_cfg.get('after_cnpj') or []
+        already_has_tab = any((step or {}).get('tipo') == 'press_tab' for step in after_cnpj)
+        if not already_has_tab:
+            after_cnpj.append({
+                'tipo': 'press_tab',
+                'by': info_site_cfg.get('by', 'name'),
+                'locator': info_site_cfg.get('cnpj_field_id'),
+                'sleep': 0.4
+            })
+        config_cfg['after_cnpj'] = after_cnpj
 
     def _nome_certidao_imbe(nome_padrao, tipo_escolhido):
         if tipo_escolhido == 'geral':
@@ -3445,6 +3474,11 @@ def monitorar_download_federal(certidao_id):
 
     file_manager.criar_chave_interrupcao()
 
+    # Captura um snapshot antes de iniciar a janela de monitoramento
+    # para detectar arquivos criados/alterados mesmo se o download iniciar cedo.
+    snapshot_before = _snapshot_downloads_pdf()
+    print(f"[FEDERAL][MONITOR] snapshot inicial: {len(snapshot_before)} pdf(s)")
+
     time.sleep(2)
 
     file_manager.remover_chave_interrupcao()
@@ -3452,6 +3486,7 @@ def monitorar_download_federal(certidao_id):
     tempo_limite = 180
     tempo_inicio = time.time()
     chave_interrupcao = file_manager.obter_caminho_chave_interrupcao()
+    ultimo_log = tempo_inicio
 
     termos_proibidos = [
         'consulta regularidade',
@@ -3467,8 +3502,19 @@ def monitorar_download_federal(certidao_id):
             file_manager.remover_chave_interrupcao()
             return _json_error('Monitoramento interrompido.', 409, status='interrupted')
 
-        novo_arquivo = file_manager.verificar_novo_arquivo(
-            tempo_inicio, termos_ignorar=termos_proibidos)
+        novo_arquivo = _pick_changed_download_pdf(snapshot_before)
+        if not novo_arquivo:
+            novo_arquivo = file_manager.verificar_novo_arquivo(
+                tempo_inicio, termos_ignorar=termos_proibidos)
+
+        agora = time.time()
+        if (agora - ultimo_log) >= 5:
+            restante = max(0, int(tempo_limite - (agora - tempo_inicio)))
+            print(
+                f"[FEDERAL][MONITOR] aguardando... restante={restante}s "
+                f"| novo_arquivo={'sim' if novo_arquivo else 'nao'}"
+            )
+            ultimo_log = agora
 
         if novo_arquivo:
             print(f"Arquivo Federal detectado: {novo_arquivo}")
@@ -3508,6 +3554,12 @@ def monitorar_download_federal(certidao_id):
     # limpeza final por segurança
     file_manager.remover_chave_interrupcao()
     return _json_error('Tempo esgotado sem download.', 408, status='timeout')
+
+
+@bp.route('/certidao/monitorar_download_federal/stop', methods=['POST'])
+def interromper_monitoramento_federal():
+    file_manager.criar_chave_interrupcao()
+    return jsonify({'status': 'ok'})
 
 
 @bp.route('/certidao/visualizar/<token>')
