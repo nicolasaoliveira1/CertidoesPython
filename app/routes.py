@@ -41,7 +41,6 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import Select, WebDriverWait
-from sqlalchemy import or_
 from webdriver_manager.chrome import ChromeDriverManager
 
 from app import db, file_manager
@@ -528,20 +527,12 @@ def _preparar_pagina_fgts(driver, url, cnpj_field_id):
     return True
 
 
-def _calc_fgts_targets(start_certidao_id):
-    return _calc_fgts_targets_by_scope(start_certidao_id, 'default')
-
-
 def _calc_fgts_targets_by_scope(start_certidao_id, scope='default'):
     return batch_engine.calc_targets(
         start_certidao_id,
         extra_filter=lambda query: query.filter(Certidao.tipo == TipoCertidao.FGTS),
         scope=scope,
     )
-
-
-def _calc_estadual_rs_targets(start_certidao_id):
-    return _calc_estadual_rs_targets_by_scope(start_certidao_id, 'default')
 
 
 def _calc_estadual_rs_targets_by_scope(start_certidao_id, scope='default'):
