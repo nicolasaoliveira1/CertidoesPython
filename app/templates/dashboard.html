@@ -1005,7 +1005,13 @@
             let federalMonitorController = null;
             const loadingOverlay = document.getElementById('loading-overlay');
             const loadingDetalhes = document.getElementById('loading-detalhes');
-            const statusesComModal = new Set(['success_file_saved', 'window_closed_no_file', 'estadual_rs_positiva', 'municipal_pdf_positiva']);
+            const statusesComModal = new Set([
+                'success_file_saved',
+                'window_closed_no_file',
+                'estadual_rs_positiva',
+                'municipal_pdf_positiva',
+                'certidao_pdf_positiva'
+            ]);
 
             function bindStaticModalShake(modalElement) {
                 if (!modalElement) return;
@@ -1265,7 +1271,11 @@
                     return;
                 }
                 
-                if (data.status === 'estadual_rs_positiva' || data.status === 'municipal_pdf_positiva') {
+                if (
+                    data.status === 'estadual_rs_positiva'
+                    || data.status === 'municipal_pdf_positiva'
+                    || data.status === 'certidao_pdf_positiva'
+                ) {
                     limparInfoArquivoModal();
                     if (displayTipoPositivaRs) displayTipoPositivaRs.textContent = data.tipo_certidao || 'CERTIDÃO';
                     if (displayMensagemPositivaRs) {
