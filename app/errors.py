@@ -12,15 +12,6 @@ class ErrorType(str, Enum):
     UNKNOWN = 'UNKNOWN'
 
 
-class ExecutionError(Exception):
-    def __init__(self, message, error_type=ErrorType.UNKNOWN, retry_eligible=False, cause=None):
-        super().__init__(message)
-        self.message = message
-        self.error_type = error_type
-        self.retry_eligible = retry_eligible
-        self.cause = cause
-
-
 def map_exception_to_error_type(exc):
     text = str(exc or '').upper()
     name = exc.__class__.__name__.upper() if exc else ''
