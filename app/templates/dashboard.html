@@ -313,7 +313,8 @@
                                 <button type="button"
                                     class="btn btn-link p-0 m-0 text-muted small text-decoration-none copy-cnpj"
                                     data-cnpj="{{ empresa.cnpj | replace('.', '') | replace('/', '') | replace('-', '') }}"
-                                    title="Clique para copiar o CNPJ"
+                                    title="Copiar CNPJ"
+                                    data-bs-tooltip="true" data-bs-placement="top" data-bs-delay='{"show": 600, "hide": 100}'
                                     aria-label="Copiar CNPJ da empresa {{ empresa.nome }}">
                                     <i class="bi bi-card-text me-1"></i>{{ empresa.cnpj }}
                                 </button>
@@ -356,6 +357,7 @@
                                         <div class="d-flex justify-content-center gap-2">
                                             <button type="button" class="btn btn-sm btn-outline-info border-0 btn-abrir-site"
                                                 title="Abrir Site"
+                                                data-bs-tooltip="true" data-bs-placement="top"
                                                 aria-label="Abrir site da certidao {{ tipo_exibicao }} de {{ empresa.nome }}"
                                                 data-id="{{ certidao.id }}"
                                                 data-tipo="{{ certidao.tipo.name }}" data-url="{{ data_url_final }}"
@@ -366,12 +368,14 @@
                                             <button type="button"
                                                 class="btn btn-sm btn-outline-secondary border-0 btn-visualizar-certidao"
                                                 title="Visualizar"
+                                                data-bs-tooltip="true" data-bs-placement="top"
                                                 aria-label="Visualizar certidao {{ tipo_exibicao }} de {{ empresa.nome }}"
                                                 data-url="{{ url_for('main.visualizar_certidao', token=visualizar_token(certidao.id)) }}">
                                                 <i class="bi bi-eye fs-5"></i>
                                             </button>
 
                                             <button type="button" class="btn btn-sm btn-outline-warning border-0" title="Editar"
+                                                data-bs-tooltip="true" data-bs-placement="top"
                                                 aria-label="Editar validade da certidao {{ tipo_exibicao }} de {{ empresa.nome }}"
                                                 data-bs-toggle="modal" data-bs-target="#editModal"
                                                 data-certidao-id="{{ certidao.id }}"
@@ -381,6 +385,7 @@
 
                                             <button type="button" class="btn btn-sm btn-outline-primary border-0 btn-baixar-certidao"
                                                 title="Emitir"
+                                                data-bs-tooltip="true" data-bs-placement="top"
                                                 aria-label="Emitir certidao {{ tipo_exibicao }} de {{ empresa.nome }}"
                                                 data-href="{{ url_for('main.baixar_certidao', certidao_id=certidao.id) }}"
                                                 data-id="{{ certidao.id }}" data-tipo="{{ certidao.tipo.name }}"
@@ -787,6 +792,19 @@
 
             const toastEl = document.getElementById('liveToast');
             const toastBody = document.getElementById('toastMessage');
+
+            const tooltipTriggerList = Array.from(document.querySelectorAll('[data-bs-tooltip="true"]'));
+            tooltipTriggerList.forEach((tooltipTriggerEl) => {
+                new bootstrap.Tooltip(tooltipTriggerEl, { trigger: 'hover' });
+            });
+
+            document.addEventListener('click', function (event) {
+                const tooltipTarget = event.target.closest('[data-bs-tooltip="true"]');
+                if (!tooltipTarget) return;
+
+                const tooltipInstance = bootstrap.Tooltip.getInstance(tooltipTarget);
+                if (tooltipInstance) tooltipInstance.hide();
+            });
 
             function showToast(message, type = 'success') {
                 if (!toastEl) return;
