@@ -69,19 +69,19 @@ main {
 .sidebar-backdrop {
     position: fixed;
     inset: var(--navbar-height) 0 0 0;
-    background: rgba(0, 0, 0, 0.28);
+    background: rgba(0, 0, 0, 0.28) !important;
     opacity: 0;
     pointer-events: none;
     transition: opacity var(--sidebar-transition);
-    z-index: 1040;
+    z-index: 1034;
 }
 
 .app-sidebar {
     position: fixed;
     left: 0;
     top: 0;
+    bottom: 0;
     width: var(--sidebar-width);
-    height: 100dvh;
     padding: var(--sidebar-top-padding) 0.75rem 1rem;
     border-right: 1px solid var(--bs-border-color);
     background-color: var(--bs-body-bg);
@@ -751,6 +751,7 @@ footer {
     .app-sidebar {
         width: var(--sidebar-width);
         padding: var(--sidebar-top-padding) 0.75rem 1rem;
+        padding-bottom: 2rem;
         transform: translateX(calc(var(--sidebar-width) * -1));
     }
 
@@ -787,6 +788,10 @@ footer {
     body.sidebar-open .page-content {
         margin-left: 0;
         width: 100%;
+    }
+
+    body.sidebar-open {
+        overflow: hidden;
     }
 }
 
