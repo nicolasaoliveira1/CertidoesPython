@@ -2521,7 +2521,7 @@ def _automatizar_fgts(contexto, driver, wait, certidao, detectar_impedimento=Fal
                 _marcar_impedimento_e_sair(msg_impedimento)
                 return
 
-        btn_certificado = _aguardar_clickable((By.ID, "mainForm:j_id51"))
+        btn_certificado = _aguardar_clickable((By.ID, "mainForm:j_id76"))
         if not btn_certificado:
             if detectar_impedimento:
                 msg_impedimento = _fgts_detectar_mensagem_impedimento(driver)
