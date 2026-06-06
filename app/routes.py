@@ -2813,12 +2813,20 @@ def dashboard():
         if not m.url_certidao:
             continue
         nome = (m.nome or '').strip()
-        url = m.url_certidao
-        
-        urls_municipais[nome] = url
         nome_sem = file_manager.remover_acentos(nome)
+        url = m.url_certidao
+
+        urls_municipais[nome] = url
         urls_municipais[nome_sem] = url
-        
+
+        if nome_sem.upper() == 'IMBE':
+            config_cfg = _carregar_config_municipio(m)
+            cfg_geral = (((config_cfg or {}).get('imbe_variantes') or {}).get('geral') or {})
+            url_geral = cfg_geral.get('url')
+            if url_geral:
+                urls_municipais[nome + '_GERAL'] = url_geral
+                urls_municipais[nome_sem + '_GERAL'] = url_geral
+
     return render_template(
         'dashboard.html',
         empresas=empresas,

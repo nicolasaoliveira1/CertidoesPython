@@ -23,7 +23,8 @@
 
     {% macro resolve_data_url(certidao, sites_urls, urls_municipais) -%}
     {%- if certidao.tipo.name == 'MUNICIPAL' -%}
-    {{ urls_municipais.get(certidao.empresa.cidade, '#') }}
+    {%- set chave_sub = (certidao.empresa.cidade ~ '_' ~ certidao.subtipo.name) if certidao.subtipo else '' -%}
+    {{ (urls_municipais.get(chave_sub) or urls_municipais.get(certidao.empresa.cidade) or '#') | trim }}
     {%- elif certidao.tipo.name == 'ESTADUAL' -%}
     {%- set uf = (certidao.empresa.estado or '').strip().upper() -%}
     {{ sites_urls.get('ESTADUAL', {}).get(uf, {}).get('url', '#') }}
