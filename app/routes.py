@@ -140,7 +140,7 @@ def _fgts_status_por_data(nova_data):
 
     hoje = date.today()
     diferenca = (nova_data - hoje).days
-    limite_dias = get_a_vencer_dias()
+    limite_dias = get_a_vencer_dias(tipo=TipoCertidao.FGTS)
     if diferenca < 0:
         return 'status-vermelho'
     if diferenca <= limite_dias:
@@ -2750,7 +2750,7 @@ def dashboard():
             return 'nao_definida'
         if certidao.data_validade < hoje:
             return 'vencidas'
-        if (certidao.data_validade - hoje).days <= a_vencer_dias:
+        if certidao.status == 'amarelo':
             return 'a_vencer'
         return 'validas'
 
@@ -3005,7 +3005,7 @@ def relatorios():
         dias_restantes = (certidao.data_validade - hoje).days
         if dias_restantes < 0:
             vencidas += 1
-        elif dias_restantes <= a_vencer_dias:
+        elif certidao.status == 'amarelo':
             a_vencer += 1
 
     return render_template(
@@ -3017,6 +3017,15 @@ def relatorios():
         a_vencer=a_vencer,
         a_vencer_dias=a_vencer_dias,
     )
+
+
+_TIPOS_VENCER = [
+    ('federal', 'Federal', 'a_vencer_dias_federal'),
+    ('fgts', 'FGTS', 'a_vencer_dias_fgts'),
+    ('estadual', 'Estadual', 'a_vencer_dias_estadual'),
+    ('municipal', 'Municipal', 'a_vencer_dias_municipal'),
+    ('trabalhista', 'Trabalhista', 'a_vencer_dias_trabalhista'),
+]
 
 
 @bp.route('/configuracoes', methods=['GET', 'POST'])
@@ -3039,14 +3048,30 @@ def configuracoes():
         try:
             valor = int(valor_str)
         except (TypeError, ValueError):
-            flash('Informe um numero inteiro entre 1 e 30.', 'warning')
+            flash('Informe um numero inteiro entre 1 e 90.', 'warning')
             return redirect(url_for('main.configuracoes'))
 
-        if not 1 <= valor <= 30:
-            flash('O limite de "a vencer" deve ficar entre 1 e 30 dias.', 'warning')
+        if not 1 <= valor <= 90:
+            flash('O limite de "a vencer" deve ficar entre 1 e 90 dias.', 'warning')
             return redirect(url_for('main.configuracoes'))
 
         config.a_vencer_dias = valor
+
+        for chave, _label, coluna in _TIPOS_VENCER:
+            raw = (request.form.get(f'a_vencer_dias_{chave}') or '').strip()
+            if raw == '':
+                setattr(config, coluna, None)
+            else:
+                try:
+                    v = int(raw)
+                except (TypeError, ValueError):
+                    flash(f'Valor invalido para {_label}: use um numero inteiro entre 1 e 90.', 'warning')
+                    return redirect(url_for('main.configuracoes'))
+                if not 1 <= v <= 90:
+                    flash(f'O limite para {_label} deve ficar entre 1 e 90 dias.', 'warning')
+                    return redirect(url_for('main.configuracoes'))
+                setattr(config, coluna, v)
+
         try:
             db.session.commit()
             flash('Configuracoes atualizadas com sucesso.', 'success')
@@ -3057,9 +3082,15 @@ def configuracoes():
         return redirect(url_for('main.configuracoes'))
 
     a_vencer_dias = config.a_vencer_dias if config else get_a_vencer_dias()
+    por_tipo = {
+        chave: getattr(config, coluna) if config else None
+        for chave, _, coluna in _TIPOS_VENCER
+    }
     return render_template(
         'configuracoes.html',
         a_vencer_dias=a_vencer_dias,
+        por_tipo=por_tipo,
+        tipos_vencer=_TIPOS_VENCER,
     )
 
 
@@ -4277,7 +4308,7 @@ def salvar_data_confirmada():
 
         hoje = date.today()
         diferenca = (nova_data - hoje).days
-        limite_dias = get_a_vencer_dias()
+        limite_dias = get_a_vencer_dias(tipo=certidao.tipo)
 
         nova_classe = 'status-verde'
         if diferenca < 0:
@@ -4456,7 +4487,7 @@ def atualizar_validade_json(certidao_id):
 
             hoje = date.today()
             diferenca = (nova_data - hoje).days
-            limite_dias = get_a_vencer_dias()
+            limite_dias = get_a_vencer_dias(tipo=certidao.tipo)
 
             nova_classe = 'status-verde'
             if diferenca < 0:

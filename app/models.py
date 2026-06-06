@@ -67,7 +67,7 @@ class Certidao(db.Model):
             return 'cinza'
         hoje = date.today()
         diferenca_dias = (self.data_validade - hoje).days
-        limite_dias = get_a_vencer_dias()
+        limite_dias = get_a_vencer_dias(tipo=self.tipo)
         if diferenca_dias < 0:
             return 'vermelho'
         elif diferenca_dias <= limite_dias:
@@ -124,25 +124,49 @@ class ConfiguracaoSistema(db.Model):
 
     id = db.Column(db.Integer, primary_key=True)
     a_vencer_dias = db.Column(db.Integer, nullable=False, default=7)
+    a_vencer_dias_federal = db.Column(db.Integer, nullable=True)
+    a_vencer_dias_fgts = db.Column(db.Integer, nullable=True)
+    a_vencer_dias_estadual = db.Column(db.Integer, nullable=True)
+    a_vencer_dias_municipal = db.Column(db.Integer, nullable=True)
+    a_vencer_dias_trabalhista = db.Column(db.Integer, nullable=True)
 
     def __repr__(self):
         return f'<ConfiguracaoSistema {self.id}>'
 
 
-def get_a_vencer_dias(default=7):
+_COLUNA_POR_TIPO = {
+    'Federal': 'a_vencer_dias_federal',
+    'FGTS': 'a_vencer_dias_fgts',
+    'Estadual': 'a_vencer_dias_estadual',
+    'Municipal': 'a_vencer_dias_municipal',
+    'Trabalhista': 'a_vencer_dias_trabalhista',
+}
+
+
+def _validar_dias(valor_raw):
+    try:
+        v = int(valor_raw)
+    except (TypeError, ValueError):
+        return None
+    return v if 1 <= v <= 90 else None
+
+
+def get_a_vencer_dias(tipo=None, default=7):
     try:
         config = ConfiguracaoSistema.query.get(1)
     except Exception:
         return default
 
-    if not config or config.a_vencer_dias is None:
+    if not config:
         return default
 
-    try:
-        valor = int(config.a_vencer_dias)
-    except (TypeError, ValueError):
-        return default
+    if tipo is not None:
+        chave = tipo.value if hasattr(tipo, 'value') else str(tipo)
+        coluna = _COLUNA_POR_TIPO.get(chave)
+        if coluna:
+            valor_tipo = _validar_dias(getattr(config, coluna, None))
+            if valor_tipo is not None:
+                return valor_tipo
 
-    if 1 <= valor <= 30:
-        return valor
-    return default
+    valor = _validar_dias(config.a_vencer_dias)
+    return valor if valor is not None else default

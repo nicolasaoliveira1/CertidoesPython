@@ -23,24 +23,47 @@
     <div class="col-12 col-lg-6">
         <div class="card border-0 shadow-sm h-100">
             <div class="card-header bg-body-tertiary border-bottom">
-                <strong>Validade das certidoes</strong>
+                <strong>Validade das certidões</strong>
             </div>
             <div class="card-body">
                 <form method="POST" action="{{ url_for('main.configuracoes') }}" class="row g-3">
                     <div class="col-12">
-                        <label class="form-label" for="a-vencer-dias">A vencer (dias)</label>
+                        <label class="form-label fw-semibold" for="a-vencer-dias">Padrão (todos os tipos)</label>
                         <input
                             type="number"
                             class="form-control"
                             id="a-vencer-dias"
                             name="a_vencer_dias"
                             min="1"
-                            max="30"
+                            max="90"
                             required
                             value="{{ a_vencer_dias }}"
                         >
-                        <div class="form-text">Define quantos dias antes do vencimento a certidao fica amarela.</div>
+                        <div class="form-text">Usado para qualquer tipo sem configuração individual.</div>
                     </div>
+
+                    <div class="col-12">
+                        <p class="form-label fw-semibold mb-2">Por tipo <span class="text-body-secondary fw-normal">(opcional — sobrepõe o padrão)</span></p>
+                        <div class="row g-2">
+                            {% for chave, label, _ in tipos_vencer %}
+                            <div class="col-6">
+                                <label class="form-label small mb-1" for="a-vencer-{{ chave }}">{{ label }}</label>
+                                <input
+                                    type="number"
+                                    class="form-control form-control-sm"
+                                    id="a-vencer-{{ chave }}"
+                                    name="a_vencer_dias_{{ chave }}"
+                                    min="1"
+                                    max="90"
+                                    placeholder="{{ a_vencer_dias }} (padrão)"
+                                    value="{{ por_tipo[chave] if por_tipo[chave] is not none else '' }}"
+                                >
+                            </div>
+                            {% endfor %}
+                        </div>
+                        <div class="form-text mt-1">Deixe em branco para usar o padrão.</div>
+                    </div>
+
                     <div class="col-12">
                         <button type="submit" class="btn btn-primary">Salvar</button>
                     </div>

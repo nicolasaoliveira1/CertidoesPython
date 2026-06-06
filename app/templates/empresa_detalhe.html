@@ -1,6 +1,4 @@
 {% extends "base.html" %}
-{% set limite_dias = a_vencer_dias | default(7) %}
-
 {% macro render_badge(certidao, hoje) -%}
 {%- set badge_class = 'text-bg-success' -%}
 {%- set icone_status = 'bi-check-circle-fill' -%}
@@ -13,7 +11,7 @@
 {%- elif certidao.data_validade < hoje -%}
 {%- set badge_class = 'text-bg-danger' -%}
 {%- set icone_status = 'bi-x-circle-fill' -%}
-{%- elif (certidao.data_validade - hoje).days <= limite_dias -%}
+{%- elif certidao.status == 'amarelo' -%}
 {%- set badge_class = 'text-bg-warning text-dark' -%}
 {%- set icone_status = 'bi-exclamation-triangle-fill' -%}
 {%- endif -%}
