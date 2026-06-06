@@ -732,6 +732,89 @@
         </div>
     </div>
 
+    <div class="modal fade" id="municipalBatchModal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static"
+        data-bs-keyboard="false">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content batch-action-modal">
+                <div class="modal-header">
+                    <h5 class="modal-title">Emitir Municipal em lote</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="batch-modal-intro mb-3">Foram encontradas certidões Municipais:</p>
+                    <p class="text-muted small mb-3 d-none" id="municipalBatchScopeHint"></p>
+                    <div class="batch-kpi-grid">
+                        <div class="batch-kpi-card is-danger">
+                            <span class="batch-kpi-label" id="municipalBatchLabelVencidas">Vencidas</span>
+                            <strong class="batch-kpi-value" id="municipalBatchVencidas">0</strong>
+                        </div>
+                        <div class="batch-kpi-card is-warning">
+                            <span class="batch-kpi-label" id="municipalBatchLabelAVencer">A vencer</span>
+                            <strong class="batch-kpi-value" id="municipalBatchAVencer">0</strong>
+                        </div>
+                        <div class="batch-kpi-card is-total">
+                            <span class="batch-kpi-label" id="municipalBatchLabelTotal">Total do lote</span>
+                            <strong class="batch-kpi-value" id="municipalBatchTotal">0</strong>
+                        </div>
+                    </div>
+                    <p class="text-muted small mt-3 mb-0">
+                        Lote municipal disponível para IMBE e TRAMANDAI.
+                    </p>
+                </div>
+                <div class="modal-footer batch-modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-primary" id="btnMunicipalBatchStart">Iniciar lote</button>
+                    <button type="button" class="btn btn-outline-primary" id="btnMunicipalSingleEmit">Emitir apenas
+                        esta</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="municipalBatchSummaryModal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static"
+        data-bs-keyboard="false">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content batch-summary-modal">
+                <div class="modal-header border-0 pb-0">
+                    <div>
+                        <h5 class="modal-title mb-1">Resumo do lote Municipal</h5>
+                        <p class="text-muted mb-0 small">
+                            Lote concluído: <strong id="municipalBatchSummaryTotal">0</strong> processadas
+                        </p>
+                    </div>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body pt-3">
+                    <div class="batch-summary-grid">
+                        <div class="batch-summary-card is-success">
+                            <span class="batch-summary-label">Emitidas</span>
+                            <strong class="batch-summary-value" id="municipalBatchSummaryEmitidas">0</strong>
+                        </div>
+
+                        <div class="batch-summary-card is-danger" id="municipalBatchSummaryOutcomeCard">
+                            <span class="batch-summary-label" id="municipalBatchSummaryOutcomeLabel">Falhas</span>
+                            <strong class="batch-summary-value" id="municipalBatchSummaryFalhas">0</strong>
+                        </div>
+
+                        <div class="batch-summary-card">
+                            <span class="batch-summary-label">Duração</span>
+                            <strong class="batch-summary-value" id="municipalBatchSummaryTempo">0s</strong>
+                        </div>
+
+                        <div class="batch-summary-card">
+                            <span class="batch-summary-label">Taxa de sucesso</span>
+                            <strong class="batch-summary-value" id="municipalBatchSummaryTaxa">0%</strong>
+                        </div>
+                    </div>
+                    <p class="small text-muted mt-3 mb-0 d-none" id="municipalBatchSummaryNotice"></p>
+                </div>
+                <div class="modal-footer border-0 pt-0">
+                    <button type="button" class="btn btn-primary px-4" data-bs-dismiss="modal">OK</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <div id="rs-batch-overlay" class="loading-overlay d-none">
         <div class="loading-box text-center">
             <div class="spinner-border text-light" role="status">
@@ -770,6 +853,27 @@
                 <button type="button" class="btn btn-outline-light" id="btnFgtsBatchPause">Pausar</button>
                 <button type="button" class="btn btn-outline-warning d-none" id="btnFgtsBatchResume">Retomar</button>
                 <button type="button" class="btn btn-outline-danger" id="btnFgtsBatchStop">Parar</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="municipal-batch-overlay" class="loading-overlay d-none">
+        <div class="loading-box text-center">
+            <div class="spinner-border text-light" role="status">
+                <span class="visually-hidden">Carregando...</span>
+            </div>
+            <p class="mt-3 text-light fw-semibold mb-1" style='font-size: 1.37rem'>
+                Emissão Municipal em lote
+            </p>
+            <p class="text-light fw-semibold mb-2" id="municipalBatchProgress" aria-live="polite">0/0 concluídas</p>
+            <p class="text-light fw-semibold mb-2" id="municipalBatchFalhas">Falhas: 0</p>
+            <p class="text-light fw-semibold mb-2" id="municipalBatchSuccess">Sucessos: 0</p>
+            <p class="text-light fw-semibold mb-2" id="municipalBatchRemaining">Restantes: 0</p>
+            <p class="text-light small mb-2 d-none" id="municipalBatchLastMessage" aria-live="polite"></p>
+            <div class="d-flex justify-content-center gap-2">
+                <button type="button" class="btn btn-outline-light" id="btnMunicipalBatchPause">Pausar</button>
+                <button type="button" class="btn btn-outline-warning d-none" id="btnMunicipalBatchResume">Retomar</button>
+                <button type="button" class="btn btn-outline-danger" id="btnMunicipalBatchStop">Parar</button>
             </div>
         </div>
     </div>
@@ -973,6 +1077,41 @@
             const btnRsBatchResume = document.getElementById('btnRsBatchResume');
             const btnRsBatchStop = document.getElementById('btnRsBatchStop');
 
+            const municipalBatchModalElement = document.getElementById('municipalBatchModal');
+            let municipalBatchModal = municipalBatchModalElement ? new bootstrap.Modal(municipalBatchModalElement) : null;
+            const municipalBatchSummaryModalElement = document.getElementById('municipalBatchSummaryModal');
+            let municipalBatchSummaryModal = municipalBatchSummaryModalElement
+                ? new bootstrap.Modal(municipalBatchSummaryModalElement, { backdrop: 'static', keyboard: false })
+                : null;
+            const municipalBatchVencidas = document.getElementById('municipalBatchVencidas');
+            const municipalBatchAVencer = document.getElementById('municipalBatchAVencer');
+            const municipalBatchTotal = document.getElementById('municipalBatchTotal');
+            const municipalBatchLabelVencidas = document.getElementById('municipalBatchLabelVencidas');
+            const municipalBatchLabelAVencer = document.getElementById('municipalBatchLabelAVencer');
+            const municipalBatchLabelTotal = document.getElementById('municipalBatchLabelTotal');
+            const municipalBatchScopeHint = document.getElementById('municipalBatchScopeHint');
+            const btnMunicipalBatchStart = document.getElementById('btnMunicipalBatchStart');
+            const btnMunicipalSingleEmit = document.getElementById('btnMunicipalSingleEmit');
+
+            const municipalBatchSummaryEmitidas = document.getElementById('municipalBatchSummaryEmitidas');
+            const municipalBatchSummaryOutcomeCard = document.getElementById('municipalBatchSummaryOutcomeCard');
+            const municipalBatchSummaryOutcomeLabel = document.getElementById('municipalBatchSummaryOutcomeLabel');
+            const municipalBatchSummaryFalhas = document.getElementById('municipalBatchSummaryFalhas');
+            const municipalBatchSummaryTotal = document.getElementById('municipalBatchSummaryTotal');
+            const municipalBatchSummaryTempo = document.getElementById('municipalBatchSummaryTempo');
+            const municipalBatchSummaryTaxa = document.getElementById('municipalBatchSummaryTaxa');
+            const municipalBatchSummaryNotice = document.getElementById('municipalBatchSummaryNotice');
+
+            const municipalBatchOverlay = document.getElementById('municipal-batch-overlay');
+            const municipalBatchProgress = document.getElementById('municipalBatchProgress');
+            const municipalBatchFalhas = document.getElementById('municipalBatchFalhas');
+            const municipalBatchSuccess = document.getElementById('municipalBatchSuccess');
+            const municipalBatchRemaining = document.getElementById('municipalBatchRemaining');
+            const municipalBatchLastMessage = document.getElementById('municipalBatchLastMessage');
+            const btnMunicipalBatchPause = document.getElementById('btnMunicipalBatchPause');
+            const btnMunicipalBatchResume = document.getElementById('btnMunicipalBatchResume');
+            const btnMunicipalBatchStop = document.getElementById('btnMunicipalBatchStop');
+
             const editModalEl = document.getElementById('editModal');
             let editModal = editModalEl ? new bootstrap.Modal(editModalEl) : null;
 
@@ -1016,6 +1155,13 @@
             let rsBatchEmpresaNome = null;
             let rsBatchTipoCert = null;
             let rsBatchScope = 'default';
+            let municipalBatchCertidaoId = null;
+            let municipalBatchPoller = null;
+            let municipalBatchLastCompletedId = null;
+            let municipalBatchSingleUrl = null;
+            let municipalBatchEmpresaNome = null;
+            let municipalBatchTipoCert = null;
+            let municipalBatchScope = 'default';
             let caminhoArquivoParaModal = null;
             let federalMonitorAtivo = false;
             let federalTabRef = null;
@@ -1050,6 +1196,7 @@
 
             bindStaticModalShake(fgtsBatchSummaryModalElement);
             bindStaticModalShake(rsBatchSummaryModalElement);
+            bindStaticModalShake(municipalBatchSummaryModalElement);
 
             function showLoading(nomeEmpresa = '', tipoCertidao = '') {
                 if (loadingOverlay) loadingOverlay.classList.remove('d-none');
@@ -1122,6 +1269,7 @@
                 if (!keepBatchOverlays) {
                     if (fgtsBatchOverlay) fgtsBatchOverlay.classList.add('d-none');
                     if (rsBatchOverlay) rsBatchOverlay.classList.add('d-none');
+                    if (municipalBatchOverlay) municipalBatchOverlay.classList.add('d-none');
                 }
 
                 const modalAbertoOuAbrindo = document.querySelector(
@@ -1761,6 +1909,79 @@
                         pythonUrlComParams += `${sep}imbe_tipo=${encodeURIComponent(imbeTipoEscolhido)}`;
                     }
 
+                    const isMunicipalBatch = btn.dataset.tipo === 'MUNICIPAL'
+                        && (cidadeEmpresaNorm === 'IMBE' || cidadeEmpresaNorm === 'TRAMANDAI');
+
+                    if (isMunicipalBatch) {
+                        municipalBatchCertidaoId = btn.dataset.id || btn.dataset.certidaoId || btn.getAttribute('data-certidao-id');
+                        municipalBatchSingleUrl = pythonUrlComParams || null;
+                        const cardLinha = btn.closest('.company-card');
+                        municipalBatchEmpresaNome = cardLinha && cardLinha.dataset.nomeEmpresa
+                            ? cardLinha.dataset.nomeEmpresa
+                            : '';
+                        municipalBatchTipoCert = btn.dataset.tipo || '';
+
+                        if (!municipalBatchCertidaoId) {
+                            showToast('Certidão Municipal inválida.', 'error');
+                            resetDownloadButton(btn, originalHTML);
+                            return;
+                        }
+
+                        municipalBatchScope = isPendenteStatus(clickedStatusEspecial) ? 'pendentes' : 'default';
+
+                        fetch(`/municipal/lote/info/${municipalBatchCertidaoId}?scope=${encodeURIComponent(municipalBatchScope)}`)
+                            .then(response => response.json())
+                            .then(data => {
+                                resetDownloadButton(btn, originalHTML);
+                                if (!data) {
+                                    showToast('Erro ao obter informações Municipal.', 'error');
+                                    return;
+                                }
+
+                                const totalLote = Number(data.total || 0);
+                                const scopeAtual = normalizeBatchScope(data.scope || municipalBatchScope);
+                                municipalBatchScope = scopeAtual;
+
+                                applyBatchModalData({
+                                    scopeHintEl: municipalBatchScopeHint,
+                                    labelVencidasEl: municipalBatchLabelVencidas,
+                                    labelAVencerEl: municipalBatchLabelAVencer,
+                                    labelTotalEl: municipalBatchLabelTotal,
+                                    valueVencidasEl: municipalBatchVencidas,
+                                    valueAVencerEl: municipalBatchAVencer,
+                                    valueTotalEl: municipalBatchTotal
+                                }, data, scopeAtual);
+
+                                if (totalLote <= 1 && scopeAtual !== 'pendentes') {
+                                    if (!municipalBatchSingleUrl) {
+                                        showToast('URL de emissão indisponível.', 'error');
+                                        return;
+                                    }
+
+                                    showLoading(municipalBatchEmpresaNome || '', municipalBatchTipoCert || '');
+                                    fetch(municipalBatchSingleUrl)
+                                        .then(response => response.json())
+                                        .then(dataSingle => {
+                                            handleDownloadResponse(dataSingle);
+                                        })
+                                        .catch(() => {
+                                            showToast('Erro ao emitir Municipal.', 'error');
+                                        })
+                                        .finally(() => {
+                                            hideLoading();
+                                        });
+                                    return;
+                                }
+                                if (municipalBatchModal) municipalBatchModal.show();
+                            })
+                            .catch(() => {
+                                resetDownloadButton(btn, originalHTML);
+                                showToast('Erro ao obter informações do lote Municipal.', 'error');
+                            });
+
+                        return;
+                    }
+
                     showLoading(empresaNome, tipoCert);
 
                     fetch(pythonUrlComParams)
@@ -2138,6 +2359,58 @@
                     if (rsBatchSummaryNegativas) rsBatchSummaryNegativas.textContent = data.negativas || 0;
                     if (rsBatchSummaryEfeitoNegativas) rsBatchSummaryEfeitoNegativas.textContent = data.efeito_negativas || 0;
                 }
+            });
+
+            bindBatchControls({
+                endpoints: {
+                    status: '/municipal/lote/status',
+                    start: '/municipal/lote/iniciar',
+                    pause: '/municipal/lote/pausar',
+                    resume: '/municipal/lote/retomar',
+                    stop: '/municipal/lote/parar'
+                },
+                messages: {
+                    invalidCertidao: 'Certidão Municipal inválida.',
+                    startError: 'Erro ao iniciar lote Municipal.',
+                    startCatchError: 'Erro ao iniciar lote Municipal.',
+                    singleError: 'Erro ao emitir Municipal.',
+                    paused: 'Lote Municipal pausado.',
+                    resumeError: 'Erro ao retomar lote Municipal.',
+                    resumed: 'Lote Municipal retomado.',
+                    stopped: 'Lote Municipal interrompido.',
+                    completed: 'Lote Municipal concluído.',
+                    error: 'Erro grave no lote Municipal.'
+                },
+                getPoller: () => municipalBatchPoller,
+                setPoller: (value) => { municipalBatchPoller = value; },
+                getLastCompletedId: () => municipalBatchLastCompletedId,
+                setLastCompletedId: (value) => { municipalBatchLastCompletedId = value; },
+                getCertidaoId: () => municipalBatchCertidaoId,
+                getBatchScope: () => municipalBatchScope,
+                getSingleUrl: () => municipalBatchSingleUrl,
+                getEmpresaNome: () => municipalBatchEmpresaNome,
+                getTipoCert: () => municipalBatchTipoCert,
+                progressEl: municipalBatchProgress,
+                falhasEl: municipalBatchFalhas,
+                successEl: municipalBatchSuccess,
+                remainingEl: municipalBatchRemaining,
+                lastMessageEl: municipalBatchLastMessage,
+                overlayEl: municipalBatchOverlay,
+                resumeBtn: btnMunicipalBatchResume,
+                pauseBtn: btnMunicipalBatchPause,
+                stopBtn: btnMunicipalBatchStop,
+                startBtn: btnMunicipalBatchStart,
+                singleBtn: btnMunicipalSingleEmit,
+                batchModal: municipalBatchModal,
+                summaryModal: municipalBatchSummaryModal,
+                summaryEmitidasEl: municipalBatchSummaryEmitidas,
+                summaryOutcomeCardEl: municipalBatchSummaryOutcomeCard,
+                summaryOutcomeLabelEl: municipalBatchSummaryOutcomeLabel,
+                summaryFalhasEl: municipalBatchSummaryFalhas,
+                summaryTotalEl: municipalBatchSummaryTotal,
+                summaryTempoEl: municipalBatchSummaryTempo,
+                summaryTaxaEl: municipalBatchSummaryTaxa,
+                summaryNoticeEl: municipalBatchSummaryNotice
             });
 
             // ações de salvar e pendente modais

@@ -73,13 +73,15 @@ O sistema combina:
 - FGTS:
   - Emissão individual com geração de PDF via Chrome DevTools.
   - Emissão em lote com pausa, retomada, parada e resumo final.
+  - Detecção de PDF positiva no lote: arquivo removido e certidão marcada como PENDENTE automaticamente.
 - Estadual RS:
   - Unitário mantido manual para evitar consumo indevido de solver.
   - Lote com ALTCHA automático via API 2captcha.
   - Processo robusto: só avança para o próximo CNPJ após baixar, estabilizar, mover e classificar o arquivo.
 - Municipal: automação orientada por configuração da tabela Município.
-  - Tramandaí: fluxo condicional com detecção de link NEGATIVA na página final.
+  - Tramandaí: fluxo condicional com detecção de link NEGATIVA na página final; suporte a lote.
   - Gravataí: classificação de status via conteúdo do PDF (positiva/negativa), com tratamento automático de pendência quando positiva.
+  - Imbé: resolução automática de captcha de imagem via 2captcha; emissão de geral e mobiliário separadamente; suporte a lote por subtipo.
 
 ### Gestão de arquivos
 
@@ -179,6 +181,7 @@ Acesso local: http://localhost:5000
 5. Para lotes:
    - FGTS: fluxo de lote quando houver mais de 1 item elegível.
    - Estadual RS: lote com controles de pausar, retomar e parar.
+   - Municipal (Imbé e Tramandaí): lote com as mesmas ações; resolve captcha de imagem via 2captcha no Imbé.
 
 ## Configurações importantes
 
@@ -263,7 +266,7 @@ app/
 
 - Automações dependem da estabilidade dos portais públicos.
 - Mudanças de HTML nos sites podem exigir ajuste de seletores.
-- Captchas fora do lote RS continuam majoritariamente manuais.
+- Captchas fora do lote RS e Municipal (Imbé) continuam majoritariamente manuais.
 - Ainda não existe cobertura completa de testes automatizados para fluxos Selenium.
 
 ## Licença

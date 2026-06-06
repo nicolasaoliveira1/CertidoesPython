@@ -4,6 +4,7 @@ import os
 import random
 import re
 import string
+import tempfile
 import time
 import unicodedata
 from datetime import date, datetime, timedelta
@@ -33,6 +34,7 @@ from selenium.common.exceptions import (
     InvalidSessionIdException,
     NoSuchWindowException,
     TimeoutException,
+    UnexpectedAlertPresentException,
     WebDriverException,
 )
 from selenium.webdriver.chrome.options import Options
@@ -45,6 +47,7 @@ from webdriver_manager.chrome import ChromeDriverManager
 
 from app import db, file_manager
 from app.automation import SITES_CERTIDOES, VALIDADES_CERTIDOES
+from app.captcha_solver import solve_normal_captcha
 from app.errors import map_exception_to_error_type
 from app.models import (
     Certidao,
@@ -70,12 +73,15 @@ bp = Blueprint('main', __name__)
 
 FGTS_BATCH_LOCK = Lock()
 RS_BATCH_LOCK = Lock()
+MUNICIPAL_BATCH_LOCK = Lock()
 RS_CERT_POLICY_LOCK = Lock()
 RS_CERT_POLICY_ACTIVE_COUNT = 0
 
 FGTS_BATCH_STATE = batch_engine.batch_state_defaults()
 
 RS_BATCH_STATE = batch_engine.batch_state_defaults()
+
+MUNICIPAL_BATCH_STATE = batch_engine.batch_state_defaults()
 
 
 @bp.before_app_request
@@ -94,7 +100,7 @@ def _after_request_observability(response):
 
     path = request.path or ''
     is_static = path.startswith('/static/') or path == '/favicon.ico'
-    is_batch_poll = path in {'/fgts/lote/status', '/estadual-rs/lote/status'}
+    is_batch_poll = path in {'/fgts/lote/status', '/estadual-rs/lote/status', '/municipal/lote/status'}
     is_health_ok = path == '/health' and response.status_code == 200
 
     if is_static or is_health_ok or (is_batch_poll and response.status_code == 200):
@@ -122,6 +128,10 @@ def _fgts_stop_requested():
 
 def _rs_batch_stop_requested():
     return RS_BATCH_STATE.get('stop_requested')
+
+
+def _municipal_batch_stop_requested():
+    return MUNICIPAL_BATCH_STATE.get('stop_requested')
 
 
 def _fgts_status_por_data(nova_data):
@@ -543,6 +553,50 @@ def _calc_estadual_rs_targets_by_scope(start_certidao_id, scope='default'):
                  .filter(Certidao.tipo == TipoCertidao.ESTADUAL)
                  .filter(Empresa.estado == 'RS')
         ),
+        scope=scope,
+    )
+
+
+def _batch_targets_vazios(scope='default'):
+    scope_norm = _parse_batch_scope(scope)
+    return {
+        'ids': [],
+        'total': 0,
+        'scope': scope_norm,
+        'vencidas': 0,
+        'a_vencer': 0,
+        'pendentes': 0,
+    }
+
+
+def _municipal_batch_suportado(cidade):
+    cidade_norm = file_manager.remover_acentos((cidade or '').strip()).upper()
+    return cidade_norm in {'IMBE', 'TRAMANDAI'}
+
+
+def _calc_municipal_targets_by_scope(start_certidao_id, scope='default'):
+    certidao = Certidao.query.get(start_certidao_id)
+    if not certidao or certidao.tipo != TipoCertidao.MUNICIPAL:
+        return _batch_targets_vazios(scope=scope)
+
+    cidade = (certidao.empresa.cidade or '').strip()
+    if not _municipal_batch_suportado(cidade):
+        return _batch_targets_vazios(scope=scope)
+
+    subtipo = certidao.subtipo
+
+    def _extra_filter(query):
+        query = (query
+                 .join(Empresa, Empresa.id == Certidao.empresa_id)
+                 .filter(Certidao.tipo == TipoCertidao.MUNICIPAL)
+                 .filter(Empresa.cidade == cidade))
+        if subtipo and file_manager.remover_acentos(cidade).upper() == 'IMBE':
+            query = query.filter(Certidao.subtipo == subtipo)
+        return query
+
+    return batch_engine.calc_targets(
+        start_certidao_id,
+        extra_filter=_extra_filter,
         scope=scope,
     )
 
@@ -1063,6 +1117,576 @@ def _rs_batch_worker(app):
             log_event('rs_batch_worker_end', status=RS_BATCH_STATE.get('status'))
             CorrelationContext.clear()
             print("[ESTADUAL-RS-LOTE] Worker encerrado.")
+def _imbe_encontrar_captcha_imagem(driver, timeout=10):
+    candidatos = [
+        "//img[contains(translate(@alt, 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'), 'verificacao')]",
+        "//img[contains(translate(@alt, 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'), 'palavra')]",
+        "//img[contains(translate(@src, 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'), 'captcha')]",
+        "//img[contains(translate(@src, 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'), 'verificacao')]",
+    ]
+    for xpath in candidatos:
+        try:
+            return WebDriverWait(driver, timeout).until(
+                EC.presence_of_element_located((By.XPATH, xpath))
+            )
+        except TimeoutException:
+            continue
+    return None
+
+
+def _imbe_encontrar_campo_captcha(driver, timeout=10):
+    xpath = (
+        "//input[(contains(translate(@id, 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'), 'captcha')"
+        " or contains(translate(@name, 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'), 'captcha')"
+        " or contains(translate(@id, 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'), 'verificacao')"
+        " or contains(translate(@name, 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'), 'verificacao')"
+        " or contains(translate(@id, 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'), 'palavra')"
+        " or contains(translate(@name, 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'), 'palavra'))"
+        " and (not(@type) or translate(@type, 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz')='text')]"
+    )
+    try:
+        return WebDriverWait(driver, timeout).until(
+            EC.presence_of_element_located((By.XPATH, xpath))
+        )
+    except TimeoutException:
+        return None
+
+
+def _imbe_obter_mensagem_sistema(driver, timeout=4):
+    try:
+        WebDriverWait(driver, timeout).until(
+            EC.presence_of_element_located((By.CSS_SELECTOR, '.mensagemSistema'))
+        )
+    except TimeoutException:
+        return None
+
+    elementos = driver.find_elements(By.CSS_SELECTOR, '.mensagemSistema')
+    if not elementos:
+        return None
+
+    elemento = elementos[-1]
+    texto = file_manager.remover_acentos((elemento.text or '')).upper()
+    if 'RELATORIO SEM CONTEUDO' in texto:
+        return 'sem_conteudo'
+    if 'PALAVRA DE VERIFICACAO NAO CONFERE' in texto:
+        return 'captcha_incorreto'
+    return None
+
+
+def _imbe_fechar_modal_erro_captcha(driver, timeout=3):
+    seletores = [
+        "//a[contains(@class,'ui-messages-close')]",
+        "//span[contains(@class,'ui-icon-close')]",
+        "//button[contains(@class,'close') or @aria-label='Close' or @aria-label='Fechar']",
+        "//a[contains(@class,'ui-growl-item-close')]",
+        "//*[contains(@class,'mensagemSistema')]/following-sibling::*//button",
+    ]
+    for seletor in seletores:
+        try:
+            el = WebDriverWait(driver, timeout).until(
+                EC.element_to_be_clickable((By.XPATH, seletor))
+            )
+            el.click()
+            time.sleep(0.3)
+            return True
+        except TimeoutException:
+            continue
+        except Exception:
+            continue
+    return False
+
+
+def _imbe_resolver_captcha_2captcha(driver, execution_id=None):
+    imagem = _imbe_encontrar_captcha_imagem(driver)
+    if not imagem:
+        return False, 'Imagem do captcha não encontrada.'
+
+    campo = _imbe_encontrar_campo_captcha(driver)
+    if not campo:
+        return False, 'Campo do captcha não encontrado.'
+
+    arquivo_tmp = None
+    try:
+        captcha_bytes = imagem.screenshot_as_png
+        if not captcha_bytes:
+            return False, 'Captcha sem imagem capturada.'
+
+        with tempfile.NamedTemporaryFile(delete=False, suffix='.png') as tmp:
+            tmp.write(captcha_bytes)
+            arquivo_tmp = tmp.name
+
+        resultado = solve_normal_captcha(
+            current_app.config,
+            image_path=arquivo_tmp,
+            execution_id=execution_id,
+        )
+        codigo = (resultado.get('code') or '').strip()
+        if not codigo:
+            return False, 'Resposta do 2captcha vazia.'
+
+        campo.clear()
+        campo.click()
+        campo.send_keys(codigo)
+        return True, None
+    except Exception as exc:
+        return False, f'Falha ao resolver captcha: {exc}'
+    finally:
+        if arquivo_tmp and os.path.exists(arquivo_tmp):
+            try:
+                os.remove(arquivo_tmp)
+            except Exception:
+                pass
+
+
+def _emitir_municipal_certidao_lote(certidao_id, driver=None, execution_id=None):
+    if execution_id:
+        CorrelationContext.set_execution_id(execution_id)
+    if _municipal_batch_stop_requested():
+        return False, False, 'Lote interrompido.'
+
+    certidao = Certidao.query.get(certidao_id)
+    if not certidao:
+        return False, False, 'Certidão não encontrada.'
+
+    if certidao.tipo != TipoCertidao.MUNICIPAL:
+        return False, False, 'Certidão não pertence ao fluxo Municipal.'
+
+    cidade = (certidao.empresa.cidade or '').strip()
+    if not _municipal_batch_suportado(cidade):
+        return False, False, 'Município não habilitado para lote municipal.'
+
+    regra_municipio = _buscar_municipio_por_cidade(cidade)
+    if not regra_municipio:
+        return False, False, 'Regra municipal não encontrada.'
+
+    if regra_municipio.automacao_ativa is False:
+        return False, False, 'Automação desativada para este município.'
+
+    config_municipal = _carregar_config_municipio(regra_municipio)
+    if config_municipal is None:
+        return False, False, 'Município sem configuração de automação.'
+
+    info_site = {
+        'url': regra_municipio.url_certidao,
+        'cnpj_field_id': regra_municipio.cnpj_field_id,
+        'by': regra_municipio.by,
+        'pre_fill_click_id': regra_municipio.pre_fill_click_id,
+        'pre_fill_click_by': regra_municipio.pre_fill_click_by,
+        'inscricao_field_id': regra_municipio.inscricao_field_id,
+        'inscricao_field_by': regra_municipio.inscricao_field_by,
+        'slow_typing': bool(regra_municipio.usar_slow_typing),
+    }
+
+    imbe_tipo = ''
+    cidade_regra_norm = file_manager.remover_acentos(regra_municipio.nome or '').upper()
+    if cidade_regra_norm == 'IMBE':
+        imbe_tipo = _resolve_imbe_tipo_from_subtipo(certidao.subtipo)
+        if imbe_tipo not in {'geral', 'mobiliario'}:
+            return False, False, 'Certidão IMBE sem subtipo válido.'
+        _aplicar_variantes_imbe(info_site, config_municipal, imbe_tipo)
+
+    if config_municipal.get('skip_cnpj_fill'):
+        info_site['cnpj_field_id'] = None
+
+    cnpj_limpo = _normalizar_cnpj(certidao.empresa.cnpj)
+    inscricao_limpa = certidao.empresa.inscricao_mobiliaria or ''
+
+    nome_certidao_arquivo = certidao.tipo.value
+    if cidade_regra_norm == 'IMBE':
+        nome_certidao_arquivo = _nome_certidao_imbe(nome_certidao_arquivo, imbe_tipo)
+
+    local_driver = driver
+    criado_localmente = False
+
+    try:
+        if local_driver is None:
+            local_driver = _criar_driver_chrome()
+            criado_localmente = True
+
+        MUNICIPAL_BATCH_STATE['driver'] = local_driver
+
+        wait = WebDriverWait(local_driver, 20)
+        local_driver.get(info_site.get('url'))
+        try:
+            _configurar_download_automatico_chrome(local_driver)
+        except Exception as exc:
+            print(f"[MUNICIPAL][LOTE] Falha ao reaplicar download automático: {exc}")
+
+        snapshot_before = _snapshot_downloads_pdf()
+
+        steps_before = config_municipal.get('before_cnpj', []) if config_municipal else []
+        resultado_steps = _executar_steps_municipio(
+            local_driver,
+            wait,
+            steps_before,
+            cnpj_limpo,
+            inscricao_limpa,
+            etapa_label='before_cnpj',
+        )
+        if resultado_steps and resultado_steps.get('encerrar_sem_arquivo'):
+            certidao.status_especial = StatusEspecial.PENDENTE
+            certidao.data_validade = None
+            db.session.commit()
+            return True, False, 'Certidão sem negativa, marcada como pendente.'
+
+        if info_site.get('pre_fill_click_id'):
+            click_by = info_site.get('pre_fill_click_by') or 'id'
+            click_map = {
+                'id': By.ID,
+                'name': By.NAME,
+                'css_selector': By.CSS_SELECTOR,
+                'xpath': By.XPATH,
+            }
+            by = click_map.get(click_by)
+            if by:
+                try:
+                    elemento_inicial = wait.until(EC.element_to_be_clickable((by, info_site['pre_fill_click_id'])))
+                    elemento_inicial.click()
+                    time.sleep(1)
+                except Exception:
+                    pass
+
+        if info_site.get('cnpj_field_id'):
+            by_map = {
+                'id': By.ID,
+                'name': By.NAME,
+                'css_selector': By.CSS_SELECTOR,
+                'xpath': By.XPATH,
+            }
+            field_by = by_map.get(info_site.get('by'))
+            if field_by:
+                try:
+                    campo1 = wait.until(EC.element_to_be_clickable((field_by, info_site['cnpj_field_id'])))
+                    if info_site.get('slow_typing'):
+                        campo1.clear()
+                        for digito in _normalizar_cnpj(cnpj_limpo):
+                            campo1.send_keys(digito)
+                            time.sleep(0.1)
+                    else:
+                        campo1.click()
+                        campo1.send_keys(cnpj_limpo)
+                except Exception:
+                    pass
+
+        steps_after = config_municipal.get('after_cnpj', []) if config_municipal else []
+        resultado_steps = _executar_steps_municipio(
+            local_driver,
+            wait,
+            steps_after,
+            cnpj_limpo,
+            inscricao_limpa,
+            etapa_label='after_cnpj',
+        )
+        if resultado_steps and resultado_steps.get('encerrar_sem_arquivo'):
+            certidao.status_especial = StatusEspecial.PENDENTE
+            certidao.data_validade = None
+            db.session.commit()
+            return True, False, 'Certidão sem negativa, marcada como pendente.'
+
+        if info_site.get('inscricao_field_id'):
+            by_map = {
+                'id': By.ID,
+                'name': By.NAME,
+                'css_selector': By.CSS_SELECTOR,
+                'xpath': By.XPATH,
+            }
+            field_by = by_map.get(info_site.get('inscricao_field_by'))
+            if field_by:
+                try:
+                    campo2 = wait.until(EC.element_to_be_clickable((field_by, info_site['inscricao_field_id'])))
+                    campo2.click()
+                    campo2.send_keys(inscricao_limpa)
+                    campo2.send_keys(Keys.TAB)
+                except Exception:
+                    pass
+
+        if cidade_regra_norm == 'IMBE':
+            for tentativa in range(1, 3):
+                if tentativa > 1:
+                    _imbe_fechar_modal_erro_captcha(local_driver)
+                    time.sleep(0.4)
+
+                ok, erro_msg = _imbe_resolver_captcha_2captcha(local_driver, execution_id=execution_id)
+                if not ok:
+                    if tentativa >= 2:
+                        return False, False, erro_msg or 'Falha ao resolver captcha IMBE.'
+                    _imbe_fechar_modal_erro_captcha(local_driver)
+                    time.sleep(0.6)
+                    continue
+
+                handles_antes = set(local_driver.window_handles)
+                try:
+                    link = wait.until(EC.element_to_be_clickable((By.ID, 'form:j_id_51_1_2_1')))
+                    link.click()
+                except Exception:
+                    try:
+                        link = local_driver.find_element(By.ID, 'form:j_id_51_1_2_1')
+                        local_driver.execute_script('arguments[0].click();', link)
+                    except Exception as exc:
+                        return False, False, f'Não foi possível clicar no link da certidão: {exc}'
+
+                time.sleep(1.5)
+                novas_abas = set(local_driver.window_handles) - handles_antes
+                if novas_abas:
+                    local_driver.switch_to.window(novas_abas.pop())
+                    try:
+                        WebDriverWait(local_driver, 10).until(
+                            lambda d: d.execute_script('return document.readyState') == 'complete'
+                        )
+                    except Exception:
+                        pass
+                    try:
+                        _configurar_download_automatico_chrome(local_driver)
+                    except Exception:
+                        pass
+                mensagem = _imbe_obter_mensagem_sistema(local_driver, timeout=4)
+                if mensagem == 'captcha_incorreto':
+                    if tentativa >= 2:
+                        return False, False, 'Captcha incorreto (2 tentativas).'
+                    time.sleep(0.6)
+                    continue
+                if mensagem == 'sem_conteudo':
+                    certidao.status_especial = StatusEspecial.PENDENTE
+                    certidao.data_validade = None
+                    db.session.commit()
+                    return True, False, 'Relatório sem conteúdo. Certidão marcada como pendente.'
+                break
+
+            try:
+                pdf_data_url = local_driver.execute_script(
+                    "var el = document.getElementById('form:pdfOut_AcessoExterno');"
+                    " return el ? el.getAttribute('data') : null;"
+                )
+                if not pdf_data_url:
+                    return False, False, 'URL do PDF Imbé não encontrada na página da certidão.'
+                if pdf_data_url.startswith('/'):
+                    from urllib.parse import urlparse
+                    _parsed = urlparse(local_driver.current_url)
+                    pdf_data_url = f"{_parsed.scheme}://{_parsed.netloc}{pdf_data_url}"
+                local_driver.get(pdf_data_url)
+                time.sleep(1.0)
+            except Exception as exc:
+                return False, False, f'Falha ao acionar download do PDF Imbé: {exc}'
+
+        tempo_inicio = time.time()
+        tempo_limite = 90
+
+        while (time.time() - tempo_inicio) < tempo_limite:
+            if _municipal_batch_stop_requested():
+                return False, False, 'Lote interrompido.'
+
+            novo_arquivo = _pick_changed_download_pdf(snapshot_before)
+            if not novo_arquivo:
+                novo_arquivo = file_manager.verificar_novo_arquivo(tempo_inicio)
+
+            if novo_arquivo:
+                sucesso, msg = file_manager.mover_e_renomear(
+                    novo_arquivo,
+                    certidao.empresa.nome,
+                    nome_certidao_arquivo,
+                )
+
+                if not sucesso:
+                    return False, False, f'Erro ao salvar: {msg}'
+
+                certidao.caminho_arquivo = msg
+                data_calc = _calcular_validade_municipal(regra_municipio)
+                certidao.data_validade = data_calc
+                certidao.status_especial = None
+                try:
+                    db.session.commit()
+                except Exception as e_db:
+                    db.session.rollback()
+                    return False, False, f'Erro ao salvar no banco: {e_db}'
+
+                if bool((config_municipal or {}).get('classificar_pdf_status')):
+                    origem_pdf = f"MUNICIPAL-{regra_municipio.nome}"
+                    municipal_pdf_classificacao = _classificar_status_certidao_pdf(msg, origem_log=origem_pdf)
+                    if municipal_pdf_classificacao == 'positiva':
+                        try:
+                            if msg and os.path.exists(msg):
+                                os.remove(msg)
+                        except Exception:
+                            pass
+                        certidao.caminho_arquivo = None
+                        certidao.status_especial = StatusEspecial.PENDENTE
+                        certidao.data_validade = None
+                        try:
+                            db.session.commit()
+                        except Exception:
+                            db.session.rollback()
+                            return False, False, 'Erro ao marcar pendente após PDF positivo.'
+                        with MUNICIPAL_BATCH_LOCK:
+                            MUNICIPAL_BATCH_STATE['last_completed'] = {
+                                'certidao_id': certidao.id,
+                                'data_formatada': 'PENDENTE',
+                                'nova_classe': 'status-vermelho',
+                            }
+                        return True, False, 'Certidão positiva detectada e marcada como pendente.'
+
+                with MUNICIPAL_BATCH_LOCK:
+                    MUNICIPAL_BATCH_STATE['last_completed'] = {
+                        'certidao_id': certidao.id,
+                        'data_formatada': data_calc.strftime('%d/%m/%Y') if data_calc else None,
+                        'nova_classe': _fgts_status_por_data(data_calc),
+                    }
+                return True, False, 'Certidão municipal emitida com sucesso.'
+
+            time.sleep(1)
+
+        return False, False, 'Tempo esgotado sem download.'
+    except UnexpectedAlertPresentException:
+        try:
+            local_driver.switch_to.alert.dismiss()
+        except Exception:
+            pass
+        try:
+            certidao = Certidao.query.get(certidao_id)
+            if certidao:
+                certidao.status_especial = StatusEspecial.PENDENTE
+                certidao.data_validade = None
+                db.session.commit()
+        except Exception:
+            db.session.rollback()
+        with MUNICIPAL_BATCH_LOCK:
+            MUNICIPAL_BATCH_STATE['last_completed'] = {
+                'certidao_id': certidao_id,
+                'data_formatada': 'PENDENTE',
+                'nova_classe': 'status-vermelho',
+            }
+            batch_engine.append_batch_message(
+                MUNICIPAL_BATCH_STATE,
+                f"Municipal ID={certidao_id}: CNPJ não cadastrado, marcado como pendente.",
+                level='warning',
+                certidao_id=certidao_id,
+            )
+        return True, False, 'CNPJ não cadastrado no município. Certidão marcada como pendente.'
+    except Exception as exc:
+        err_type = map_exception_to_error_type(exc).value
+        log_event(
+            'municipal_batch_emit_error',
+            level='ERROR',
+            certidao_id=certidao_id,
+            empresa_id=certidao.empresa_id if certidao else None,
+            error_type=err_type,
+            error=str(exc),
+        )
+        return False, True, f'Erro grave no lote municipal: {exc}'
+    finally:
+        if local_driver and not criado_localmente:
+            _fgts_fechar_abas_extras(local_driver)
+        if criado_localmente and local_driver:
+            try:
+                local_driver.quit()
+            except Exception:
+                pass
+
+
+def _municipal_batch_worker(app):
+    with app.app_context():
+        driver = None
+        print('[MUNICIPAL-LOTE] Worker iniciado.')
+        execution_id = MUNICIPAL_BATCH_STATE.get('execution_id')
+        if execution_id:
+            CorrelationContext.set_execution_id(execution_id)
+        log_event('municipal_batch_worker_start', status='running')
+        while True:
+            with MUNICIPAL_BATCH_LOCK:
+                if MUNICIPAL_BATCH_STATE['stop_requested']:
+                    if MUNICIPAL_BATCH_STATE.get('stop_action') == 'stop':
+                        MUNICIPAL_BATCH_STATE['status'] = 'stopped'
+                        batch_engine.append_batch_message(
+                            MUNICIPAL_BATCH_STATE,
+                            'Lote Municipal interrompido por solicitação.',
+                            level='warning',
+                        )
+                    else:
+                        MUNICIPAL_BATCH_STATE['status'] = 'paused'
+                        batch_engine.append_batch_message(
+                            MUNICIPAL_BATCH_STATE,
+                            'Lote Municipal pausado por solicitação.',
+                            level='warning',
+                        )
+                    break
+
+                if MUNICIPAL_BATCH_STATE['index'] >= MUNICIPAL_BATCH_STATE['total']:
+                    MUNICIPAL_BATCH_STATE['status'] = 'completed'
+                    MUNICIPAL_BATCH_STATE['current_id'] = None
+                    MUNICIPAL_BATCH_STATE['finished_at'] = datetime.utcnow()
+                    batch_engine.append_batch_message(
+                        MUNICIPAL_BATCH_STATE,
+                        'Lote Municipal concluído com sucesso.',
+                        level='info',
+                    )
+                    break
+
+                certidao_id = MUNICIPAL_BATCH_STATE['ids'][MUNICIPAL_BATCH_STATE['index']]
+                MUNICIPAL_BATCH_STATE['current_id'] = certidao_id
+                batch_engine.append_batch_message(
+                    MUNICIPAL_BATCH_STATE,
+                    (
+                        f"Municipal iniciando ID={certidao_id} "
+                        f"({MUNICIPAL_BATCH_STATE['index'] + 1}/{MUNICIPAL_BATCH_STATE['total']})."
+                    ),
+                    level='info',
+                    certidao_id=certidao_id,
+                )
+
+            if driver is None:
+                driver = _criar_driver_chrome()
+
+            sucesso, grave, mensagem = _emitir_municipal_certidao_lote(
+                certidao_id,
+                driver=driver,
+                execution_id=execution_id,
+            )
+
+            with MUNICIPAL_BATCH_LOCK:
+                if MUNICIPAL_BATCH_STATE['stop_requested']:
+                    if MUNICIPAL_BATCH_STATE.get('stop_action') == 'stop':
+                        MUNICIPAL_BATCH_STATE['status'] = 'stopped'
+                    else:
+                        MUNICIPAL_BATCH_STATE['status'] = 'paused'
+                    break
+
+                if grave:
+                    MUNICIPAL_BATCH_STATE['status'] = 'error'
+                    MUNICIPAL_BATCH_STATE['message'] = mensagem or 'Erro grave no lote Municipal.'
+                    batch_engine.append_batch_message(
+                        MUNICIPAL_BATCH_STATE,
+                        MUNICIPAL_BATCH_STATE['message'],
+                        level='error',
+                        certidao_id=certidao_id,
+                    )
+                    break
+
+                if not sucesso:
+                    MUNICIPAL_BATCH_STATE['falhas'] += 1
+                    batch_engine.append_batch_message(
+                        MUNICIPAL_BATCH_STATE,
+                        f"Municipal falhou ID={certidao_id}: {mensagem}",
+                        level='warning',
+                        certidao_id=certidao_id,
+                    )
+                else:
+                    MUNICIPAL_BATCH_STATE['success'] += 1
+                    batch_engine.append_batch_message(
+                        MUNICIPAL_BATCH_STATE,
+                        f"Municipal OK ID={certidao_id}.",
+                        level='info',
+                        certidao_id=certidao_id,
+                    )
+
+                MUNICIPAL_BATCH_STATE['index'] += 1
+
+        if driver:
+            try:
+                driver.quit()
+            except Exception:
+                pass
+        log_event('municipal_batch_worker_end', status=MUNICIPAL_BATCH_STATE.get('status'))
+        CorrelationContext.clear()
+        print('[MUNICIPAL-LOTE] Worker encerrado.')
 
 
 def _emitir_fgts_certidao(certidao_id, driver=None, execution_id=None):
@@ -1575,6 +2199,111 @@ def estadual_rs_lote_retomar():
 @bp.route('/estadual-rs/lote/status')
 def estadual_rs_lote_status():
     return jsonify(batch_engine.status_payload_locked(RS_BATCH_LOCK, RS_BATCH_STATE))
+
+
+@bp.route('/municipal/lote/info/<int:certidao_id>')
+def municipal_lote_info(certidao_id):
+    scope = _parse_batch_scope(request.args.get('scope'))
+    dados = _calc_municipal_targets_by_scope(certidao_id, scope=scope)
+    return jsonify({
+        'status': 'ok',
+        **dados
+    })
+
+
+@bp.route('/municipal/lote/iniciar', methods=['POST'])
+def municipal_lote_iniciar():
+    dados = request.get_json() or {}
+    certidao_id = dados.get('certidao_id')
+    scope = _parse_batch_scope(dados.get('scope'))
+
+    if not certidao_id:
+        return _json_error('Certidão inválida.', 400)
+
+    dados_lote = batch_engine.init_batch_run(
+        MUNICIPAL_BATCH_LOCK,
+        MUNICIPAL_BATCH_STATE,
+        certidao_id,
+        lambda start_id: _calc_municipal_targets_by_scope(start_id, scope=scope),
+        _municipal_batch_worker,
+        app_factory=_current_app_object,
+    )
+
+    if dados_lote is None:
+        return _json_error('Já existe um lote Municipal em andamento.', 400)
+
+    if not dados_lote:
+        if scope == 'pendentes':
+            return _json_error('Nenhuma certidão Municipal pendente para emissão.', 400)
+        return _json_error('Nenhuma certidão Municipal vencida ou a vencer.', 400)
+
+    log_event(
+        'municipal_batch_started',
+        status='running',
+        scope=scope,
+        total=dados_lote['total'],
+        execution_id=MUNICIPAL_BATCH_STATE.get('execution_id'),
+    )
+
+    with MUNICIPAL_BATCH_LOCK:
+        batch_engine.append_batch_message(
+            MUNICIPAL_BATCH_STATE,
+            f"Lote Municipal iniciado. Total={dados_lote['total']}.",
+            level='info',
+        )
+
+    return jsonify({'status': 'ok'})
+
+
+@bp.route('/municipal/lote/pausar', methods=['POST'])
+def municipal_lote_pausar():
+    driver = batch_engine.request_pause(MUNICIPAL_BATCH_LOCK, MUNICIPAL_BATCH_STATE)
+    with MUNICIPAL_BATCH_LOCK:
+        batch_engine.append_batch_message(
+            MUNICIPAL_BATCH_STATE,
+            'Lote Municipal pausado por solicitação.',
+            level='warning',
+        )
+    _fgts_quit_driver_async(driver)
+    return jsonify({'status': 'ok', 'message': 'Lote Municipal pausado.'})
+
+
+@bp.route('/municipal/lote/parar', methods=['POST'])
+def municipal_lote_parar():
+    driver = batch_engine.request_stop(MUNICIPAL_BATCH_LOCK, MUNICIPAL_BATCH_STATE)
+    with MUNICIPAL_BATCH_LOCK:
+        batch_engine.append_batch_message(
+            MUNICIPAL_BATCH_STATE,
+            'Lote Municipal interrompido por solicitação.',
+            level='warning',
+        )
+    _fgts_quit_driver_async(driver)
+    return jsonify({'status': 'ok', 'message': 'Lote Municipal interrompido.'})
+
+
+@bp.route('/municipal/lote/retomar', methods=['POST'])
+def municipal_lote_retomar():
+    if not batch_engine.resume_batch(
+        MUNICIPAL_BATCH_LOCK,
+        MUNICIPAL_BATCH_STATE,
+        _municipal_batch_worker,
+        app_factory=_current_app_object,
+    ):
+        return _json_error('Lote Municipal não está pausado.', 400)
+
+    with MUNICIPAL_BATCH_LOCK:
+        batch_engine.append_batch_message(
+            MUNICIPAL_BATCH_STATE,
+            'Lote Municipal retomado por solicitação.',
+            level='info',
+        )
+
+    return jsonify({'status': 'ok'})
+
+
+@bp.route('/municipal/lote/status')
+def municipal_lote_status():
+    return jsonify(batch_engine.status_payload_locked(MUNICIPAL_BATCH_LOCK, MUNICIPAL_BATCH_STATE))
 
 
 @bp.route('/fgts/emitir_unico', methods=['POST'])
@@ -2678,6 +3407,75 @@ def _carregar_config_municipio(regra_municipio):
         return None
 
 
+def _buscar_municipio_por_cidade(cidade):
+    cidade_norm = file_manager.remover_acentos((cidade or '').strip()).upper()
+    if not cidade_norm:
+        return None
+
+    for municipio in Municipio.query.all():
+        nome_norm = file_manager.remover_acentos(municipio.nome or '').upper()
+        if nome_norm == cidade_norm:
+            return municipio
+    return None
+
+
+def _resolve_imbe_tipo_from_subtipo(cert_subtipo):
+    if cert_subtipo == SubtipoCertidao.GERAL:
+        return 'geral'
+    if cert_subtipo == SubtipoCertidao.MOBILIARIO:
+        return 'mobiliario'
+    return ''
+
+
+def _nome_certidao_imbe(nome_padrao, tipo_escolhido):
+    if tipo_escolhido == 'geral':
+        return 'CERTIDAO MUNICIPAL'
+    if tipo_escolhido == 'mobiliario':
+        return 'CERTIDAO MOBILIARIO'
+    return nome_padrao
+
+
+def _aplicar_variantes_imbe(info_site_cfg, config_cfg, tipo_escolhido):
+    if tipo_escolhido != 'geral':
+        return
+    cfg_geral = (((config_cfg or {}).get('imbe_variantes') or {}).get('geral') or {})
+    info_site_cfg['url'] = cfg_geral.get(
+        'url',
+        'https://grp.imbe.rs.gov.br/grp/acessoexterno/programaAcessoExterno.faces?codigo=684509'
+    )
+    info_site_cfg['cnpj_field_id'] = cfg_geral.get('cnpj_field_id', 'form:cnpjD')
+    info_site_cfg['by'] = cfg_geral.get('by', 'name')
+    info_site_cfg['pre_fill_click_id'] = cfg_geral.get(
+        'pre_fill_click_id',
+        info_site_cfg.get('pre_fill_click_id')
+    )
+    info_site_cfg['pre_fill_click_by'] = cfg_geral.get(
+        'pre_fill_click_by',
+        info_site_cfg.get('pre_fill_click_by')
+    )
+    info_site_cfg['inscricao_field_id'] = None
+    info_site_cfg['inscricao_field_by'] = None
+    if config_cfg is None:
+        return
+
+    after_cnpj = config_cfg.get('after_cnpj') or []
+    already_has_tab = any((step or {}).get('tipo') == 'press_tab' for step in after_cnpj)
+    if not already_has_tab:
+        after_cnpj.append({
+            'tipo': 'press_tab',
+            'by': info_site_cfg.get('by', 'name'),
+            'locator': info_site_cfg.get('cnpj_field_id'),
+            'sleep': 0.4
+        })
+    config_cfg['after_cnpj'] = after_cnpj
+
+
+def _calcular_validade_municipal(regra_municipio):
+    if regra_municipio and regra_municipio.validade_dias:
+        return date.today() + timedelta(days=regra_municipio.validade_dias)
+    return None
+
+
 def _executar_steps_municipio(driver, wait, steps, cnpj_limpo, inscricao_limpa, etapa_label='steps'):
     if not steps:
         return None
@@ -2784,9 +3582,9 @@ def _executar_steps_municipio(driver, wait, steps, cnpj_limpo, inscricao_limpa, 
                 except Exception as exc_js_click:
                     print(f"[MUNICIPAL] Erro no fallback JS do step condicional: {exc_js_click!r}")
 
-                print('[MUNICIPAL] Link de certidão NEGATIVA não encontrado. Fechando e retornando pendente.')
+                print('[MUNICIPAL] Link de certidão NEGATIVA não encontrado. Retornando pendente.')
                 try:
-                    driver.close()
+                    driver.get('about:blank')
                 except Exception:
                     pass
                 return {'encerrar_sem_arquivo': True}
@@ -2921,61 +3719,13 @@ def baixar_certidao(certidao_id):
             return None
         return calcular_validade_padrao(certidao, None)
 
-    def _aplicar_variantes_imbe(info_site_cfg, config_cfg, tipo_escolhido):
-        if tipo_escolhido != 'geral':
-            return
-        cfg_geral = (((config_cfg or {}).get('imbe_variantes') or {}).get('geral') or {})
-        info_site_cfg['url'] = cfg_geral.get(
-            'url',
-            'https://grp.imbe.rs.gov.br/grp/acessoexterno/programaAcessoExterno.faces?codigo=684509'
-        )
-        info_site_cfg['cnpj_field_id'] = cfg_geral.get('cnpj_field_id', 'form:cnpjD')
-        info_site_cfg['by'] = cfg_geral.get('by', 'name')
-        info_site_cfg['pre_fill_click_id'] = cfg_geral.get(
-            'pre_fill_click_id',
-            info_site_cfg.get('pre_fill_click_id')
-        )
-        info_site_cfg['pre_fill_click_by'] = cfg_geral.get(
-            'pre_fill_click_by',
-            info_site_cfg.get('pre_fill_click_by')
-        )
-        info_site_cfg['inscricao_field_id'] = None
-        info_site_cfg['inscricao_field_by'] = None
-        if config_cfg is None:
-            return
-
-        after_cnpj = config_cfg.get('after_cnpj') or []
-        already_has_tab = any((step or {}).get('tipo') == 'press_tab' for step in after_cnpj)
-        if not already_has_tab:
-            after_cnpj.append({
-                'tipo': 'press_tab',
-                'by': info_site_cfg.get('by', 'name'),
-                'locator': info_site_cfg.get('cnpj_field_id'),
-                'sleep': 0.4
-            })
-        config_cfg['after_cnpj'] = after_cnpj
-
-    def _nome_certidao_imbe(nome_padrao, tipo_escolhido):
-        if tipo_escolhido == 'geral':
-            return 'CERTIDAO MUNICIPAL'
-        if tipo_escolhido == 'mobiliario':
-            return 'CERTIDAO MOBILIARIO'
-        return nome_padrao
-
-    def _resolve_imbe_tipo(cert_subtipo):
-        if cert_subtipo == SubtipoCertidao.GERAL:
-            return 'geral'
-        if cert_subtipo == SubtipoCertidao.MOBILIARIO:
-            return 'mobiliario'
-        return ''
-
     regra_municipio = None
     config_municipal = None
     usar_config_municipal = False
     imbe_tipo = (request.args.get('imbe_tipo') or '').strip().lower()
 
     if not imbe_tipo and certidao.subtipo:
-        imbe_tipo = _resolve_imbe_tipo(certidao.subtipo)
+        imbe_tipo = _resolve_imbe_tipo_from_subtipo(certidao.subtipo)
 
     if tipo_certidao_chave == 'FEDERAL':
         return redirect("https://servicos.receitafederal.gov.br/servico/certidoes/#/home/cnpj")
@@ -2994,13 +3744,7 @@ def baixar_certidao(certidao_id):
 
     else:
         cidade_empresa = certidao.empresa.cidade or ''
-        cidade_norm = file_manager.remover_acentos(cidade_empresa).upper()
-        
-        for m in Municipio.query.all():
-            nome_norm = file_manager.remover_acentos(m.nome or '').upper()
-            if nome_norm == cidade_norm:
-                regra_municipio = m
-                break
+        regra_municipio = _buscar_municipio_por_cidade(cidade_empresa)
         
         if regra_municipio:
             info_site = {
