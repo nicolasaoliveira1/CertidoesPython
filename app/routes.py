@@ -1675,120 +1675,136 @@ def _fgts_batch_worker(app):
     )
 
 
-@bp.route('/fgts/lote/info/<int:certidao_id>')
-def fgts_lote_info(certidao_id):
-    scope = _parse_batch_scope(request.args.get('scope'))
-    dados = _calc_fgts_targets_by_scope(certidao_id, scope=scope)
-    return jsonify({
-        'status': 'ok',
-        **dados
-    })
+def _rs_lote_precondicao():
+    if not _to_bool(_get_config_value('RS_ALTCHA_AUTOSOLVE_ENABLED', False), False):
+        return _json_error('Ative RS_ALTCHA_AUTOSOLVE_ENABLED para usar lote Estadual RS.', 400)
+    return None
 
 
-@bp.route('/fgts/lote/iniciar', methods=['POST'])
-def fgts_lote_iniciar():
-    dados = request.get_json() or {}
-    certidao_id = dados.get('certidao_id')
-    scope = _parse_batch_scope(dados.get('scope'))
+def _register_batch_routes(prefix, endpoint_base, cfg):
+    """Registra as 6 rotas de lote (info/iniciar/pausar/parar/retomar/status) de
+    um fluxo, eliminando a duplicacao entre FGTS, Estadual RS e Municipal."""
+    lock = cfg['lock']
+    state = cfg['state']
+    worker = cfg['worker']
+    calc_targets = cfg['calc_targets']
+    tag = cfg.get('tag')
+    nome = cfg['nome_lote']
+    precondicao = cfg.get('precondicao')
 
-    if not certidao_id:
-        return _json_error('Certidão inválida.', 400)
+    def info(certidao_id):
+        scope = _parse_batch_scope(request.args.get('scope'))
+        return jsonify({'status': 'ok', **calc_targets(certidao_id, scope=scope)})
 
-    dados_lote = batch_engine.init_batch_run(
-        FGTS_BATCH_LOCK,
-        FGTS_BATCH_STATE,
-        certidao_id,
-        lambda start_id: _calc_fgts_targets_by_scope(start_id, scope=scope),
-        _fgts_batch_worker,
-        app_factory=_current_app_object,
-    )
-
-    if dados_lote is None:
-        return _json_error('Já existe um lote em andamento.', 400)
-
-    if not dados_lote:
-        if scope == 'pendentes':
-            return _json_error('Nenhuma certidão FGTS pendente para emissão.', 400)
-        return _json_error('Nenhuma certidão FGTS vencida ou a vencer.', 400)
-
-    log_event(
-        'fgts_batch_started',
-        status='running',
-        scope=scope,
-        total=dados_lote['total'],
-        execution_id=FGTS_BATCH_STATE.get('execution_id'),
-    )
-    print(f"[FGTS-LOTE] Lote iniciado. Total={dados_lote['total']}.")
-
-    with FGTS_BATCH_LOCK:
-        batch_engine.append_batch_message(
-            FGTS_BATCH_STATE,
-            f"Lote FGTS iniciado. Total={dados_lote['total']}.",
-            level='info',
+    def iniciar():
+        dados = request.get_json() or {}
+        certidao_id = dados.get('certidao_id')
+        scope = _parse_batch_scope(dados.get('scope'))
+        if not certidao_id:
+            return _json_error('Certidão inválida.', 400)
+        if precondicao is not None:
+            erro = precondicao()
+            if erro is not None:
+                return erro
+        dados_lote = batch_engine.init_batch_run(
+            lock, state, certidao_id,
+            lambda start_id: calc_targets(start_id, scope=scope),
+            worker, app_factory=_current_app_object,
         )
-
-    return jsonify({'status': 'ok'})
-
-
-@bp.route('/fgts/lote/pausar', methods=['POST'])
-def fgts_lote_pausar():
-    driver = batch_engine.request_pause(FGTS_BATCH_LOCK, FGTS_BATCH_STATE)
-    print("[FGTS-LOTE] Pausa solicitada.")
-
-    with FGTS_BATCH_LOCK:
-        batch_engine.append_batch_message(
-            FGTS_BATCH_STATE,
-            'Lote FGTS pausado por solicitação.',
-            level='warning',
+        if dados_lote is None:
+            return _json_error(cfg['msg_em_andamento'], 400)
+        if not dados_lote:
+            if scope == 'pendentes':
+                return _json_error(cfg['msg_vazio_pendentes'], 400)
+            return _json_error(cfg['msg_vazio_default'], 400)
+        log_event(
+            cfg['started_event'], status='running', scope=scope,
+            total=dados_lote['total'], execution_id=state.get('execution_id'),
         )
+        if tag:
+            print(f"[{tag}] Lote iniciado. Total={dados_lote['total']}.")
+        with lock:
+            batch_engine.append_batch_message(
+                state, f"Lote {nome} iniciado. Total={dados_lote['total']}.", level='info')
+        return jsonify({'status': 'ok'})
 
-    _fgts_quit_driver_async(driver)
+    def pausar():
+        driver = batch_engine.request_pause(lock, state)
+        if tag:
+            print(f"[{tag}] Pausa solicitada.")
+        with lock:
+            batch_engine.append_batch_message(
+                state, f"Lote {nome} pausado por solicitação.", level='warning')
+        _fgts_quit_driver_async(driver)
+        return jsonify({'status': 'ok', 'message': cfg['msg_pausado']})
 
-    return jsonify({'status': 'ok', 'message': 'Lote pausado.'})
+    def parar():
+        driver = batch_engine.request_stop(lock, state)
+        if tag:
+            print(f"[{tag}] Parada solicitada.")
+        with lock:
+            batch_engine.append_batch_message(
+                state, f"Lote {nome} interrompido por solicitação.", level='warning')
+        _fgts_quit_driver_async(driver)
+        return jsonify({'status': 'ok', 'message': cfg['msg_interrompido']})
 
+    def retomar():
+        if not batch_engine.resume_batch(lock, state, worker, app_factory=_current_app_object):
+            return _json_error(cfg['msg_nao_pausado'], 400)
+        if tag:
+            print(f"[{tag}] Retomada solicitada.")
+        with lock:
+            batch_engine.append_batch_message(
+                state, f"Lote {nome} retomado por solicitação.", level='info')
+        return jsonify({'status': 'ok'})
 
-@bp.route('/fgts/lote/parar', methods=['POST'])
-def fgts_lote_parar():
-    driver = batch_engine.request_stop(FGTS_BATCH_LOCK, FGTS_BATCH_STATE)
-    print("[FGTS-LOTE] Parada solicitada.")
+    def status_view():
+        return jsonify(batch_engine.status_payload_locked(lock, state))
 
-    with FGTS_BATCH_LOCK:
-        batch_engine.append_batch_message(
-            FGTS_BATCH_STATE,
-            'Lote FGTS interrompido por solicitação.',
-            level='warning',
-        )
-
-    _fgts_quit_driver_async(driver)
-
-    return jsonify({'status': 'ok', 'message': 'Lote interrompido.'})
-
-
-@bp.route('/fgts/lote/retomar', methods=['POST'])
-def fgts_lote_retomar():
-    if not batch_engine.resume_batch(
-        FGTS_BATCH_LOCK,
-        FGTS_BATCH_STATE,
-        _fgts_batch_worker,
-        app_factory=_current_app_object,
-    ):
-        return _json_error('Lote não está pausado.', 400)
-
-    print("[FGTS-LOTE] Retomada solicitada.")
-
-    with FGTS_BATCH_LOCK:
-        batch_engine.append_batch_message(
-            FGTS_BATCH_STATE,
-            'Lote FGTS retomado por solicitação.',
-            level='info',
-        )
-
-    return jsonify({'status': 'ok'})
+    bp.add_url_rule(f'{prefix}/lote/info/<int:certidao_id>', f'{endpoint_base}_info', info)
+    bp.add_url_rule(f'{prefix}/lote/iniciar', f'{endpoint_base}_iniciar', iniciar, methods=['POST'])
+    bp.add_url_rule(f'{prefix}/lote/pausar', f'{endpoint_base}_pausar', pausar, methods=['POST'])
+    bp.add_url_rule(f'{prefix}/lote/parar', f'{endpoint_base}_parar', parar, methods=['POST'])
+    bp.add_url_rule(f'{prefix}/lote/retomar', f'{endpoint_base}_retomar', retomar, methods=['POST'])
+    bp.add_url_rule(f'{prefix}/lote/status', f'{endpoint_base}_status', status_view)
 
 
-@bp.route('/fgts/lote/status')
-def fgts_lote_status():
-    return jsonify(batch_engine.status_payload_locked(FGTS_BATCH_LOCK, FGTS_BATCH_STATE))
+_register_batch_routes('/fgts', 'fgts_lote', {
+    'lock': FGTS_BATCH_LOCK, 'state': FGTS_BATCH_STATE,
+    'worker': _fgts_batch_worker, 'calc_targets': _calc_fgts_targets_by_scope,
+    'started_event': 'fgts_batch_started', 'tag': 'FGTS-LOTE', 'nome_lote': 'FGTS',
+    'msg_em_andamento': 'Já existe um lote em andamento.',
+    'msg_vazio_pendentes': 'Nenhuma certidão FGTS pendente para emissão.',
+    'msg_vazio_default': 'Nenhuma certidão FGTS vencida ou a vencer.',
+    'msg_pausado': 'Lote pausado.',
+    'msg_interrompido': 'Lote interrompido.',
+    'msg_nao_pausado': 'Lote não está pausado.',
+})
+
+_register_batch_routes('/estadual-rs', 'estadual_rs_lote', {
+    'lock': RS_BATCH_LOCK, 'state': RS_BATCH_STATE,
+    'worker': _rs_batch_worker, 'calc_targets': _calc_estadual_rs_targets_by_scope,
+    'started_event': 'rs_batch_started', 'tag': 'ESTADUAL-RS-LOTE', 'nome_lote': 'Estadual RS',
+    'precondicao': _rs_lote_precondicao,
+    'msg_em_andamento': 'Já existe um lote Estadual RS em andamento.',
+    'msg_vazio_pendentes': 'Nenhuma certidão Estadual RS pendente para emissão.',
+    'msg_vazio_default': 'Nenhuma certidão Estadual RS vencida ou a vencer.',
+    'msg_pausado': 'Lote Estadual RS pausado.',
+    'msg_interrompido': 'Lote Estadual RS interrompido.',
+    'msg_nao_pausado': 'Lote Estadual RS não está pausado.',
+})
+
+_register_batch_routes('/municipal', 'municipal_lote', {
+    'lock': MUNICIPAL_BATCH_LOCK, 'state': MUNICIPAL_BATCH_STATE,
+    'worker': _municipal_batch_worker, 'calc_targets': _calc_municipal_targets_by_scope,
+    'started_event': 'municipal_batch_started', 'tag': None, 'nome_lote': 'Municipal',
+    'msg_em_andamento': 'Já existe um lote Municipal em andamento.',
+    'msg_vazio_pendentes': 'Nenhuma certidão Municipal pendente para emissão.',
+    'msg_vazio_default': 'Nenhuma certidão Municipal vencida ou a vencer.',
+    'msg_pausado': 'Lote Municipal pausado.',
+    'msg_interrompido': 'Lote Municipal interrompido.',
+    'msg_nao_pausado': 'Lote Municipal não está pausado.',
+})
 
 
 @bp.route('/health')
@@ -1797,230 +1813,6 @@ def health():
     has_failure = any(not item.get('ok') for item in checks.values())
     code = 200 if not has_failure else 503
     return jsonify({'status': 'ok' if not has_failure else 'degraded', 'checks': checks}), code
-
-
-@bp.route('/estadual-rs/lote/info/<int:certidao_id>')
-def estadual_rs_lote_info(certidao_id):
-    scope = _parse_batch_scope(request.args.get('scope'))
-    dados = _calc_estadual_rs_targets_by_scope(certidao_id, scope=scope)
-    return jsonify({
-        'status': 'ok',
-        **dados
-    })
-
-
-@bp.route('/estadual-rs/lote/iniciar', methods=['POST'])
-def estadual_rs_lote_iniciar():
-    dados = request.get_json() or {}
-    certidao_id = dados.get('certidao_id')
-    scope = _parse_batch_scope(dados.get('scope'))
-
-    if not certidao_id:
-        return _json_error('Certidão inválida.', 400)
-
-    if not _to_bool(_get_config_value('RS_ALTCHA_AUTOSOLVE_ENABLED', False), False):
-        return _json_error('Ative RS_ALTCHA_AUTOSOLVE_ENABLED para usar lote Estadual RS.', 400)
-
-    dados_lote = batch_engine.init_batch_run(
-        RS_BATCH_LOCK,
-        RS_BATCH_STATE,
-        certidao_id,
-        lambda start_id: _calc_estadual_rs_targets_by_scope(start_id, scope=scope),
-        _rs_batch_worker,
-        app_factory=_current_app_object,
-    )
-
-    if dados_lote is None:
-        return _json_error('Já existe um lote Estadual RS em andamento.', 400)
-
-    if not dados_lote:
-        if scope == 'pendentes':
-            return _json_error('Nenhuma certidão Estadual RS pendente para emissão.', 400)
-        return _json_error('Nenhuma certidão Estadual RS vencida ou a vencer.', 400)
-
-    log_event(
-        'rs_batch_started',
-        status='running',
-        scope=scope,
-        total=dados_lote['total'],
-        execution_id=RS_BATCH_STATE.get('execution_id'),
-    )
-    print(f"[ESTADUAL-RS-LOTE] Lote iniciado. Total={dados_lote['total']}.")
-
-    with RS_BATCH_LOCK:
-        batch_engine.append_batch_message(
-            RS_BATCH_STATE,
-            f"Lote Estadual RS iniciado. Total={dados_lote['total']}.",
-            level='info',
-        )
-
-    return jsonify({'status': 'ok'})
-
-
-@bp.route('/estadual-rs/lote/pausar', methods=['POST'])
-def estadual_rs_lote_pausar():
-    driver = batch_engine.request_pause(RS_BATCH_LOCK, RS_BATCH_STATE)
-    print("[ESTADUAL-RS-LOTE] Pausa solicitada.")
-
-    with RS_BATCH_LOCK:
-        batch_engine.append_batch_message(
-            RS_BATCH_STATE,
-            'Lote Estadual RS pausado por solicitação.',
-            level='warning',
-        )
-
-    _fgts_quit_driver_async(driver)
-
-    return jsonify({'status': 'ok', 'message': 'Lote Estadual RS pausado.'})
-
-
-@bp.route('/estadual-rs/lote/parar', methods=['POST'])
-def estadual_rs_lote_parar():
-    driver = batch_engine.request_stop(RS_BATCH_LOCK, RS_BATCH_STATE)
-    print("[ESTADUAL-RS-LOTE] Parada solicitada.")
-
-    with RS_BATCH_LOCK:
-        batch_engine.append_batch_message(
-            RS_BATCH_STATE,
-            'Lote Estadual RS interrompido por solicitação.',
-            level='warning',
-        )
-
-    _fgts_quit_driver_async(driver)
-
-    return jsonify({'status': 'ok', 'message': 'Lote Estadual RS interrompido.'})
-
-
-@bp.route('/estadual-rs/lote/retomar', methods=['POST'])
-def estadual_rs_lote_retomar():
-    if not batch_engine.resume_batch(
-        RS_BATCH_LOCK,
-        RS_BATCH_STATE,
-        _rs_batch_worker,
-        app_factory=_current_app_object,
-    ):
-        return _json_error('Lote Estadual RS não está pausado.', 400)
-
-    print("[ESTADUAL-RS-LOTE] Retomada solicitada.")
-
-    with RS_BATCH_LOCK:
-        batch_engine.append_batch_message(
-            RS_BATCH_STATE,
-            'Lote Estadual RS retomado por solicitação.',
-            level='info',
-        )
-
-    return jsonify({'status': 'ok'})
-
-
-@bp.route('/estadual-rs/lote/status')
-def estadual_rs_lote_status():
-    return jsonify(batch_engine.status_payload_locked(RS_BATCH_LOCK, RS_BATCH_STATE))
-
-
-@bp.route('/municipal/lote/info/<int:certidao_id>')
-def municipal_lote_info(certidao_id):
-    scope = _parse_batch_scope(request.args.get('scope'))
-    dados = _calc_municipal_targets_by_scope(certidao_id, scope=scope)
-    return jsonify({
-        'status': 'ok',
-        **dados
-    })
-
-
-@bp.route('/municipal/lote/iniciar', methods=['POST'])
-def municipal_lote_iniciar():
-    dados = request.get_json() or {}
-    certidao_id = dados.get('certidao_id')
-    scope = _parse_batch_scope(dados.get('scope'))
-
-    if not certidao_id:
-        return _json_error('Certidão inválida.', 400)
-
-    dados_lote = batch_engine.init_batch_run(
-        MUNICIPAL_BATCH_LOCK,
-        MUNICIPAL_BATCH_STATE,
-        certidao_id,
-        lambda start_id: _calc_municipal_targets_by_scope(start_id, scope=scope),
-        _municipal_batch_worker,
-        app_factory=_current_app_object,
-    )
-
-    if dados_lote is None:
-        return _json_error('Já existe um lote Municipal em andamento.', 400)
-
-    if not dados_lote:
-        if scope == 'pendentes':
-            return _json_error('Nenhuma certidão Municipal pendente para emissão.', 400)
-        return _json_error('Nenhuma certidão Municipal vencida ou a vencer.', 400)
-
-    log_event(
-        'municipal_batch_started',
-        status='running',
-        scope=scope,
-        total=dados_lote['total'],
-        execution_id=MUNICIPAL_BATCH_STATE.get('execution_id'),
-    )
-
-    with MUNICIPAL_BATCH_LOCK:
-        batch_engine.append_batch_message(
-            MUNICIPAL_BATCH_STATE,
-            f"Lote Municipal iniciado. Total={dados_lote['total']}.",
-            level='info',
-        )
-
-    return jsonify({'status': 'ok'})
-
-
-@bp.route('/municipal/lote/pausar', methods=['POST'])
-def municipal_lote_pausar():
-    driver = batch_engine.request_pause(MUNICIPAL_BATCH_LOCK, MUNICIPAL_BATCH_STATE)
-    with MUNICIPAL_BATCH_LOCK:
-        batch_engine.append_batch_message(
-            MUNICIPAL_BATCH_STATE,
-            'Lote Municipal pausado por solicitação.',
-            level='warning',
-        )
-    _fgts_quit_driver_async(driver)
-    return jsonify({'status': 'ok', 'message': 'Lote Municipal pausado.'})
-
-
-@bp.route('/municipal/lote/parar', methods=['POST'])
-def municipal_lote_parar():
-    driver = batch_engine.request_stop(MUNICIPAL_BATCH_LOCK, MUNICIPAL_BATCH_STATE)
-    with MUNICIPAL_BATCH_LOCK:
-        batch_engine.append_batch_message(
-            MUNICIPAL_BATCH_STATE,
-            'Lote Municipal interrompido por solicitação.',
-            level='warning',
-        )
-    _fgts_quit_driver_async(driver)
-    return jsonify({'status': 'ok', 'message': 'Lote Municipal interrompido.'})
-
-
-@bp.route('/municipal/lote/retomar', methods=['POST'])
-def municipal_lote_retomar():
-    if not batch_engine.resume_batch(
-        MUNICIPAL_BATCH_LOCK,
-        MUNICIPAL_BATCH_STATE,
-        _municipal_batch_worker,
-        app_factory=_current_app_object,
-    ):
-        return _json_error('Lote Municipal não está pausado.', 400)
-
-    with MUNICIPAL_BATCH_LOCK:
-        batch_engine.append_batch_message(
-            MUNICIPAL_BATCH_STATE,
-            'Lote Municipal retomado por solicitação.',
-            level='info',
-        )
-
-    return jsonify({'status': 'ok'})
-
-
-@bp.route('/municipal/lote/status')
-def municipal_lote_status():
-    return jsonify(batch_engine.status_payload_locked(MUNICIPAL_BATCH_LOCK, MUNICIPAL_BATCH_STATE))
 
 
 @bp.route('/fgts/emitir_unico', methods=['POST'])
