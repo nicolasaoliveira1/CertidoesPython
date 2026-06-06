@@ -36,7 +36,8 @@ def create_app(config_class=Config):
         checks = run_health_checks(app.config)
         log_event('startup_health_checks', checks=checks)
     
-    from app import routes, models
+    # models importado para registrar as tabelas no SQLAlchemy/Migrate (efeito colateral)
+    from app import routes, models  # noqa: F401
     app.register_blueprint(routes.bp)
     
     return app
