@@ -60,7 +60,7 @@ from app.models import (
     get_a_vencer_dias,
 )
 from app.utils import to_bool as _to_bool
-from app.services import batch_engine
+from app.services import batch_engine, certidao_service
 from app.services.correlation import CorrelationContext
 from app.services.execution_logger import log_event
 from app.services.health import run_health_checks
@@ -144,18 +144,23 @@ def _municipal_batch_stop_requested():
     return MUNICIPAL_BATCH_STATE.get('stop_requested')
 
 
-def _fgts_status_por_data(nova_data):
-    if not nova_data:
+def _classe_status_por_data(data, tipo=None):
+    """Classe CSS de status (status-cinza/vermelho/amarelo/verde) a partir de
+    uma data de validade e do limite 'a vencer' do tipo informado."""
+    if not data:
         return 'status-cinza'
 
-    hoje = date.today()
-    diferenca = (nova_data - hoje).days
-    limite_dias = get_a_vencer_dias(tipo=TipoCertidao.FGTS)
+    diferenca = (data - date.today()).days
+    limite_dias = get_a_vencer_dias(tipo=tipo)
     if diferenca < 0:
         return 'status-vermelho'
     if diferenca <= limite_dias:
         return 'status-amarelo'
     return 'status-verde'
+
+
+def _fgts_status_por_data(nova_data):
+    return _classe_status_por_data(nova_data, tipo=TipoCertidao.FGTS)
 
 
 def _fgts_normalizar_texto(texto):
@@ -2723,16 +2728,12 @@ def atualizar_validade(certidao_id):
 
     if nova_data_str:
         nova_data = datetime.strptime(nova_data_str, '%Y-%m-%d').date()
-        certidao.data_validade = nova_data
-        certidao.status_especial = None
-
-        try:
-            db.session.commit()
+        ok, erro = certidao_service.aplicar_validade(certidao, nova_data)
+        if ok:
             flash(
                 f"Validade da certidão {certidao.tipo.value} da empresa {certidao.empresa.nome} atualizada com sucesso!", 'success')
-        except Exception as e:
-            db.session.rollback()
-            flash(f"Erro ao atualizar validade: {e}", 'danger')
+        else:
+            flash(f"Erro ao atualizar validade: {erro}", 'danger')
     else:
         flash("Nenhuma data foi fornecida.", 'warning')
     return redirect(url_for('main.dashboard'))
@@ -2741,15 +2742,12 @@ def atualizar_validade(certidao_id):
 @bp.route('/certidao/marcar_pendente/<int:certidao_id>', methods=['POST'])
 def marcar_pendente(certidao_id):
     certidao = Certidao.query.get_or_404(certidao_id)
-    certidao.status_especial = StatusEspecial.PENDENTE
-    certidao.data_validade = None
-    try:
-        db.session.commit()
+    ok, erro = certidao_service.marcar_pendente(certidao)
+    if ok:
         flash(
             f'Certidão {certidao.tipo.value} da empresa {certidao.empresa.nome} marcada como Pendente.', 'info')
-    except Exception as e:
-        db.session.rollback()
-        flash(f'Erro ao marcar como pendente: {e}', 'danger')
+    else:
+        flash(f'Erro ao marcar como pendente: {erro}', 'danger')
 
     return redirect(url_for('main.dashboard'))
 
@@ -3763,26 +3761,15 @@ def salvar_data_confirmada():
         certidao = Certidao.query.get(certidao_id)
         nova_data = datetime.strptime(nova_validade_str, '%Y-%m-%d').date()
 
-        certidao.data_validade = nova_data
-        certidao.status_especial = None
-
-        hoje = date.today()
-        diferenca = (nova_data - hoje).days
-        limite_dias = get_a_vencer_dias(tipo=certidao.tipo)
-
-        nova_classe = 'status-verde'
-        if diferenca < 0:
-            nova_classe = 'status-vermelho'
-        elif diferenca <= limite_dias:
-            nova_classe = 'status-amarelo'
-
-        db.session.commit()
+        ok, erro = certidao_service.aplicar_validade(certidao, nova_data)
+        if not ok:
+            return _json_error(erro, 500)
 
         return jsonify({
             'status': 'success',
             'message': 'Data confirmada e atualizada com sucesso!',
             'nova_data_formatada': nova_data.strftime('%d/%m/%Y'),
-            'nova_classe': nova_classe
+            'nova_classe': _classe_status_por_data(nova_data, tipo=certidao.tipo)
         })
     except Exception as e:
         return _json_error(str(e), 500)
@@ -3922,10 +3909,9 @@ def visualizar_certidao(token):
 def marcar_pendente_json(certidao_id):
     try:
         certidao = Certidao.query.get_or_404(certidao_id)
-        certidao.status_especial = StatusEspecial.PENDENTE
-        certidao.data_validade = None
-
-        db.session.commit()
+        ok, erro = certidao_service.marcar_pendente(certidao)
+        if not ok:
+            return _json_error(erro, 500)
         return jsonify({'status': 'success'})
     except Exception as e:
         db.session.rollback()
@@ -3942,26 +3928,15 @@ def atualizar_validade_json(certidao_id):
 
         if nova_data_str:
             nova_data = datetime.strptime(nova_data_str, '%Y-%m-%d').date()
-            certidao.data_validade = nova_data
-            certidao.status_especial = None
-
-            hoje = date.today()
-            diferenca = (nova_data - hoje).days
-            limite_dias = get_a_vencer_dias(tipo=certidao.tipo)
-
-            nova_classe = 'status-verde'
-            if diferenca < 0:
-                nova_classe = 'status-vermelho'
-            elif diferenca <= limite_dias:
-                nova_classe = 'status-amarelo'
-
-            db.session.commit()
+            ok, erro = certidao_service.aplicar_validade(certidao, nova_data)
+            if not ok:
+                return _json_error(erro, 500)
 
             return jsonify({
                 'status': 'success',
                 'message': f'Validade de {certidao.empresa.nome} atualizada com sucesso!',
                 'nova_data_formatada': nova_data.strftime('%d/%m/%Y'),
-                'nova_classe': nova_classe
+                'nova_classe': _classe_status_por_data(nova_data, tipo=certidao.tipo)
             })
         else:
             return _json_error('Data inválida.', 400)
