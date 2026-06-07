@@ -15,7 +15,6 @@ try:
 except ImportError:
     winreg = None
 
-import pdfplumber
 from flask import (
     Blueprint,
     current_app,
@@ -46,7 +45,7 @@ from selenium.webdriver.support.ui import Select, WebDriverWait
 from webdriver_manager.chrome import ChromeDriverManager
 
 from app import db, file_manager
-from app.automation import SITES_CERTIDOES, VALIDADES_CERTIDOES
+from app.automation import SITES_CERTIDOES, VALIDADES_CERTIDOES, pdf
 from app.captcha_solver import solve_normal_captcha
 from app.errors import map_exception_to_error_type
 from app.models import (
@@ -937,7 +936,7 @@ def _emitir_estadual_rs_certidao(certidao_id, driver=None, usar_2captcha=False, 
             return False, True, f'Falha ao mover arquivo Estadual RS: {caminho_final}'
 
         certidao.caminho_arquivo = caminho_final
-        classificacao = _classificar_certidao_estadual_rs(caminho_final)
+        classificacao = pdf.classificar_estadual_rs(caminho_final)
 
         if classificacao == 'positiva':
             try:
@@ -1406,7 +1405,7 @@ def _emitir_municipal_certidao_lote(certidao_id, driver=None, execution_id=None)
 
                 if bool((config_municipal or {}).get('classificar_pdf_status')):
                     origem_pdf = f"MUNICIPAL-{regra_municipio.nome}"
-                    municipal_pdf_classificacao = _classificar_status_certidao_pdf(msg, origem_log=origem_pdf)
+                    municipal_pdf_classificacao = pdf.classificar_status(msg, origem_log=origem_pdf)
                     if municipal_pdf_classificacao == 'positiva':
                         try:
                             if msg and os.path.exists(msg):
@@ -1901,99 +1900,6 @@ def calcular_validade_padrao(certidao, data_encontrada=None):
         return None
 
     return None
-
-
-def _extrair_validade_pdf_federal(caminho_pdf):
-    if not caminho_pdf:
-        return None
-
-    try:
-        with pdfplumber.open(caminho_pdf) as pdf:
-            texto = "\n".join(page.extract_text() or "" for page in pdf.pages)
-    except Exception as exc:
-        print(f"[FEDERAL] Erro ao ler PDF: {exc}")
-        return None
-
-    match = re.search(r"Válida\s+até\s+(\d{2}/\d{2}/\d{4})", texto, re.IGNORECASE)
-    if not match:
-        return None
-
-    try:
-        return datetime.strptime(match.group(1), "%d/%m/%Y").date()
-    except ValueError:
-        return None
-
-
-def _extrair_texto_pdf(caminho_pdf, origem_log='PDF'):
-    if not caminho_pdf:
-        return ''
-
-    try:
-        with pdfplumber.open(caminho_pdf) as pdf:
-            return "\n".join(page.extract_text() or "" for page in pdf.pages)
-    except Exception as exc:
-        print(f"[{origem_log}] Erro ao ler PDF: {exc}")
-        return ''
-
-
-def _normalizar_texto_pdf(texto):
-    texto = file_manager.remover_acentos(texto or '')
-    texto = re.sub(r'\s+', ' ', texto)
-    return texto.upper().strip()
-
-
-def _classificar_status_certidao_pdf(caminho_pdf, origem_log='PDF'):
-    texto = _normalizar_texto_pdf(_extrair_texto_pdf(caminho_pdf, origem_log=origem_log))
-    if not texto:
-        return 'desconhecida'
-
-    if re.search(r'CERTIDAO\s+POSITIVA\s+COM\s+EFEITOS?\s+DE\s+NEGATIVA', texto):
-        return 'efeito_negativa'
-
-    if re.search(r'CERTIDAO\s+POSITIVA\b', texto):
-        return 'positiva'
-
-    if re.search(r'CERTIDAO\s+NEGATIVA\b', texto):
-        return 'negativa'
-
-    return 'desconhecida'
-
-
-def _classificar_e_tratar_pdf_positivo(certidao, caminho_pdf, origem_log='PDF', tipo_label=None):
-    classificacao = _classificar_status_certidao_pdf(caminho_pdf, origem_log=origem_log)
-    if classificacao != 'positiva':
-        return classificacao, None
-
-    erro_remocao = None
-    try:
-        if caminho_pdf and os.path.exists(caminho_pdf):
-            os.remove(caminho_pdf)
-    except Exception as exc_remove:
-        erro_remocao = str(exc_remove)
-
-    tipo_label_final = (tipo_label or (certidao.tipo.value if certidao else '') or 'CERTIDAO').strip()
-    try:
-        if certidao:
-            certidao.caminho_arquivo = None
-            certidao.status_especial = StatusEspecial.PENDENTE
-            certidao.data_validade = None
-            db.session.commit()
-    except Exception:
-        db.session.rollback()
-        msg = (
-            f'Certidão {tipo_label_final} POSITIVA detectada, '
-            'mas houve erro ao marcar como PENDENTE no banco.'
-        )
-        return 'erro', msg
-
-    msg = f'Certidão {tipo_label_final} detectada como POSITIVA. Arquivo removido e certidão marcada como PENDENTE.'
-    if erro_remocao:
-        msg += f' Não foi possível remover o arquivo automaticamente: {erro_remocao}'
-    return 'positiva', msg
-
-
-def _classificar_certidao_estadual_rs(caminho_pdf):
-    return _classificar_status_certidao_pdf(caminho_pdf, origem_log='ESTADUAL-RS')
 
 
 def _rs_get_page_state(driver):
@@ -2921,7 +2827,7 @@ def _automatizar_fgts(contexto, driver, wait, certidao, detectar_impedimento=Fal
                 except Exception as e_db:
                     db.session.rollback()
                     print(f"[FGTS] Aviso: não foi possível salvar caminho no banco: {e_db}")
-                classificacao_pdf, msg_pdf = _classificar_e_tratar_pdf_positivo(
+                classificacao_pdf, msg_pdf = pdf.classificar_e_tratar_positivo(
                     certidao,
                     msg,
                     origem_log='FGTS',
@@ -3584,7 +3490,7 @@ def baixar_certidao(certidao_id):
                                 print(f"Aviso: não foi possível salvar caminho no banco: {e_db}")
 
                             if tipo_certidao_chave == 'ESTADUAL' and estado_emp == 'RS':
-                                rs_estadual_classificacao, rs_estadual_msg = _classificar_e_tratar_pdf_positivo(
+                                rs_estadual_classificacao, rs_estadual_msg = pdf.classificar_e_tratar_positivo(
                                     certidao, msg, origem_log='ESTADUAL-RS', tipo_label='ESTADUAL RS'
                                 )
                                 print(f"[ESTADUAL-RS] Classificação do PDF: {rs_estadual_classificacao}")
@@ -3596,7 +3502,7 @@ def baixar_certidao(certidao_id):
                                 and bool((config_municipal or {}).get('classificar_pdf_status'))
                             ):
                                 origem_pdf = f"MUNICIPAL-{regra_municipio.nome}"
-                                municipal_pdf_classificacao, municipal_pdf_msg = _classificar_e_tratar_pdf_positivo(
+                                municipal_pdf_classificacao, municipal_pdf_msg = pdf.classificar_e_tratar_positivo(
                                     certidao, msg, origem_log=origem_pdf,
                                     tipo_label=f'MUNICIPAL ({regra_municipio.nome})'
                                 )
@@ -3611,7 +3517,7 @@ def baixar_certidao(certidao_id):
                                     if tipo_certidao_chave == 'ESTADUAL' and estado_emp
                                     else tipo_certidao_chave
                                 )
-                                classificacao_pdf, msg_pdf = _classificar_e_tratar_pdf_positivo(
+                                classificacao_pdf, msg_pdf = pdf.classificar_e_tratar_positivo(
                                     certidao,
                                     msg,
                                     origem_log=origem_pdf,
@@ -3842,7 +3748,7 @@ def monitorar_download_federal(certidao_id):
                 except Exception as e_db:
                     db.session.rollback()
                     print(f"[FEDERAL] Aviso: não foi possível salvar caminho no banco: {e_db}")
-                validade_pdf = _extrair_validade_pdf_federal(msg)
+                validade_pdf = pdf.extrair_validade_federal(msg)
                 if validade_pdf:
                     return jsonify({
                         'status': 'success',
