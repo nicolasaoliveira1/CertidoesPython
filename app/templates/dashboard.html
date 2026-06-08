@@ -513,8 +513,7 @@
                 <div class="modal-body">
                     <p class="mb-2">A certidão <strong id="displayTipoPositivaRs">ESTADUAL</strong> foi classificada
                         como <span class="text-danger fw-bold">POSITIVA</span>.</p>
-                    <p class="mb-0" id="displayMensagemPositivaRs">O arquivo foi removido e a certidão foi marcada como
-                        PENDENTE no dashboard.</p>
+                    <p class="mb-0">O arquivo foi removido e a certidão marcada como PENDENTE.</p>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-primary" data-bs-dismiss="modal">Entendi</button>
@@ -997,7 +996,6 @@
             const estadualRsPositivaModalElement = document.getElementById('estadualRsPositivaModal');
             let estadualRsPositivaModal = estadualRsPositivaModalElement ? new bootstrap.Modal(estadualRsPositivaModalElement) : null;
             const displayTipoPositivaRs = document.getElementById('displayTipoPositivaRs');
-            const displayMensagemPositivaRs = document.getElementById('displayMensagemPositivaRs');
 
             const infoModalElement = document.getElementById('infoModal');
             let infoModal = infoModalElement ? new bootstrap.Modal(infoModalElement) : null;
@@ -1443,9 +1441,6 @@
                 ) {
                     limparInfoArquivoModal();
                     if (displayTipoPositivaRs) displayTipoPositivaRs.textContent = data.tipo_certidao || 'CERTIDÃO';
-                    if (displayMensagemPositivaRs) {
-                        displayMensagemPositivaRs.textContent = data.message || 'Certidão POSITIVA detectada. O arquivo foi removido e a certidão marcada como PENDENTE.';
-                    }
 
                     if (linhaAtualTabela) {
                         atualizarLinhaUI(linhaAtualTabela, 'status-vermelho', 'PENDENTE');
