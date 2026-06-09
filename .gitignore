@@ -48,6 +48,9 @@ docs/MAPEAMENTO_MUNICIPIOS.md
 *.sqlite3
 *.db
 
+# Screenshots gerados pelo harness de UI (Playwright) — artefatos, não versionar
+tools/ui-harness/shots/
+
 # Artefatos locais diversos
 Thumbs.db
 Desktop.ini
