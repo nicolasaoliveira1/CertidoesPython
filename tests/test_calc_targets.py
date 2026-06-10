@@ -2,7 +2,12 @@
 from datetime import date, timedelta
 
 from app import db
-from app.models import Certidao, StatusEspecial, TipoCertidao
+from app.models import (
+    Certidao,
+    ConfiguracaoSistema,
+    StatusEspecial,
+    TipoCertidao,
+)
 from app.services import batch_engine
 
 
@@ -26,6 +31,28 @@ def test_calc_targets_default(app, ids):
         assert dados['scope'] == 'default'
 
 
+def test_calc_targets_respeita_prazo_do_tipo(app, ids):
+    # FGTS com prazo menor que o global nao deve contar certidoes alem da
+    # propria janela so porque outro tipo tem prazo maior.
+    with app.app_context():
+        config = ConfiguracaoSistema.query.get(1)
+        if config is None:
+            config = ConfiguracaoSistema(id=1, a_vencer_dias=7)
+            db.session.add(config)
+        config.a_vencer_dias = 7
+        config.a_vencer_dias_fgts = 3
+
+        fgts = Certidao.query.filter_by(tipo=TipoCertidao.FGTS).first()
+        fgts.data_validade = date.today() + timedelta(days=5)  # fora da janela FGTS (3)
+        db.session.commit()
+
+        dados = batch_engine.calc_targets(
+            fgts.id, scope='default', tipo=TipoCertidao.FGTS
+        )
+        assert fgts.id not in dados['ids']
+        assert dados['a_vencer'] == 0
+
+
 def test_calc_targets_pendentes(app, ids):
     with app.app_context():
         fgts = Certidao.query.filter_by(tipo=TipoCertidao.FGTS).first()
@@ -37,6 +64,24 @@ def test_calc_targets_pendentes(app, ids):
         assert dados['ids'] == [fgts.id]
         assert dados['scope'] == 'pendentes'
         assert dados['pendentes'] >= 1
+
+
+def test_pendente_com_data_vencida_excluido_do_escopo_default(app, ids):
+    # Certidao PENDENTE com data_validade no passado deve ser EXCLUIDA do escopo
+    # 'default' (assim como o dashboard a classifica como 'pendentes', nao 'vencidas').
+    with app.app_context():
+        fgts = Certidao.query.filter_by(tipo=TipoCertidao.FGTS).first()
+        fgts.status_especial = StatusEspecial.PENDENTE
+        fgts.data_validade = date.today() - timedelta(days=10)  # vencida, mas PENDENTE
+        db.session.commit()
+
+        dados = batch_engine.calc_targets(fgts.id, scope='default')
+        assert fgts.id not in dados['ids']
+        assert dados['vencidas'] == 0
+
+        # no escopo 'pendentes' ela deve aparecer normalmente
+        dados_p = batch_engine.calc_targets(fgts.id, scope='pendentes')
+        assert fgts.id in dados_p['ids']
 
 
 def test_calc_targets_vazio_quando_sem_data(app, ids):

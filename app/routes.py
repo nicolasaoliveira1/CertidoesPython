@@ -133,6 +133,7 @@ def _calc_fgts_targets_by_scope(start_certidao_id, scope='default'):
         start_certidao_id,
         extra_filter=lambda query: query.filter(Certidao.tipo == TipoCertidao.FGTS),
         scope=scope,
+        tipo=TipoCertidao.FGTS,
     )
 
 
@@ -145,6 +146,7 @@ def _calc_estadual_rs_targets_by_scope(start_certidao_id, scope='default'):
                  .filter(Empresa.estado == 'RS')
         ),
         scope=scope,
+        tipo=TipoCertidao.ESTADUAL,
     )
 
 
@@ -184,6 +186,7 @@ def _calc_municipal_targets_by_scope(start_certidao_id, scope='default'):
         start_certidao_id,
         extra_filter=_extra_filter,
         scope=scope,
+        tipo=TipoCertidao.MUNICIPAL,
     )
 
 

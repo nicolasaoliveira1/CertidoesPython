@@ -1,6 +1,8 @@
 from datetime import date, datetime, timedelta
 from threading import Thread
 
+from sqlalchemy import or_
+
 from app.models import Certidao, StatusEspecial, TipoCertidao, get_a_vencer_dias
 from app.services.correlation import CorrelationContext
 from app.services.execution_logger import log_event
@@ -301,9 +303,15 @@ def status_payload_locked(batch_lock, batch_state):
         return build_batch_status_payload(batch_state)
 
 
-def calc_targets(start_certidao_id, extra_filter=None, scope='default'):
+def calc_targets(start_certidao_id, extra_filter=None, scope='default', tipo=None):
     hoje = date.today()
-    limite = hoje + timedelta(days=max(get_a_vencer_dias(tipo=t) for t in TipoCertidao))
+    if tipo is not None:
+        # Lote de tipo unico: usa o prazo de validade configurado para esse tipo,
+        # nao o maximo global (que inflaria a contagem de "a vencer").
+        dias_limite = get_a_vencer_dias(tipo=tipo)
+    else:
+        dias_limite = max(get_a_vencer_dias(tipo=t) for t in TipoCertidao)
+    limite = hoje + timedelta(days=dias_limite)
 
     query = Certidao.query.order_by(Certidao.id)
 
@@ -317,7 +325,11 @@ def calc_targets(start_certidao_id, extra_filter=None, scope='default'):
         scope_norm = 'default'
         query = (query
                  .filter(Certidao.data_validade.isnot(None))
-                 .filter(Certidao.data_validade <= limite))
+                 .filter(Certidao.data_validade <= limite)
+                 .filter(or_(
+                     Certidao.status_especial.is_(None),
+                     Certidao.status_especial != StatusEspecial.PENDENTE,
+                 )))
 
     certidoes = query.all()
 
