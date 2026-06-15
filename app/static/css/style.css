@@ -1324,3 +1324,38 @@ footer {
 tr.filter-hidden {
     display: none;
 }
+
+/* ── Skeleton do dashboard ─────────────────────────────────── */
+.sk-bloco {
+    background: linear-gradient(90deg, #e9ecef 25%, #dee2e6 50%, #e9ecef 75%);
+    background-size: 400% 100%;
+    animation: sk-wave 1.4s ease infinite;
+    border-radius: 4px;
+    display: block;
+}
+
+@keyframes sk-wave {
+    0%   { background-position: 100% 0; }
+    100% { background-position: -100% 0; }
+}
+
+#skeleton-dashboard {
+    display: block;
+}
+
+#lista-empresas {
+    transition: opacity 0.25s ease;
+}
+
+#lista-empresas.dashboard-loading {
+    opacity: 0;
+    pointer-events: none;
+}
+
+#filtros-card .chip-count {
+    transition: opacity 0.25s ease;
+}
+
+#filtros-card.chips-loading .chip-count {
+    opacity: 0;
+}
