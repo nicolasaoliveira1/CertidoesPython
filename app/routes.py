@@ -1715,7 +1715,7 @@ def monitorar_download_federal(certidao_id):
     print(
         f"--- INICIANDO MONITORAMENTO DE DOWNLOAD (FEDERAL) - ID: {certidao_id} ---")
 
-    file_manager.criar_chave_interrupcao()
+    minha_chave_ts = file_manager.criar_chave_interrupcao()
 
     # Captura um snapshot antes de iniciar a janela de monitoramento
     # para detectar arquivos criados/alterados mesmo se o download iniciar cedo.
@@ -1723,6 +1723,11 @@ def monitorar_download_federal(certidao_id):
     print(f"[FEDERAL][MONITOR] snapshot inicial: {len(snapshot_before)} pdf(s)")
 
     time.sleep(2)
+
+    # Se a chave foi recriada durante o sleep (por /stop ou nova sessão), sair.
+    if file_manager.chave_interrupcao_mais_recente_que(minha_chave_ts):
+        file_manager.remover_chave_interrupcao()
+        return _json_error('Monitoramento interrompido antes de iniciar.', 409, status='interrupted')
 
     file_manager.remover_chave_interrupcao()
 

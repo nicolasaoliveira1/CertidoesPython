@@ -26,11 +26,26 @@ def obter_caminho_chave_interrupcao():
 
 
 def criar_chave_interrupcao():
-    """Cria o arquivo de interrupção."""
+    """Cria o arquivo de interrupção. Retorna o timestamp gravado."""
+    ts = time.time()
     caminho_chave = obter_caminho_chave_interrupcao()
     with open(caminho_chave, 'w', encoding='utf-8') as f:
-        f.write(str(time.time()))
+        f.write(str(ts))
     print(f"Chave de interrupção criada em: {caminho_chave}")
+    return ts
+
+
+def chave_interrupcao_mais_recente_que(ts_referencia):
+    """Retorna True se a chave foi recriada após ts_referencia (pelo /stop ou nova sessão)."""
+    caminho_chave = obter_caminho_chave_interrupcao()
+    if not os.path.exists(caminho_chave):
+        return False
+    try:
+        with open(caminho_chave, 'r', encoding='utf-8') as f:
+            ts_arquivo = float(f.read().strip())
+        return ts_arquivo > ts_referencia
+    except (ValueError, OSError):
+        return False
 
 
 def remover_chave_interrupcao():

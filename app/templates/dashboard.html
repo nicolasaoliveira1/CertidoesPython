@@ -1106,6 +1106,7 @@
             let municipalBatchScope = 'default';
             let caminhoArquivoParaModal = null;
             let federalMonitorAtivo = false;
+            let federalPendingConfirmation = false;
             let federalTabRef = null;
             let federalFinalize = null;
             let federalMonitorController = null;
@@ -1377,6 +1378,11 @@
                 }
 
                 if (data.status === 'window_closed_no_file') {
+                    if (federalPendingConfirmation ||
+                        (confirmModalElement && confirmModalElement.classList.contains('show'))) {
+                        hideLoading();
+                        return;
+                    }
                     limparInfoArquivoModal();
                     atualizarInfoPendenteModal(data.tipo_certidao);
                     certidaoIdPendente = data.certidao_id;
@@ -1492,10 +1498,16 @@
                         }
 
                         if (tipoParaAbrir === 'FEDERAL') {
+                            if (federalMonitorAtivo || federalPendingConfirmation) {
+                                showToast('Monitoramento federal já está em andamento. Aguarde ou feche a aba da Receita Federal.', 'warning');
+                                hideLoading();
+                                return;
+                            }
                             showLoading('', tipoParaAbrir || '');
                             let arquivoSalvo = false;
                             let federalFinalizado = false;
                             let federalTimer = null;
+                            let federalFocusHandler = null;
                             const monitorController = new AbortController();
                             caminhoArquivoParaModal = null;
                             federalMonitorAtivo = true;
@@ -1507,6 +1519,11 @@
                                 federalFinalizado = true;
                                 if (federalTimer) {
                                     clearInterval(federalTimer);
+                                }
+
+                                if (federalFocusHandler) {
+                                    window.removeEventListener('focus', federalFocusHandler);
+                                    federalFocusHandler = null;
                                 }
 
                                 const abaParaFechar = federalTabRef || novaAba || null;
@@ -1552,6 +1569,8 @@
                                     atualizarInfoArquivoModal(caminhoArquivoParaModal && caminhoArquivoParaModal.mensagem ? caminhoArquivoParaModal.mensagem : caminhoArquivoParaModal);
                                     atualizarBotaoVisualizar(caminhoArquivoParaModal && caminhoArquivoParaModal.visualizar_token);
                                     dadosParaSalvar = { certidao_id: idParaMonitorar, nova_validade: dataBanco };
+                                    federalPendingConfirmation = true;
+                                    if (pendenteModal) pendenteModal.hide();
                                     if (confirmModal) {
                                         confirmModal.show();
                                         ensureModalBackdrop();
@@ -1561,9 +1580,18 @@
                                     return;
                                 }
 
+                                // Se uma confirmação de download bem-sucedido já está pendente,
+                                // não sobrescrever com o modal de pendente.
+                                if (federalPendingConfirmation ||
+                                    (confirmModalElement && confirmModalElement.classList.contains('show'))) {
+                                    hideLoading();
+                                    return;
+                                }
+
                                 federalTabRef = null;
                                 atualizarInfoPendenteModal('FEDERAL');
                                 certidaoIdPendente = idParaMonitorar;
+                                if (confirmModal) confirmModal.hide();
                                 if (pendenteModal) {
                                     pendenteModal.show();
                                     ensureModalBackdrop();
@@ -1629,7 +1657,7 @@
                                 }, 1000);
                             }
 
-                            window.addEventListener('focus', function () {
+                            federalFocusHandler = function () {
                                 if (!federalMonitorAtivo) return;
 
                                 let fechado = false;
@@ -1649,7 +1677,8 @@
                                         federalFinalize();
                                     }
                                 }
-                            });
+                            };
+                            window.addEventListener('focus', federalFocusHandler);
                         }
                     }
                 });
@@ -1660,6 +1689,9 @@
                     hideLoading();
                     ensureModalBackdrop();
                 });
+                confirmModalElement.addEventListener('hidden.bs.modal', function () {
+                    federalPendingConfirmation = false;
+                });
             }
 
             if (pendenteModalElement) {
@@ -1668,6 +1700,12 @@
                     ensureModalBackdrop();
                 });
             }
+
+            window.addEventListener('beforeunload', function () {
+                if (federalMonitorAtivo) {
+                    navigator.sendBeacon('/certidao/monitorar_download_federal/stop');
+                }
+            });
 
             // BOTAO BAIXAR (AUTOMAÇÃO)
             const btnsBaixar = document.querySelectorAll('.btn-baixar-certidao');
