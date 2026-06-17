@@ -35,7 +35,7 @@ body.navbar-hidden .navbar {
 
 :root {
     --sidebar-width: 225px;
-    --sidebar-collapsed-width: 76px;
+    --sidebar-collapsed-width: 54px;
     --navbar-height: 72px;
     --sidebar-top-padding: calc(var(--navbar-height) + 1rem);
     --sidebar-top-padding-hidden-nav: 0.7rem;
@@ -245,6 +245,22 @@ body.sidebar-open .sidebar-backdrop {
     max-width: 1640px;
     margin-left: auto;
     margin-right: auto;
+    padding-left: 1rem !important;
+    padding-right: 1rem !important;
+}
+
+@media (min-width: 901px) {
+    .app-main {
+        padding-left: 1.25rem !important;
+        padding-right: 1.25rem !important;
+    }
+}
+
+@media (min-width: 1200px) {
+    .app-main {
+        padding-left: 1.5rem !important;
+        padding-right: 1.5rem !important;
+    }
 }
 
 body.sidebar-open .app-main {
@@ -255,7 +271,7 @@ body.sidebar-open .app-main {
     .app-sidebar {
         width: var(--sidebar-collapsed-width);
         transform: translateX(0);
-        padding: calc(var(--navbar-height) + 1rem) 0.55rem 1rem;
+        padding: calc(var(--navbar-height) + 1rem) 0.2rem 1rem;
     }
 
     .page-content {
@@ -268,7 +284,7 @@ body.sidebar-open .app-main {
         flex-direction: row;
         justify-content: center;
         gap: 0;
-        padding: 0.4rem 0.2rem 0.9rem;
+        padding: 0.4rem 0.1rem 0.9rem;
     }
 
     body:not(.sidebar-open) .sidebar-header > div:nth-child(2) {
@@ -276,13 +292,13 @@ body.sidebar-open .app-main {
     }
 
     .sidebar-logo {
-        width: 48px;
-        height: 48px;
+        width: 36px;
+        height: 36px;
     }
 
     .sidebar-logo-img {
-        width: 40px;
-        height: 40px;
+        width: 28px;
+        height: 28px;
     }
 
     .sidebar-link span {
@@ -323,11 +339,11 @@ body.sidebar-open .app-main {
 
     .sidebar-link {
         justify-content: center;
-        width: 48px;
-        height: 46px;
+        width: 38px;
+        height: 38px;
         padding: 0;
         margin: 0 auto;
-        border-radius: 0.8rem;
+        border-radius: 0.7rem;
         transform: none;
     }
 
@@ -395,6 +411,11 @@ body.sidebar-open .app-main {
         height: auto;
         padding: 0.7rem 0.75rem;
         border-radius: 0.65rem;
+    }
+
+    /* garante que tabelas largas nunca ultrapassem o sidebar */
+    .table-responsive {
+        overflow-x: auto;
     }
 }
 
