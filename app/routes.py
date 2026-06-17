@@ -784,9 +784,28 @@ def empresa_remover(empresa_id):
     return redirect(next_url)
 
 
+_NOMES_EXIBICAO_CIDADE = {
+    'Capao da Canoa': 'Capão da Canoa',
+    'Imbe': 'Imbé',
+    'Osorio': 'Osório',
+    'Ponta Pora': 'Ponta Porã',
+    'Sao Paulo': 'São Paulo',
+    'Tramandai': 'Tramandaí',
+    'Xangrila': 'Xangri-Lá',
+}
+
+
 @bp.route('/empresa/nova', endpoint='nova_empresa')
 def pagina_nova_empresa():
-    return render_template('nova_empresa.html')
+    municipios_db = Municipio.query.order_by(Municipio.nome).all()
+    vistos = set()
+    municipios = []
+    for m in municipios_db:
+        exibicao = _NOMES_EXIBICAO_CIDADE.get(m.nome, m.nome)
+        if exibicao not in vistos:
+            vistos.add(exibicao)
+            municipios.append((m.nome, exibicao))
+    return render_template('nova_empresa.html', municipios=municipios)
 
 
 @bp.route('/relatorios')

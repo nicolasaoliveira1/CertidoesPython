@@ -73,15 +73,20 @@
 
                     <div class="col-12 col-lg-6">
                         <label for="cidade" class="form-label">Cidade</label>
-                        <input type="text" class="form-control" id="cidade" name="cidade" required
-                               maxlength="50" autocomplete="address-level2">
+                        <select class="form-select" id="cidade" name="cidade" required
+                                onchange="atualizarCidadeSelecionada()">
+                            <option value="" disabled selected>Selecione...</option>
+                            {% for valor, exibicao in municipios %}
+                            <option value="{{ valor }}">{{ exibicao }}</option>
+                            {% endfor %}
+                        </select>
                     </div>
 
-                    <div class="col-12 col-lg-6">
-                        <label for="inscricao_mobiliaria" class="form-label">Inscrição Mobiliária (se houver)</label>
+                    <div class="col-12 col-lg-6" id="inscricao_mobiliaria_wrapper" style="display:none">
+                        <label for="inscricao_mobiliaria" class="form-label">Inscrição Mobiliária</label>
                         <input type="text" class="form-control" id="inscricao_mobiliaria" name="inscricao_mobiliaria"
                                maxlength="6" inputmode="numeric" autocomplete="off">
-                        <div class="form-text">Opcional. Ate 6 caracteres.</div>
+                        <div class="form-text">Opcional. Até 6 caracteres.</div>
                     </div>
 
                     <div class="col-12 d-flex justify-content-end gap-2 mt-2">
@@ -93,4 +98,17 @@
         </div>
     </div>
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function atualizarCidadeSelecionada() {
+    const select = document.getElementById('cidade');
+    const wrapper = document.getElementById('inscricao_mobiliaria_wrapper');
+    const input = document.getElementById('inscricao_mobiliaria');
+    const ehImbe = select.value === 'Imbe';
+    wrapper.style.display = ehImbe ? '' : 'none';
+    if (!ehImbe) input.value = '';
+}
+</script>
 {% endblock %}
