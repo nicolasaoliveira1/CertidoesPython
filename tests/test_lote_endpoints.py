@@ -48,3 +48,15 @@ def test_iniciar_vazio_ou_precondicao(client, ids):
     r = client.post('/estadual-rs/lote/iniciar', json={'certidao_id': ids['rs']})
     assert r.status_code == 400, r.status_code
     assert 'RS_ALTCHA_AUTOSOLVE_ENABLED' in r.get_json()['message'], r.get_json()['message']
+
+
+def test_iniciar_bloqueado_por_emissao_individual(client, ids):
+    from app.automation import batch_state
+    batch_state.marcar_emissao_individual(True)
+    try:
+        r = client.post('/fgts/lote/iniciar', json={'certidao_id': ids['fgts']})
+    finally:
+        batch_state.marcar_emissao_individual(False)
+    assert r.status_code == 400, r.status_code
+    assert r.get_json()['status'] == 'error'
+    assert 'individual' in r.get_json()['message'].lower()

@@ -16,6 +16,19 @@ FGTS_BATCH_STATE = batch_engine.batch_state_defaults()
 RS_BATCH_STATE = batch_engine.batch_state_defaults()
 MUNICIPAL_BATCH_STATE = batch_engine.batch_state_defaults()
 
+EMISSAO_INDIVIDUAL_LOCK = Lock()
+_EMISSAO_INDIVIDUAL_STATE = {'ativa': False}
+
+
+def emissao_individual_ativa():
+    with EMISSAO_INDIVIDUAL_LOCK:
+        return _EMISSAO_INDIVIDUAL_STATE['ativa']
+
+
+def marcar_emissao_individual(ativa):
+    with EMISSAO_INDIVIDUAL_LOCK:
+        _EMISSAO_INDIVIDUAL_STATE['ativa'] = bool(ativa)
+
 
 def fgts_stop_requested():
     return FGTS_BATCH_STATE.get('stop_requested')

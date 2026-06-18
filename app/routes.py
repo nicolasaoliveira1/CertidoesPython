@@ -30,6 +30,8 @@ from app.automation.batch_state import (
     MUNICIPAL_BATCH_STATE,
     RS_BATCH_LOCK,
     RS_BATCH_STATE,
+    emissao_individual_ativa,
+    marcar_emissao_individual,
 )
 from app.automation.driver import (
     _ativar_politica_autoselect_rs_temporaria,
@@ -295,6 +297,11 @@ def _register_batch_routes(prefix, endpoint_base, cfg):
         scope = _parse_batch_scope(dados.get('scope'))
         if not certidao_id:
             return _json_error('Certidão inválida.', 400)
+        if emissao_individual_ativa():
+            return _json_error(
+                'Há uma emissão individual em andamento. Aguarde concluir para iniciar o lote.',
+                400,
+            )
         if precondicao is not None:
             erro = precondicao()
             if erro is not None:
@@ -1063,6 +1070,14 @@ def _calcular_validade_sem_data(certidao, tipo_chave, regra):
     return calcular_validade_padrao(certidao, None)
 
 
+def _lote_bloqueia_emissao(lock, state, mensagem):
+    """Retorna erro JSON 400 se o lote (lock/state) estiver em andamento; senão None."""
+    with lock:
+        if state['status'] in ['running', 'paused']:
+            return _json_error(mensagem, 400)
+    return None
+
+
 def _validar_baixar(certidao):
     """Validacoes que decidem cedo o fluxo de baixar_certidao.
 
@@ -1070,14 +1085,31 @@ def _validar_baixar(certidao):
     para seguir com a automacao.
     """
     tipo_certidao_chave = certidao.tipo.name
+    estado = (certidao.empresa.estado or '').strip().upper()
 
-    if tipo_certidao_chave == 'ESTADUAL' and (certidao.empresa.estado or '').strip().upper() == 'RS':
-        with RS_BATCH_LOCK:
-            if RS_BATCH_STATE['status'] in ['running', 'paused']:
-                return _json_error(
-                    'Lote Estadual RS em andamento. Aguarde finalizar ou interrompa o lote.',
-                    400,
-                )
+    if tipo_certidao_chave == 'ESTADUAL' and estado == 'RS':
+        erro = _lote_bloqueia_emissao(
+            RS_BATCH_LOCK, RS_BATCH_STATE,
+            'Lote Estadual RS em andamento. Aguarde finalizar ou interrompa o lote.',
+        )
+        if erro is not None:
+            return erro
+
+    if tipo_certidao_chave == 'FGTS':
+        erro = _lote_bloqueia_emissao(
+            FGTS_BATCH_LOCK, FGTS_BATCH_STATE,
+            'Lote FGTS em andamento. Aguarde finalizar ou interrompa o lote.',
+        )
+        if erro is not None:
+            return erro
+
+    if tipo_certidao_chave == 'MUNICIPAL':
+        erro = _lote_bloqueia_emissao(
+            MUNICIPAL_BATCH_LOCK, MUNICIPAL_BATCH_STATE,
+            'Lote Municipal em andamento. Aguarde finalizar ou interrompa o lote.',
+        )
+        if erro is not None:
+            return erro
 
     if tipo_certidao_chave == 'FEDERAL':
         return redirect("https://servicos.receitafederal.gov.br/servico/certidoes/#/home/cnpj")
@@ -1679,7 +1711,11 @@ def baixar_certidao(certidao_id):
     if erro is not None:
         return erro
 
-    resultado = _executar_automacao_baixar(certidao, cfg)
+    marcar_emissao_individual(True)
+    try:
+        resultado = _executar_automacao_baixar(certidao, cfg)
+    finally:
+        marcar_emissao_individual(False)
 
     return _montar_resposta_baixar(certidao, cfg, resultado)
 

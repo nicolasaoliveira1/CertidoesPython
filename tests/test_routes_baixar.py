@@ -84,6 +84,34 @@ def test_validar_baixar_rs_lote_ativo(app, ids):
     assert code == 400
 
 
+def test_validar_baixar_fgts_lote_ativo(app, ids):
+    original = routes.FGTS_BATCH_STATE.get('status')
+    with app.app_context():
+        cert = Certidao.query.filter_by(tipo=TipoCertidao.FGTS).first()
+        routes.FGTS_BATCH_STATE['status'] = 'running'
+        try:
+            resp = routes._validar_baixar(cert)
+        finally:
+            routes.FGTS_BATCH_STATE['status'] = original
+    assert resp is not None
+    _body, code = resp  # _json_error -> (response, code)
+    assert code == 400
+
+
+def test_validar_baixar_municipal_lote_ativo(app, ids):
+    original = routes.MUNICIPAL_BATCH_STATE.get('status')
+    with app.app_context():
+        cert = Certidao.query.filter_by(tipo=TipoCertidao.MUNICIPAL).first()
+        routes.MUNICIPAL_BATCH_STATE['status'] = 'running'
+        try:
+            resp = routes._validar_baixar(cert)
+        finally:
+            routes.MUNICIPAL_BATCH_STATE['status'] = original
+    assert resp is not None
+    _body, code = resp
+    assert code == 400
+
+
 def test_validar_baixar_segue_quando_ok(app, ids):
     with app.app_context():
         cert = Certidao.query.filter_by(tipo=TipoCertidao.FGTS).first()
