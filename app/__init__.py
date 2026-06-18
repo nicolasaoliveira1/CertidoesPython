@@ -16,7 +16,12 @@ def create_app(config_class=Config):
 
     app.config.from_object(config_class)
 
-    configure_logging(app.config.get('LOG_LEVEL', 'INFO'))
+    configure_logging(
+        app.config.get('LOG_LEVEL', 'INFO'),
+        log_dir=app.config.get('LOG_DIR'),
+        console_format=app.config.get('LOG_CONSOLE_FORMAT', 'human'),
+        json_file=app.config.get('LOG_JSON_FILE', True),
+    )
 
     if app.config.get('QUIET_WERKZEUG_LOGS', True):
         logging.getLogger('werkzeug').setLevel(logging.WARNING)

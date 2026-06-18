@@ -11,6 +11,8 @@ import tempfile
 # SECRET_KEY/DATABASE_URL no momento do import).
 os.environ.setdefault('SECRET_KEY', 'test')
 os.environ.setdefault('QUIET_WERKZEUG_LOGS', 'true')
+# Nao escreve arquivo de log em disco durante os testes.
+os.environ.setdefault('LOG_JSON_FILE', 'false')
 # Mantem a precondicao do lote RS deterministica (flag desligada) nos testes.
 os.environ.setdefault('RS_ALTCHA_AUTOSOLVE_ENABLED', 'false')
 
