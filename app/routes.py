@@ -73,7 +73,7 @@ from app.models import (
     get_a_vencer_dias,
 )
 from app.utils import get_config_value as _get_config_value, to_bool as _to_bool
-from app.services import batch_engine, certidao_service
+from app.services import batch_engine, certidao_service, preflight
 from app.services.correlation import CorrelationContext
 from app.services.execution_logger import log_event
 from app.services.health import run_health_checks
@@ -281,6 +281,28 @@ def _rs_lote_precondicao():
     return None
 
 
+def _preflight_erro(precisa_solver=False):
+    """Roda as pre-checagens e devolve uma resposta de erro acionavel se algo
+    estiver faltando (rede, Chrome, solver); None quando tudo ok."""
+    problemas = preflight.checar_emissao(current_app.config, precisa_solver=precisa_solver)
+    if not problemas:
+        return None
+    p = problemas[0]
+    return _json_error(p['message'], 409, error_type=p['error_type'],
+                       acao=p['acao'], preflight=problemas)
+
+
+def _preflight_precondicao(base=None, precisa_solver=False):
+    """Compoe uma precondicao de lote: roda 'base' (se houver) e o preflight."""
+    def _checar():
+        if base is not None:
+            erro = base()
+            if erro is not None:
+                return erro
+        return _preflight_erro(precisa_solver=precisa_solver)
+    return _checar
+
+
 def _register_batch_routes(prefix, endpoint_base, cfg):
     """Registra as 6 rotas de lote (info/iniciar/pausar/parar/retomar/status) de
     um fluxo, eliminando a duplicacao entre FGTS, Estadual RS e Municipal."""
@@ -378,6 +400,7 @@ _register_batch_routes('/fgts', 'fgts_lote', {
     'lock': FGTS_BATCH_LOCK, 'state': FGTS_BATCH_STATE,
     'worker': _fgts_batch_worker, 'calc_targets': _calc_fgts_targets_by_scope,
     'started_event': 'fgts_batch_started', 'tag': 'FGTS-LOTE', 'nome_lote': 'FGTS',
+    'precondicao': _preflight_precondicao(),
     'msg_em_andamento': 'Já existe um lote em andamento.',
     'msg_vazio_pendentes': 'Nenhuma certidão FGTS pendente para emissão.',
     'msg_vazio_default': 'Nenhuma certidão FGTS vencida ou a vencer.',
@@ -390,7 +413,7 @@ _register_batch_routes('/estadual-rs', 'estadual_rs_lote', {
     'lock': RS_BATCH_LOCK, 'state': RS_BATCH_STATE,
     'worker': _rs_batch_worker, 'calc_targets': _calc_estadual_rs_targets_by_scope,
     'started_event': 'rs_batch_started', 'tag': 'ESTADUAL-RS-LOTE', 'nome_lote': 'Estadual RS',
-    'precondicao': _rs_lote_precondicao,
+    'precondicao': _preflight_precondicao(_rs_lote_precondicao, precisa_solver=True),
     'msg_em_andamento': 'Já existe um lote Estadual RS em andamento.',
     'msg_vazio_pendentes': 'Nenhuma certidão Estadual RS pendente para emissão.',
     'msg_vazio_default': 'Nenhuma certidão Estadual RS vencida ou a vencer.',
@@ -403,6 +426,7 @@ _register_batch_routes('/municipal', 'municipal_lote', {
     'lock': MUNICIPAL_BATCH_LOCK, 'state': MUNICIPAL_BATCH_STATE,
     'worker': _municipal_batch_worker, 'calc_targets': _calc_municipal_targets_by_scope,
     'started_event': 'municipal_batch_started', 'tag': None, 'nome_lote': 'Municipal',
+    'precondicao': _preflight_precondicao(),
     'msg_em_andamento': 'Já existe um lote Municipal em andamento.',
     'msg_vazio_pendentes': 'Nenhuma certidão Municipal pendente para emissão.',
     'msg_vazio_default': 'Nenhuma certidão Municipal vencida ou a vencer.',
@@ -431,6 +455,10 @@ def fgts_emitir_unico():
     with FGTS_BATCH_LOCK:
         if FGTS_BATCH_STATE['status'] == 'running':
             return _json_error('Lote em andamento. Pare o lote para emitir individual.', 400)
+
+    erro_preflight = _preflight_erro()
+    if erro_preflight is not None:
+        return erro_preflight
 
     execution_id = CorrelationContext.new_execution_id()
     sucesso, grave, mensagem = _emitir_fgts_certidao(certidao_id, execution_id=execution_id)

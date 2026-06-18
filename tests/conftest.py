@@ -20,6 +20,12 @@ _fd, _DBPATH = tempfile.mkstemp(suffix='.db')
 os.close(_fd)
 os.environ['DATABASE_URL'] = 'sqlite:///' + _DBPATH.replace(os.sep, '/')
 
+# Diretorio existente para que o preflight (rede/Chrome) passe de forma
+# deterministica nos testes, independente da maquina/CI.
+_TMPDIR = tempfile.mkdtemp()
+os.environ.setdefault('CAMINHO_REDE', _TMPDIR)
+os.environ.setdefault('CHROME_PROFILE_DIR', _TMPDIR)
+
 import pytest  # noqa: E402
 
 from app import create_app, db  # noqa: E402
