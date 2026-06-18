@@ -60,3 +60,4 @@ Desktop.ini
 .github/copilot-instructions.md
 CLAUDE.md
 SMOKE_TEST.md
+logs/app.jsonl
