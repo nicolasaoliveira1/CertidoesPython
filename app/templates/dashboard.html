@@ -817,6 +817,8 @@
         </div>
     </div>
 
+    {% endblock %}
+
     {% block scripts %}
     <script>
         document.addEventListener('DOMContentLoaded', function () {
@@ -2133,11 +2135,19 @@
 
             function bindBatchControls(config) {
                 if (config.startBtn) {
+                    let iniciandoLote = false;
                     config.startBtn.addEventListener('click', function () {
                         if (!config.getCertidaoId()) {
                             showToast(config.messages.invalidCertidao, 'error');
                             return;
                         }
+
+                        // Bloqueia duplo-clique: o modal fica aberto ate a resposta
+                        // chegar, e um 2o POST /iniciar veria o lote ja 'running' e
+                        // retornaria "lote em andamento" sobrescrevendo a UI de sucesso.
+                        if (iniciandoLote) return;
+                        iniciandoLote = true;
+                        config.startBtn.disabled = true;
 
                         fetch(config.endpoints.start, {
                             method: 'POST',
@@ -2157,7 +2167,11 @@
                                 if (config.overlayEl) config.overlayEl.classList.remove('d-none');
                                 startBatchPolling(config);
                             })
-                            .catch(() => showToast(config.messages.startCatchError, 'error'));
+                            .catch(() => showToast(config.messages.startCatchError, 'error'))
+                            .finally(() => {
+                                iniciandoLote = false;
+                                config.startBtn.disabled = false;
+                            });
                     });
                 }
 
@@ -2858,5 +2872,4 @@
         });
 
     </script>
-    {% endblock %}
     {% endblock %}
