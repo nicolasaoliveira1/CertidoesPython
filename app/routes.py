@@ -22,6 +22,7 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import Select, WebDriverWait
 
 from app import db, file_manager
+from app.errors import descrever_erro, mensagem_usuario
 from app.automation import SITES_CERTIDOES, pdf, steps
 from app.automation.batch_state import (
     FGTS_BATCH_LOCK,
@@ -117,8 +118,9 @@ def _current_app_object():
     return current_app._get_current_object()
 
 
-def _json_error(message, code=400, **extra):
-    texto = message or 'Erro inesperado.'
+def _json_error(message=None, code=400, exc=None, **extra):
+    info = descrever_erro(exc) if exc is not None else None
+    texto = message or (mensagem_usuario(exc) if exc is not None else 'Erro inesperado.')
     payload = {
         'status': 'error',
         'message': texto,
@@ -126,6 +128,9 @@ def _json_error(message, code=400, **extra):
         'codigo': code,
         'request_id': CorrelationContext.get_request_id(),
     }
+    if info is not None:
+        payload.setdefault('error_type', info.tipo.value)
+        payload.setdefault('acao', info.acao)
     payload.update(extra)
     return jsonify(payload), code
 
@@ -1741,7 +1746,7 @@ def salvar_data_confirmada():
             'nova_classe': _classe_status_por_data(nova_data, tipo=certidao.tipo)
         })
     except Exception as e:
-        return _json_error(str(e), 500)
+        return _json_error(code=500, exc=e)
 
 
 @bp.route('/certidao/monitorar_download_federal/<int:certidao_id>')
@@ -1915,7 +1920,7 @@ def marcar_pendente_json(certidao_id):
         return jsonify({'status': 'success'})
     except Exception as e:
         db.session.rollback()
-        return _json_error(str(e), 500)
+        return _json_error(code=500, exc=e)
 
 
 @bp.route('/certidao/atualizar_json/<int:certidao_id>', methods=['POST'])
@@ -1943,4 +1948,4 @@ def atualizar_validade_json(certidao_id):
 
     except Exception as e:
         db.session.rollback()
-        return _json_error(str(e), 500)
+        return _json_error(code=500, exc=e)

@@ -858,7 +858,11 @@
             }
 
             function buildErrorMessage(data, fallback) {
-                const msg = (data && data.message) ? data.message : (fallback || 'Erro');
+                let msg = (data && data.message) ? data.message : (fallback || 'Erro');
+                // mensagem ja costuma vir como "Titulo: acao"; so acrescenta a acao se vier separada
+                if (data && data.acao && msg.indexOf(data.acao) === -1) {
+                    msg = `${msg} — ${data.acao}`;
+                }
                 const requestId = data && data.request_id ? data.request_id : '';
                 return appendRequestId(msg, requestId);
             }
