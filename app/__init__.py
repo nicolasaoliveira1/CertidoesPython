@@ -6,6 +6,7 @@ import os
 import logging
 
 from app.services.execution_logger import configure_logging, log_event
+from app.services.diagnostics import attach_handler
 from app.services.health import run_health_checks
 
 db = SQLAlchemy()
@@ -25,6 +26,9 @@ def create_app(config_class=Config):
 
     if app.config.get('QUIET_WERKZEUG_LOGS', True):
         logging.getLogger('werkzeug').setLevel(logging.WARNING)
+
+    # observa o logger estruturado para o painel de diagnostico em memoria
+    attach_handler()
     
     try:
         os.makedirs(app.instance_path)
