@@ -1,25 +1,17 @@
 {% extends "base.html" %}
 {% macro render_badge(certidao, hoje) -%}
-{%- set badge_class = 'text-bg-success' -%}
-{%- set icone_status = 'bi-check-circle-fill' -%}
 {%- if certidao.status_especial and certidao.status_especial.value == 'Pendente' -%}
-{%- set badge_class = 'text-bg-danger' -%}
-{%- set icone_status = 'bi-exclamation-circle-fill' -%}
+<span class="cert-status-danger fw-semibold small d-inline-flex align-items-center gap-1"><i class="bi bi-exclamation-circle-fill"></i>PENDENTE</span>
 {%- elif not certidao.data_validade -%}
-{%- set badge_class = 'text-bg-secondary' -%}
-{%- set icone_status = 'bi-question-circle-fill' -%}
-{%- elif certidao.data_validade < hoje -%} {%- set badge_class='text-bg-danger' -%} {%- set
-    icone_status='bi-x-circle-fill' -%} {%- elif certidao.status == 'amarelo' -%} {%- set
-    badge_class='text-bg-warning text-dark' -%} {%- set icone_status='bi-exclamation-triangle-fill' -%} {%- endif -%}
-    <span class="badge rounded-pill {{ badge_class }} fs-6 fw-normal px-3 py-2 d-inline-flex align-items-center gap-2">
-    <i class="bi {{ icone_status }}"></i>
-    {%- if certidao.status_especial and certidao.status_especial.value == 'Pendente' -%}
-    PENDENTE
-    {%- else -%}
-    {{ certidao.data_validade.strftime('%d/%m/%Y') if certidao.data_validade else 'Não definida' }}
-    {%- endif -%}
-    </span>
-    {%- endmacro %}
+<span class="cert-status-muted small d-inline-flex align-items-center gap-1"><i class="bi bi-question-circle"></i>Não definida</span>
+{%- elif certidao.data_validade < hoje -%}
+<span class="cert-status-danger fw-semibold small d-inline-flex align-items-center gap-1"><i class="bi bi-x-circle-fill"></i>{{ certidao.data_validade.strftime('%d/%m/%Y') }}</span>
+{%- elif certidao.status == 'amarelo' -%}
+<span class="cert-status-warn fw-semibold small d-inline-flex align-items-center gap-1"><i class="bi bi-exclamation-triangle-fill"></i>{{ certidao.data_validade.strftime('%d/%m/%Y') }}</span>
+{%- else -%}
+<span class="cert-status-ok small d-inline-flex align-items-center gap-1"><i class="bi bi-check-circle-fill"></i>{{ certidao.data_validade.strftime('%d/%m/%Y') }}</span>
+{%- endif -%}
+{%- endmacro %}
 
     {% macro resolve_data_url(certidao, sites_urls, urls_municipais) -%}
     {%- if certidao.tipo.name == 'MUNICIPAL' -%}
@@ -209,13 +201,14 @@
                     <tbody>
                         {% for _ in range(3) %}
                         <tr>
-                            <td class="ps-4" style="width:25%;padding-top:14px;padding-bottom:14px">
-                                <div class="sk-bloco" style="height:13px;width:65%"></div>
+                            <td style="width:1%;white-space:nowrap;padding-top:14px;padding-bottom:14px;padding-left:1.85rem">
+                                <div class="sk-bloco" style="height:13px;width:120px"></div>
                             </td>
-                            <td style="width:40%;text-align:center;padding-top:14px;padding-bottom:14px">
-                                <div class="sk-bloco mx-auto" style="height:30px;width:130px;border-radius:50px!important"></div>
+                            <td style="width:1%;white-space:nowrap;padding-top:14px;padding-bottom:14px;padding-left:1.25rem">
+                                <div class="sk-bloco" style="height:13px;width:90px"></div>
                             </td>
-                            <td class="pe-4" style="width:35%;text-align:center;padding-top:14px;padding-bottom:14px">
+                            <td style="width:100%"></td>
+                            <td class="pe-4" style="width:1%;white-space:nowrap;text-align:right;padding-top:14px;padding-bottom:14px">
                                 <div class="d-flex justify-content-center gap-2">
                                     {% for _ in range(4) %}
                                     <div class="sk-bloco" style="width:30px;height:30px;border-radius:50%!important"></div>
@@ -277,14 +270,7 @@
             <div class="card-body p-0">
                 <div class="table-responsive">
                     <table class="table table-hover align-middle mb-0">
-                        <thead class="table-light small text-uppercase text-muted">
-                            <tr>
-                                <th class="ps-4" style="width: 25%;">Tipo</th>
-                                <th class="text-center" style="width: 40%;">Validade / Status</th>
-                                <th class="text-center pe-4" style="width: 35%;">Ações</th>
-                            </tr>
-                        </thead>
-                        <tbody>
+<tbody>
                             {% for certidao in certidoes_por_empresa[empresa.id] %}
                             {% set data_url_final = resolve_data_url(certidao, sites_urls, urls_municipais) %}
 
@@ -295,14 +281,16 @@
                             {% set tipo_exibicao = resolve_tipo_exibicao(certidao) %}
 
                             <tr data-tipo="{{ certidao.tipo.name | lower }}" data-status-cert="{{ status_por_cert[certidao.id] }}">
-                                <td class="ps-4 fw-medium">{{ tipo_exibicao }}</td>
+                                <td class="cert-tipo-col fw-medium" style="width: 1%; white-space: nowrap;">{{ tipo_exibicao }}</td>
 
-                                <td class="text-center">
+                                <td style="width: 1%; white-space: nowrap; padding-left: 2.5rem;">
                                     {{ render_badge(certidao, hoje) }}
                                 </td>
 
-                                <td class="text-center pe-4">
-                                    <div class="d-flex justify-content-center gap-2">
+                                <td style="width: 100%;"></td>
+
+                                <td class="text-end pe-4" style="white-space: nowrap; width: 1%;">
+                                    <div class="d-flex justify-content-end gap-2">
                                         <button type="button" class="btn btn-sm btn-outline-info border-0 btn-abrir-site"
                                             title="Abrir Site"
                                             data-bs-tooltip="true" data-bs-placement="top"
@@ -1322,40 +1310,29 @@
 
 
             function atualizarLinhaUI(linha, classeStatusAntiga, novoTexto) {
-                const badge = linha.querySelector('.badge');
-                if (!badge) return;
+                const span = linha.querySelector('[class*="cert-status-"]');
+                if (!span) return;
 
-                let novaClasseBadge = 'text-bg-secondary';
-                let novoIcone = 'bi-question-circle-fill';
-                let novoStatusCert = 'nao_definida';
+                const isPendente = classeStatusAntiga === 'status-vermelho' &&
+                    novoTexto && novoTexto.toLowerCase().includes('pendente');
 
-                if (classeStatusAntiga === 'status-verde') {
-                    novaClasseBadge = 'text-bg-success';
-                    novoIcone = 'bi-check-circle-fill';
-                    novoStatusCert = 'validas';
-                } else if (classeStatusAntiga === 'status-vermelho') {
-                    novaClasseBadge = 'text-bg-danger';
-                    novoIcone = 'bi-x-circle-fill';
-                    if (novoTexto && novoTexto.toLowerCase().includes('pendente')) {
-                        novoIcone = 'bi-exclamation-circle-fill';
-                        novoStatusCert = 'pendentes';
-                    } else {
-                        novoStatusCert = 'vencidas';
-                    }
+                let cls, icone, statusCert, bold;
+
+                if (isPendente) {
+                    cls = 'cert-status-danger'; icone = 'bi-exclamation-circle-fill'; statusCert = 'pendentes'; bold = true;
+                } else if (classeStatusAntiga === 'status-verde') {
+                    cls = 'cert-status-ok'; icone = 'bi-check-circle-fill'; statusCert = 'validas'; bold = false;
                 } else if (classeStatusAntiga === 'status-amarelo') {
-                    novaClasseBadge = 'text-bg-warning text-dark';
-                    novoIcone = 'bi-exclamation-triangle-fill';
-                    novoStatusCert = 'a_vencer';
-                } else if (classeStatusAntiga === 'status-cinza') {
-                    novaClasseBadge = 'text-bg-secondary';
-                    novoIcone = 'bi-question-circle-fill';
-                    novoStatusCert = 'nao_definida';
+                    cls = 'cert-status-warn'; icone = 'bi-exclamation-triangle-fill'; statusCert = 'a_vencer'; bold = true;
+                } else if (classeStatusAntiga === 'status-vermelho') {
+                    cls = 'cert-status-danger'; icone = 'bi-x-circle-fill'; statusCert = 'vencidas'; bold = true;
+                } else {
+                    cls = 'cert-status-muted'; icone = 'bi-question-circle'; statusCert = 'nao_definida'; bold = false;
                 }
 
-                badge.className = `badge rounded-pill ${novaClasseBadge} fs-6 fw-normal px-3 py-2 d-inline-flex align-items-center gap-2`;
-                badge.innerHTML = `<i class="bi ${novoIcone}"></i> ${novoTexto}`;
-
-                linha.dataset.statusCert = novoStatusCert;
+                span.className = `${cls}${bold ? ' fw-semibold' : ''} small d-inline-flex align-items-center gap-1`;
+                span.innerHTML = `<i class="bi ${icone}"></i>${novoTexto}`;
+                linha.dataset.statusCert = statusCert;
                 atualizarContagensChips();
             }
 

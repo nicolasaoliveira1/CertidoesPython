@@ -103,6 +103,8 @@ main {
     transition: transform var(--sidebar-transition), padding-top var(--sidebar-transition);
     z-index: 1035;
     overflow-y: auto;
+    display: flex;
+    flex-direction: column;
 }
 
 body.navbar-hidden .app-sidebar {
@@ -170,6 +172,13 @@ body.navbar-hidden.sidebar-open .sidebar-toggle-menu {
     flex-direction: column;
     gap: 0.4rem;
     padding-top: 1rem;
+    flex: 1;
+}
+
+.sidebar-nav-footer {
+    margin-top: auto;
+    padding-top: 0.5rem;
+    border-top: 1px solid var(--bs-border-color-translucent);
 }
 
 .sidebar-link {
@@ -242,7 +251,7 @@ body.sidebar-open .sidebar-backdrop {
 
 .app-main {
     width: 100%;
-    max-width: 1640px;
+    max-width: 1394px;
     margin-left: auto;
     margin-right: auto;
     padding-left: 1rem !important;
@@ -263,9 +272,6 @@ body.sidebar-open .sidebar-backdrop {
     }
 }
 
-body.sidebar-open .app-main {
-    max-width: min(1640px, calc(100vw - var(--sidebar-width) - 1.5rem));
-}
 
 @media (min-width: 901px) {
     .app-sidebar {
@@ -337,6 +343,12 @@ body.sidebar-open .app-main {
         padding-top: 1rem;
     }
 
+    .sidebar-nav-footer {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+    }
+
     .sidebar-link {
         justify-content: center;
         width: 38px;
@@ -402,6 +414,10 @@ body.sidebar-open .app-main {
     }
 
     body.sidebar-open .sidebar-nav {
+        align-items: stretch;
+    }
+
+    body.sidebar-open .sidebar-nav-footer {
         align-items: stretch;
     }
 
@@ -1543,6 +1559,47 @@ footer {
 .company-card.status-hidden {
     display: none;
 }
+
+/* ── Status de validade — legível em light e dark ── */
+.cert-status-ok      { color: #1a7f4b; }
+.cert-status-warn    { color: #8a5e00; }
+.cert-status-danger  { color: #c0392b; }
+.cert-status-muted   { color: #6c757d; }
+
+[data-bs-theme="dark"] .cert-status-ok     { color: #4fc98a; }
+[data-bs-theme="dark"] .cert-status-warn   { color: #f0b429; }
+[data-bs-theme="dark"] .cert-status-danger { color: #f07070; }
+[data-bs-theme="dark"] .cert-status-muted  { color: #9ba3ad; }
+
+/* ── Barra lateral de status por linha ── */
+td.cert-tipo-col {
+    position: relative;
+    padding-left: 1.85rem !important;
+}
+
+td.cert-tipo-col::before {
+    content: '';
+    position: absolute;
+    left: 0.6rem;
+    top: 18%;
+    bottom: 18%;
+    width: 3px;
+    border-radius: 3px;
+}
+
+tr[data-status-cert="validas"]      td.cert-tipo-col::before { background: #1a7f4b; }
+tr[data-status-cert="a_vencer"]     td.cert-tipo-col::before { background: #c07800; }
+tr[data-status-cert="vencidas"]     td.cert-tipo-col::before,
+tr[data-status-cert="pendentes"]    td.cert-tipo-col::before { background: #b92b27; }
+tr[data-status-cert="nao_definida"] td.cert-tipo-col::before,
+tr[data-status-cert="cinza"]        td.cert-tipo-col::before { background: #ced4da; }
+
+[data-bs-theme="dark"] tr[data-status-cert="validas"]      td.cert-tipo-col::before { background: #2d9e5f; }
+[data-bs-theme="dark"] tr[data-status-cert="a_vencer"]     td.cert-tipo-col::before { background: #d97706; }
+[data-bs-theme="dark"] tr[data-status-cert="vencidas"]     td.cert-tipo-col::before,
+[data-bs-theme="dark"] tr[data-status-cert="pendentes"]    td.cert-tipo-col::before { background: #c0392b; }
+[data-bs-theme="dark"] tr[data-status-cert="nao_definida"] td.cert-tipo-col::before,
+[data-bs-theme="dark"] tr[data-status-cert="cinza"]        td.cert-tipo-col::before { background: #4b5563; }
 
 tr.filter-hidden {
     display: none;
