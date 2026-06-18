@@ -44,6 +44,9 @@ docs/todo.txt
 docs/context.json
 docs/MAPEAMENTO_MUNICIPIOS.md
 
+# Specs de trabalho (não versionadas)
+docs/specs/
+
 # Bancos locais
 *.sqlite3
 *.db
