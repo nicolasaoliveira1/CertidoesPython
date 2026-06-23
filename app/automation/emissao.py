@@ -421,7 +421,6 @@ def _emitir_estadual_rs_certidao(certidao_id, driver=None, usar_2captcha=False, 
     def _log_etapa(etapa, extra=''):
         state = _rs_get_page_state(local_driver)
         elapsed = time.time() - inicio_fluxo
-        sufixo = f" | {extra}" if extra else ''
         log_event(
             'rs_batch_stage',
             certidao_id=certidao_id,
@@ -430,10 +429,8 @@ def _emitir_estadual_rs_certidao(certidao_id, driver=None, usar_2captcha=False, 
             duration_ms=int(elapsed * 1000),
             status='running',
             extra=extra,
-        )
-        print(
-            f"[ESTADUAL-RS-LOTE][ID={certidao_id}] {etapa} "
-            f"| +{elapsed:.1f}s | url={state['url']} | title={state['title']}{sufixo}"
+            url=state['url'],
+            title=state['title'],
         )
 
     try:
@@ -600,7 +597,10 @@ def _emitir_estadual_rs_certidao(certidao_id, driver=None, usar_2captcha=False, 
                 if caminho_final and os.path.exists(caminho_final):
                     os.remove(caminho_final)
             except Exception as exc_remove:
-                print(f"[ESTADUAL-RS-LOTE] Aviso ao remover PDF positivo: {exc_remove}")
+                log_event(
+                    'rs_batch_pdf_positivo_remove_warning', level='WARNING',
+                    certidao_id=certidao_id, error=str(exc_remove),
+                )
 
             certidao.caminho_arquivo = None
             certidao.status_especial = StatusEspecial.PENDENTE
@@ -860,7 +860,10 @@ def _emitir_municipal_certidao_lote(certidao_id, driver=None, execution_id=None)
         try:
             _configurar_download_automatico_chrome(local_driver)
         except Exception as exc:
-            print(f"[MUNICIPAL][LOTE] Falha ao reaplicar download automático: {exc}")
+            log_event(
+                'municipal_batch_download_config_failed', level='WARNING',
+                certidao_id=certidao_id, error=str(exc),
+            )
 
         snapshot_before = _snapshot_downloads_pdf()
 
@@ -1227,7 +1230,10 @@ def _emitir_fgts_certidao(certidao_id, driver=None, execution_id=None):
                     db.session.commit()
                 except Exception as e_db:
                     db.session.rollback()
-                    print(f"[FGTS] Aviso: não foi possível salvar validade no banco: {e_db}")
+                    log_event(
+                        'fgts_db_validade_save_failed', level='WARNING',
+                        certidao_id=certidao.id, error=str(e_db),
+                    )
 
             with FGTS_BATCH_LOCK:
                 FGTS_BATCH_STATE['last_completed'] = {
@@ -1473,13 +1479,13 @@ def _automatizar_fgts(contexto, driver, wait, certidao, detectar_impedimento=Fal
         contexto['impedimento_fgts'] = True
         contexto['impedimento_msg'] = mensagem
         _fgts_fechar_abas_extras(driver)
-        print(f"[FGTS][PENDENTES] {mensagem}")
+        log_event('fgts_impedimento', level='WARNING', certidao_id=certidao.id, message=mensagem)
 
     try:
         btn_consultar = _aguardar_clickable((By.ID, "mainForm:btnConsultar"))
         if not btn_consultar:
             return
-        print("clicando em Consultar")
+        log_event('fgts_click', certidao_id=certidao.id, botao='Consultar')
         if _parar_se_solicitado():
             return
         btn_consultar.click()
@@ -1498,7 +1504,7 @@ def _automatizar_fgts(contexto, driver, wait, certidao, detectar_impedimento=Fal
                 if msg_impedimento:
                     _marcar_impedimento_e_sair(msg_impedimento)
             return
-        print("clicando em Certificado")
+        log_event('fgts_click', certidao_id=certidao.id, botao='Certificado')
         if _parar_se_solicitado():
             return
         btn_certificado.click()
@@ -1524,7 +1530,10 @@ def _automatizar_fgts(contexto, driver, wait, certidao, detectar_impedimento=Fal
             except Exception as e:
                 if _fgts_stop_requested():
                     return
-                print(f"erro ao encontrar data fgts: {e}")
+                log_event(
+                    'fgts_data_nao_encontrada', level='WARNING',
+                    certidao_id=certidao.id, error=str(e),
+                )
 
         btn_visualizar = _aguardar_clickable((By.ID, "mainForm:btnVisualizar"))
         if not btn_visualizar:
@@ -1533,7 +1542,7 @@ def _automatizar_fgts(contexto, driver, wait, certidao, detectar_impedimento=Fal
                 if msg_impedimento:
                     _marcar_impedimento_e_sair(msg_impedimento)
             return
-        print("clicando em Visualizar")
+        log_event('fgts_click', certidao_id=certidao.id, botao='Visualizar')
         if _parar_se_solicitado():
             return
         btn_visualizar.click()
@@ -1564,7 +1573,10 @@ def _automatizar_fgts(contexto, driver, wait, certidao, detectar_impedimento=Fal
                     )
                 )
             except Exception as _e:
-                print(f"[FGTS] aviso: não confimou âncora da página: {_e}")
+                log_event(
+                    'fgts_ancora_nao_confirmada', level='WARNING',
+                    certidao_id=certidao.id, error=str(_e),
+                )
 
         def _gerar_pdf_da_pagina() -> str:
             try:
@@ -1581,7 +1593,10 @@ def _automatizar_fgts(contexto, driver, wait, certidao, detectar_impedimento=Fal
                 if data:
                     return data
             except Exception as e_cdp:
-                print(f"[FGTS] CDP printToPDF falhou, tentando print_page: {e_cdp}")
+                log_event(
+                    'fgts_cdp_printpdf_fallback', level='WARNING',
+                    certidao_id=certidao.id, error=str(e_cdp),
+                )
 
             return driver.print_page()
 
@@ -1598,7 +1613,7 @@ def _automatizar_fgts(contexto, driver, wait, certidao, detectar_impedimento=Fal
             with open(caminho_pdf, 'wb') as f:
                 f.write(base64.b64decode(pdf_b64))
 
-            print(f"[FGTS] PDF gerado em Downloads: {caminho_pdf}")
+            log_event('fgts_pdf_gerado', certidao_id=certidao.id, caminho=str(caminho_pdf))
 
             sucesso, msg = file_manager.mover_e_renomear(
                 caminho_pdf,
@@ -1609,13 +1624,16 @@ def _automatizar_fgts(contexto, driver, wait, certidao, detectar_impedimento=Fal
             if sucesso:
                 contexto['arquivo_salvo_msg'] = f"Arquivo salvo em: {msg}"
                 contexto['pular_monitoramento'] = True
-                print(contexto['arquivo_salvo_msg'])
+                log_event('fgts_arquivo_salvo', certidao_id=certidao.id, caminho=str(msg))
                 try:
                     certidao.caminho_arquivo = msg
                     db.session.commit()
                 except Exception as e_db:
                     db.session.rollback()
-                    print(f"[FGTS] Aviso: não foi possível salvar caminho no banco: {e_db}")
+                    log_event(
+                        'fgts_db_caminho_save_failed', level='WARNING',
+                        certidao_id=certidao.id, error=str(e_db),
+                    )
                 classificacao_pdf, msg_pdf = pdf.classificar_e_tratar_positivo(
                     certidao,
                     msg,
@@ -1628,11 +1646,14 @@ def _automatizar_fgts(contexto, driver, wait, certidao, detectar_impedimento=Fal
                     contexto['arquivo_salvo_msg'] = None
                     contexto['data_encontrada'] = None
         except Exception as e_pdf:
-            print(f"[FGTS] Erro ao gerar PDF automaticamente: {e_pdf}")
+            log_event(
+                'fgts_pdf_gerar_error', level='ERROR',
+                certidao_id=certidao.id, error=str(e_pdf),
+            )
     except Exception as e:
         if _fgts_stop_requested():
             return
-        print(f"erro automação emissao FGTS: {e}")
+        log_event('fgts_automacao_error', level='ERROR', certidao_id=certidao.id, error=str(e))
 
 
 def _carregar_config_municipio(regra_municipio):
@@ -1644,7 +1665,10 @@ def _carregar_config_municipio(regra_municipio):
     try:
         return json.loads(raw)
     except (TypeError, ValueError) as exc:
-        print(f"[MUNICIPAL] Config inválida para {regra_municipio.nome}: {exc}")
+        log_event(
+            'municipal_config_invalida', level='WARNING',
+            municipio=regra_municipio.nome, error=str(exc),
+        )
         return None
 
 

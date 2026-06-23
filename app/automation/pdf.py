@@ -11,6 +11,7 @@ import pdfplumber
 
 from app import db, file_manager
 from app.models import StatusEspecial
+from app.services.execution_logger import log_event
 
 
 def extrair_validade_federal(caminho_pdf):
@@ -21,7 +22,7 @@ def extrair_validade_federal(caminho_pdf):
         with pdfplumber.open(caminho_pdf) as pdf:
             texto = "\n".join(page.extract_text() or "" for page in pdf.pages)
     except Exception as exc:
-        print(f"[FEDERAL] Erro ao ler PDF: {exc}")
+        log_event('federal_pdf_read_error', level='WARNING', error=str(exc))
         return None
 
     match = re.search(r"Válida\s+até\s+(\d{2}/\d{2}/\d{4})", texto, re.IGNORECASE)
@@ -42,7 +43,7 @@ def extrair_texto(caminho_pdf, origem_log='PDF'):
         with pdfplumber.open(caminho_pdf) as pdf:
             return "\n".join(page.extract_text() or "" for page in pdf.pages)
     except Exception as exc:
-        print(f"[{origem_log}] Erro ao ler PDF: {exc}")
+        log_event('pdf_read_error', level='WARNING', origem=origem_log, error=str(exc))
         return ''
 
 

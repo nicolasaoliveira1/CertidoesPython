@@ -31,7 +31,7 @@ def criar_chave_interrupcao():
     caminho_chave = obter_caminho_chave_interrupcao()
     with open(caminho_chave, 'w', encoding='utf-8') as f:
         f.write(str(ts))
-    print(f"Chave de interrupção criada em: {caminho_chave}")
+    log_event('interrupcao_chave_criada', caminho=str(caminho_chave))
     return ts
 
 
@@ -53,7 +53,7 @@ def remover_chave_interrupcao():
     caminho_chave = obter_caminho_chave_interrupcao()
     if os.path.exists(caminho_chave):
         os.remove(caminho_chave)
-        print("Chave de interrupção removida.")
+        log_event('interrupcao_chave_removida')
 
 
 def remover_acentos(texto):
@@ -95,16 +95,14 @@ def buscar_na_pasta_especifica(caminho_base, nome_banco):
             nome_banco, todas_pastas, score_cutoff=95)
         if resultado:
             pasta_encontrada = resultado[0]
-            print(
-                f"Pasta encontrada em '{caminho_base}': '{pasta_encontrada}' (Match Direto)")
+            log_event('pasta_match', caminho_base=caminho_base, pasta=pasta_encontrada, metodo='direto')
             return os.path.join(caminho_base, pasta_encontrada)
 
         resultado_token = process.extractOne(
             nome_banco, todas_pastas, scorer=fuzz.token_set_ratio, score_cutoff=100)
         if resultado_token:
             pasta_encontrada = resultado_token[0]
-            print(
-                f"Pasta encontrada em '{caminho_base}': '{pasta_encontrada}' (Match Inteligente)")
+            log_event('pasta_match', caminho_base=caminho_base, pasta=pasta_encontrada, metodo='inteligente')
             return os.path.join(caminho_base, pasta_encontrada)
 
         nome_banco_clean = remover_acentos(nome_banco).upper()
@@ -112,14 +110,12 @@ def buscar_na_pasta_especifica(caminho_base, nome_banco):
             pasta_clean = remover_acentos(pasta).upper()
             score = fuzz.token_set_ratio(nome_banco_clean, pasta_clean)
             if score == 100:
-                print(
-                    f"Pasta encontrada em '{caminho_base}': '{pasta}' (Match Sem Acentos)")
+                log_event('pasta_match', caminho_base=caminho_base, pasta=pasta, metodo='sem_acentos')
                 return os.path.join(caminho_base, pasta)
 
         for pasta in todas_pastas:
             if pasta.upper() == nome_banco.upper():
-                print(
-                    f"Pasta encontrada em '{caminho_base}': '{pasta}' (Match Exato)")
+                log_event('pasta_match', caminho_base=caminho_base, pasta=pasta, metodo='exato')
                 return os.path.join(caminho_base, pasta)
 
     except Exception as e:
@@ -132,7 +128,6 @@ def buscar_na_pasta_especifica(caminho_base, nome_banco):
             error=str(e),
             status='error',
         )
-        print(f"Erro ao ler pasta {caminho_base}: {e}")
 
     return None
 
@@ -152,8 +147,7 @@ def encontrar_pasta_empresa(nome_banco):
         )
         return resultado_principal
 
-    print(
-        f"Empresa '{nome_banco}' não encontrada na raiz. Procurando em Sem Movimento...")
+    log_event('empresa_pasta_busca_sem_movimento', empresa_nome=nome_banco)
     resultado_sem_movimento = buscar_na_pasta_especifica(
         CAMINHO_SEM_MOVIMENTO, nome_banco)
 
@@ -167,15 +161,13 @@ def encontrar_pasta_empresa(nome_banco):
         )
         return resultado_sem_movimento
 
-    print(
-        f"ALERTA DE SEGURANÇA: Nenhuma pasta confiável encontrada para: '{nome_banco}'")
-    print("O arquivo permanecerá na pasta Downloads para evitar erros.")
     log_event(
         'empresa_pasta_nao_encontrada',
         level='WARNING',
         empresa_nome=nome_banco,
         duration_ms=int((time.time() - inicio) * 1000),
         status='error',
+        message='Nenhuma pasta confiável encontrada; arquivo permanece em Downloads.',
     )
     return None
 
@@ -206,7 +198,7 @@ def encontrar_caminho_final(caminho_empresa):
                 caminho_completo = os.path.join(caminho_empresa, pasta_encontrada)
                 if os.path.isdir(caminho_completo) and variacao.upper() in pasta_encontrada.upper():
                     pasta_destino = caminho_completo
-                    print(f"Pasta de documentos encontrada: '{pasta_encontrada}' (contém '{variacao}')")
+                    log_event('pasta_docs_encontrada', pasta=pasta_encontrada, variacao=variacao)
                     break
             else:
                 continue
@@ -220,7 +212,6 @@ def encontrar_caminho_final(caminho_empresa):
                 error=str(e),
                 status='error',
             )
-            print(f"Erro ao procurar pasta em {caminho_empresa}: {e}")
 
     variacoes_certidoes = ["CERTIDOES", "CERTIDÕES", "Certidoes", "Certidões"]
 
@@ -255,12 +246,11 @@ def limpar_versoes_antigas(pasta_destino, novo_nome_padrao, tipo_certidao):
                 semelhanca = fuzz.partial_ratio(palavra_chave, arquivo.upper())
 
                 if semelhanca > 85:
-                    print(
-                        f"Removendo arquivo antigo/fora do padrão: {arquivo}")
+                    log_event('arquivo_antigo_removido', arquivo=arquivo)
                     os.remove(caminho_completo)
 
     except Exception as e:
-        print(f"Erro ao tentar limpar versões antigas: {e}")
+        log_event('limpar_versoes_erro', level='WARNING', error=str(e))
 
 
 def verificar_novo_arquivo(tempo_inicio, termos_ignorar=None, extensoes_permitidas=('.pdf',)):
@@ -288,7 +278,6 @@ def verificar_novo_arquivo(tempo_inicio, termos_ignorar=None, extensoes_permitid
 
         # ignora temp
         if nome_arquivo.endswith(('.crdownload', '.tmp')):
-            print(f"[DEBUG] arquivo temporario ignorado: {nome_arquivo}")
             continue
 
         # apenas pdf
@@ -296,7 +285,7 @@ def verificar_novo_arquivo(tempo_inicio, termos_ignorar=None, extensoes_permitid
             continue
 
         if termos_ignorar and any(termo.lower() in nome_arquivo for termo in termos_ignorar):
-            print(f"arquivo ignorado pelo filtro '{termos_ignorar}': {nome_arquivo}")
+            log_event('arquivo_ignorado_filtro', arquivo=nome_arquivo, filtro=list(termos_ignorar))
             continue
 
         candidatos.append((tempo_criacao, caminho))
@@ -306,13 +295,13 @@ def verificar_novo_arquivo(tempo_inicio, termos_ignorar=None, extensoes_permitid
 
     # pega o mais recente
     _, arquivo_mais_recente = max(candidatos, key=lambda x: x[0])
-    print(f"[SUCESSO] Arquivo aceito: {os.path.basename(arquivo_mais_recente).lower()}")
+    log_event('arquivo_aceito', arquivo=os.path.basename(arquivo_mais_recente).lower())
     return arquivo_mais_recente
 
 
 def mover_e_renomear(caminho_arquivo_origem, nome_empresa, tipo_certidao):
     inicio = time.time()
-    print(f"[DEBUG] Emitindo certidão para empresa: {nome_empresa}")
+    log_event('arquivo_mover_inicio', empresa_nome=nome_empresa, tipo_certidao=tipo_certidao)
     caminho_empresa = encontrar_pasta_empresa(nome_empresa)
 
     if not caminho_empresa:

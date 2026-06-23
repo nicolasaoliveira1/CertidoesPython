@@ -17,6 +17,7 @@ from selenium.webdriver.chrome.service import Service as ChromeService
 from threading import Lock
 from webdriver_manager.chrome import ChromeDriverManager
 
+from app.services.execution_logger import log_event
 from app.utils import get_config_value as _get_config_value, to_bool as _to_bool
 
 RS_CERT_POLICY_LOCK = Lock()
@@ -84,16 +85,16 @@ def _sincronizar_politica_autoselect_rs(aplicar=True):
             if politica is None:
                 try:
                     winreg.DeleteValue(chave, indice)
-                    print(f"[RS] Política AutoSelectCertificate removida (índice {indice}).")
+                    log_event('rs_autoselect_removida', indice=indice)
                 except FileNotFoundError:
                     pass
                 return
 
             valor = json.dumps(politica, ensure_ascii=False, separators=(',', ':'))
             winreg.SetValueEx(chave, indice, 0, winreg.REG_SZ, valor)
-            print(f"[RS] Política AutoSelectCertificate aplicada (índice {indice}).")
+            log_event('rs_autoselect_aplicada', indice=indice)
     except OSError as exc:
-        print(f"[RS] Não foi possível sincronizar a política AutoSelectCertificate: {exc}")
+        log_event('rs_autoselect_sync_error', level='WARNING', error=str(exc))
 
 
 def _ativar_politica_autoselect_rs_temporaria():
@@ -197,6 +198,6 @@ def _criar_driver_chrome(anonimo=True, usar_perfil=False):
     try:
         _configurar_download_automatico_chrome(driver)
     except Exception as exc:
-        print(f"[DOWNLOAD] Não foi possível configurar download automático no Chrome: {exc}")
+        log_event('download_config_chrome_failed', level='WARNING', error=str(exc))
 
     return driver

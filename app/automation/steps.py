@@ -13,6 +13,8 @@ from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import Select, WebDriverWait
 
+from app.services.execution_logger import log_event
+
 BY_MAP = {
     'id': By.ID,
     'name': By.NAME,
@@ -55,7 +57,7 @@ def executar_municipio(driver, wait, steps, cnpj_limpo, inscricao_limpa, etapa_l
                 try:
                     WebDriverWait(driver, timeout).until(lambda d: wait_url_contains in (d.current_url or ''))
                 except TimeoutException:
-                    print(f"[MUNICIPAL] Timeout aguardando URL final do step condicional ({wait_url_contains}).")
+                    log_event('municipal_step_timeout_url', level='WARNING', url_alvo=wait_url_contains)
 
             try:
                 WebDriverWait(driver, timeout).until(
@@ -74,7 +76,7 @@ def executar_municipio(driver, wait, steps, cnpj_limpo, inscricao_limpa, etapa_l
             try:
                 elementos = driver.find_elements(by, locator)
             except Exception as exc_find:
-                print(f"[MUNICIPAL] Erro ao buscar elementos do step condicional: {exc_find!r}")
+                log_event('municipal_step_find_error', level='WARNING', error=repr(exc_find))
                 raise
 
             alvo = None
@@ -116,13 +118,16 @@ def executar_municipio(driver, wait, steps, cnpj_limpo, inscricao_limpa, etapa_l
                         expected_text
                     )
                     if js_click_result and js_click_result.get('clicked'):
-                        print('[MUNICIPAL] Link de certidão NEGATIVA encontrado. Prosseguindo com download.')
+                        log_event('municipal_negativa_link_encontrado', via='js_fallback')
                         time.sleep(sleep_after)
                         continue
                 except Exception as exc_js_click:
-                    print(f"[MUNICIPAL] Erro no fallback JS do step condicional: {exc_js_click!r}")
+                    log_event('municipal_step_js_fallback_error', level='WARNING', error=repr(exc_js_click))
 
-                print('[MUNICIPAL] Link de certidão NEGATIVA não encontrado. Retornando pendente.')
+                log_event(
+                    'municipal_negativa_link_ausente', level='WARNING',
+                    message='Link de certidão NEGATIVA não encontrado; retornando pendente.',
+                )
                 try:
                     driver.get('about:blank')
                 except Exception:
@@ -134,7 +139,7 @@ def executar_municipio(driver, wait, steps, cnpj_limpo, inscricao_limpa, etapa_l
             except Exception:
                 driver.execute_script('arguments[0].click();', alvo)
 
-            print('[MUNICIPAL] Link de certidão NEGATIVA encontrado. Prosseguindo com download.')
+            log_event('municipal_negativa_link_encontrado')
             time.sleep(sleep_after)
             continue
 
@@ -171,7 +176,7 @@ def executar_municipio(driver, wait, steps, cnpj_limpo, inscricao_limpa, etapa_l
                 elemento.send_keys(Keys.TAB)
                 time.sleep(sleep_after)
             except Exception as exc:
-                print(f"[MUNICIPAL] Aviso: falha ao enviar TAB: {exc}")
+                log_event('municipal_tab_falha', level='WARNING', error=str(exc))
             continue
 
         if tipo in ['click', 'click_js', 'select', 'fill']:

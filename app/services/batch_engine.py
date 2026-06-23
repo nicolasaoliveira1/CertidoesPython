@@ -129,11 +129,10 @@ def run_batch_loop(
     with app.app_context():
         driver = None
         setup_ctx = None
-        print(f"[{tag}] Worker iniciado.")
         execution_id = state.get('execution_id')
         if execution_id:
             CorrelationContext.set_execution_id(execution_id)
-        log_event(f'{event_prefix}_start', status='running')
+        log_event(f'{event_prefix}_start', status='running', tag=tag)
 
         try:
             if on_setup:
@@ -235,9 +234,8 @@ def run_batch_loop(
                     on_teardown(setup_ctx)
                 except Exception:
                     pass
-            log_event(f'{event_prefix}_end', status=state.get('status'))
+            log_event(f'{event_prefix}_end', status=state.get('status'), tag=tag)
             CorrelationContext.clear()
-            print(f"[{tag}] Worker encerrado.")
 
 
 def request_pause(batch_lock, batch_state):

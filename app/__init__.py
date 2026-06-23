@@ -74,6 +74,9 @@ def _limpar_chave_interrupcao_federal():
     if os.path.exists(caminho):
         try:
             os.remove(caminho)
-            print("[startup] Arquivo stop_federal_monitor.txt removido (resquício de execução anterior).")
+            log_event(
+                'startup_stop_key_removed',
+                message='Arquivo stop_federal_monitor.txt removido (resquício de execução anterior).',
+            )
         except OSError as e:
-            print(f"[startup] Aviso: não foi possível remover stop_federal_monitor.txt: {e}")
+            log_event('startup_stop_key_remove_failed', level='WARNING', error=str(e))
