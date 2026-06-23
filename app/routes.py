@@ -255,7 +255,11 @@ def _fgts_batch_worker(app):
             except Exception:
                 pass
             driver = _criar_driver_chrome()
-            print("[FGTS-LOTE] Recriando driver após falha de carregamento.")
+            log_event(
+                'fgts_batch_driver_recreate', level='WARNING',
+                certidao_id=certidao_id, execution_id=execution_id,
+                message='Recriando driver após falha de carregamento.',
+            )
             sucesso, grave, mensagem = _emitir_fgts_certidao(
                 certidao_id, driver=driver, execution_id=execution_id
             )
@@ -348,8 +352,6 @@ def _register_batch_routes(prefix, endpoint_base, cfg):
             cfg['started_event'], status='running', scope=scope,
             total=dados_lote['total'], execution_id=state.get('execution_id'),
         )
-        if tag:
-            print(f"[{tag}] Lote iniciado. Total={dados_lote['total']}.")
         with lock:
             batch_engine.append_batch_message(
                 state, f"Lote {nome} iniciado. Total={dados_lote['total']}.", level='info')
@@ -357,8 +359,7 @@ def _register_batch_routes(prefix, endpoint_base, cfg):
 
     def pausar():
         driver = batch_engine.request_pause(lock, state)
-        if tag:
-            print(f"[{tag}] Pausa solicitada.")
+        log_event('batch_paused', level='WARNING', lote=nome, tag=tag)
         with lock:
             batch_engine.append_batch_message(
                 state, f"Lote {nome} pausado por solicitação.", level='warning')
@@ -367,8 +368,7 @@ def _register_batch_routes(prefix, endpoint_base, cfg):
 
     def parar():
         driver = batch_engine.request_stop(lock, state)
-        if tag:
-            print(f"[{tag}] Parada solicitada.")
+        log_event('batch_stopped', level='WARNING', lote=nome, tag=tag)
         with lock:
             batch_engine.append_batch_message(
                 state, f"Lote {nome} interrompido por solicitação.", level='warning')
@@ -378,8 +378,7 @@ def _register_batch_routes(prefix, endpoint_base, cfg):
     def retomar():
         if not batch_engine.resume_batch(lock, state, worker, app_factory=_current_app_object):
             return _json_error(cfg['msg_nao_pausado'], 400)
-        if tag:
-            print(f"[{tag}] Retomada solicitada.")
+        log_event('batch_resumed', lote=nome, tag=tag)
         with lock:
             batch_engine.append_batch_message(
                 state, f"Lote {nome} retomado por solicitação.", level='info')
@@ -1284,6 +1283,222 @@ def _resultado_baixar_vazio():
     }
 
 
+def _baixar_classificacao_vazia():
+    """Dict de classificacao de PDF com todos os campos None."""
+    return {
+        'rs_estadual_classificacao': None,
+        'rs_estadual_msg': None,
+        'municipal_pdf_classificacao': None,
+        'municipal_pdf_msg': None,
+        'certidao_pdf_classificacao': None,
+        'certidao_pdf_msg': None,
+    }
+
+
+def _baixar_classificar_pdf(certidao, cfg, caminho_arquivo):
+    """Classifica o PDF recem-salvo conforme o tipo da certidao e trata
+    positivas (marca PENDENTE via pdf.classificar_e_tratar_positivo).
+    Retorna um dict com as classificacoes/mensagens (campos None quando nao se aplica)."""
+    tipo_certidao_chave = cfg['tipo_certidao_chave']
+    estado_emp = cfg['estado_emp']
+    regra_municipio = cfg['regra_municipio']
+    config_municipal = cfg['config_municipal']
+    usar_config_municipal = cfg['usar_config_municipal']
+
+    classif = _baixar_classificacao_vazia()
+
+    if tipo_certidao_chave == 'ESTADUAL' and estado_emp == 'RS':
+        classif['rs_estadual_classificacao'], classif['rs_estadual_msg'] = pdf.classificar_e_tratar_positivo(
+            certidao, caminho_arquivo, origem_log='ESTADUAL-RS', tipo_label='ESTADUAL RS'
+        )
+        log_event(
+            'estadual_rs_pdf_classified', certidao_id=certidao.id,
+            classificacao=classif['rs_estadual_classificacao'],
+        )
+
+    if (
+        tipo_certidao_chave == 'MUNICIPAL'
+        and regra_municipio
+        and usar_config_municipal
+        and bool((config_municipal or {}).get('classificar_pdf_status'))
+    ):
+        origem_pdf = f"MUNICIPAL-{regra_municipio.nome}"
+        classif['municipal_pdf_classificacao'], classif['municipal_pdf_msg'] = pdf.classificar_e_tratar_positivo(
+            certidao, caminho_arquivo, origem_log=origem_pdf,
+            tipo_label=f'MUNICIPAL ({regra_municipio.nome})'
+        )
+        log_event(
+            'municipal_pdf_classified', certidao_id=certidao.id,
+            municipio=regra_municipio.nome,
+            classificacao=classif['municipal_pdf_classificacao'],
+        )
+
+    if (
+        tipo_certidao_chave not in {'MUNICIPAL', 'FEDERAL'}
+        and not (tipo_certidao_chave == 'ESTADUAL' and estado_emp == 'RS')
+    ):
+        origem_pdf = (
+            f"ESTADUAL-{estado_emp}"
+            if tipo_certidao_chave == 'ESTADUAL' and estado_emp
+            else tipo_certidao_chave
+        )
+        classificacao_pdf, msg_pdf = pdf.classificar_e_tratar_positivo(
+            certidao, caminho_arquivo, origem_log=origem_pdf, tipo_label=certidao.tipo.value,
+        )
+        if classificacao_pdf in {'positiva', 'erro'}:
+            classif['certidao_pdf_classificacao'] = classificacao_pdf
+            classif['certidao_pdf_msg'] = msg_pdf
+
+    return classif
+
+
+def _baixar_fechar_navegador(driver, certidao):
+    """Fecha aba extra (se houver) e encerra o Chrome apos salvar o arquivo."""
+    try:
+        janelas_abertas = list(driver.window_handles)
+    except Exception:
+        janelas_abertas = []
+
+    if len(janelas_abertas) > 1:
+        ultima = janelas_abertas[-1]
+        try:
+            driver.switch_to.window(ultima)
+            driver.close()
+        except Exception:
+            pass
+
+    time.sleep(1)
+    try:
+        driver.quit()
+    except Exception as e_quit:
+        log_event(
+            'emit_chrome_close_warning', level='WARNING',
+            certidao_id=certidao.id, error=str(e_quit),
+        )
+
+
+def _baixar_monitorar_download(driver, certidao, cfg, tempo_inicio, arquivo_salvo_msg=None):
+    """Aguarda o download, move/renomeia o arquivo, classifica o PDF e fecha o
+    navegador. Retorna (arquivo_salvo_msg, classif_dict)."""
+    nome_certidao_arquivo = cfg['nome_certidao_arquivo']
+    classif = _baixar_classificacao_vazia()
+
+    log_event('emit_waiting_download', certidao_id=certidao.id)
+    download_detectado = False
+
+    while True:
+        try:
+            driver.window_handles
+        except Exception:
+            log_event('emit_window_closed', level='WARNING', certidao_id=certidao.id)
+            break
+
+        if not download_detectado:
+            novo_arquivo = file_manager.verificar_novo_arquivo(tempo_inicio)
+
+            if novo_arquivo:
+                log_event('emit_file_detected', certidao_id=certidao.id, arquivo=str(novo_arquivo))
+                download_detectado = True
+                sucesso, msg = file_manager.mover_e_renomear(
+                    novo_arquivo,
+                    certidao.empresa.nome,
+                    nome_certidao_arquivo
+                )
+
+                if sucesso:
+                    arquivo_salvo_msg = f"Arquivo salvo em: {msg}"
+                    log_event('emit_file_saved', certidao_id=certidao.id, caminho=str(msg))
+                    try:
+                        certidao.caminho_arquivo = msg
+                        db.session.commit()
+                    except Exception as e_db:
+                        db.session.rollback()
+                        log_event(
+                            'emit_db_save_failed', level='WARNING',
+                            certidao_id=certidao.id, error=str(e_db),
+                        )
+
+                    classif = _baixar_classificar_pdf(certidao, cfg, msg)
+
+                    try:
+                        _baixar_fechar_navegador(driver, certidao)
+                        break
+                    except Exception as e:
+                        log_event(
+                            'emit_chrome_close_error', level='WARNING',
+                            certidao_id=certidao.id, error=str(e),
+                        )
+                else:
+                    log_event(
+                        'emit_file_save_error', level='ERROR',
+                        certidao_id=certidao.id, error=str(msg),
+                    )
+
+        time.sleep(1)
+
+    return arquivo_salvo_msg, classif
+
+
+def _baixar_executar_acao(nome_acao, info_site, wait, driver, certidao, contexto):
+    """Executa uma acao pre-cnpj do fluxo de emissao: pre-click inicial,
+    select de tipo ou emissao FGTS via CDP. Dispatch por nome_acao."""
+    # 1 pre click inicial
+    if nome_acao == 'pre_fill':
+        if not info_site.get('pre_fill_click_id'):
+            return
+        click_by = steps.BY_MAP.get(info_site.get('pre_fill_click_by'))
+        if not click_by:
+            return
+        try:
+            elemento_inicial = wait.until(
+                EC.element_to_be_clickable(
+                    (click_by, info_site['pre_fill_click_id'])
+                )
+            )
+            elemento_inicial.click()
+            time.sleep(2)
+        except Exception:
+            pass
+
+    # 2 select de tipo
+    elif nome_acao == 'select_tipo':
+        if not info_site.get('tipo_select_id'):
+            return
+        select_by = steps.BY_MAP.get(info_site.get('tipo_select_by', 'id')) or By.ID
+        try:
+            select_el = wait.until(
+                EC.element_to_be_clickable(
+                    (select_by, info_site['tipo_select_id']))
+            )
+            select_obj = Select(select_el)
+
+            value = info_site.get('tipo_select_value')
+            if value is not None:
+                select_obj.select_by_value(value)
+            else:
+                text = info_site.get('tipo_select_text')
+                if text:
+                    select_obj.select_by_visible_text(text)
+
+            time.sleep(1)
+            log_event('emit_select_tipo_ok', certidao_id=certidao.id)
+        except Exception as e:
+            log_event(
+                'emit_select_tipo_failed', level='WARNING',
+                certidao_id=certidao.id, error=str(e),
+            )
+
+    #3 ação específica para FGTS: emitir e salvar PDF
+    elif nome_acao == 'fgts_emitir_pdf':
+        try:
+            _automatizar_fgts(contexto, driver, wait, certidao)
+        except Exception as e:
+            log_event(
+                'fgts_emitir_pdf_error', level='ERROR',
+                certidao_id=certidao.id, error=str(e),
+            )
+
+
 def _executar_automacao_baixar(certidao, cfg):
     """Camada Selenium da emissao unitaria. Recebe a config ja montada e
     devolve um dict 'resultado' com os flags de classificacao/arquivo (ou os
@@ -1291,12 +1506,10 @@ def _executar_automacao_baixar(certidao, cfg):
     tipo_certidao_chave = cfg['tipo_certidao_chave']
     estado_emp = cfg['estado_emp']
     info_site = cfg['info_site']
-    regra_municipio = cfg['regra_municipio']
     config_municipal = cfg['config_municipal']
     usar_config_municipal = cfg['usar_config_municipal']
     cnpj_limpo = cfg['cnpj_limpo']
     inscricao_limpa = cfg['inscricao_limpa']
-    nome_certidao_arquivo = cfg['nome_certidao_arquivo']
     usar_rs_autoselect = cfg['usar_rs_autoselect']
 
     by_map = steps.BY_MAP
@@ -1328,7 +1541,7 @@ def _executar_automacao_baixar(certidao, cfg):
     tempo_inicio = time.time()
 
     try:
-        print(f"--- INICIANDO AUTOMAÇÃO ({tipo_certidao_chave}) ---")
+        log_event('emit_automation_start', certidao_id=certidao.id, tipo=tipo_certidao_chave)
 
         if usar_rs_autoselect:
             rs_autoselect_temporario_ativo = _ativar_politica_autoselect_rs_temporaria()
@@ -1341,21 +1554,23 @@ def _executar_automacao_baixar(certidao, cfg):
         wait = WebDriverWait(driver, 20)
 
         if tipo_certidao_chave == 'ESTADUAL' and estado_emp == 'RS' and info_site.get('login_cert_url'):
-            print("1. Acessando login com certificado (RS)")
+            log_event('estadual_rs_cert_login', certidao_id=certidao.id)
             _login_certificado_rs(
                 driver,
                 info_site.get('login_cert_url'),
                 info_site.get('url')
             )
-            print('pronto')
         else:
-            print(f"1. Acessando a URL: {info_site.get('url')}")
+            log_event('emit_navigate', certidao_id=certidao.id, url=info_site.get('url'))
             driver.get(info_site.get('url'))
 
         try:
             _configurar_download_automatico_chrome(driver)
         except Exception as exc:
-            print(f"[DOWNLOAD] Falha ao reaplicar configuração de download automático: {exc}")
+            log_event(
+                'download_config_retry_failed', level='WARNING',
+                certidao_id=certidao.id, error=str(exc),
+            )
 
         if tipo_certidao_chave == 'MUNICIPAL':
             if usar_config_municipal:
@@ -1376,57 +1591,6 @@ def _executar_automacao_baixar(certidao, cfg):
                     resultado['window_closed'] = True
                     return resultado
 
-        def executar_acao_aux(nome_acao):
-            # 1 pre click inicial
-            if nome_acao == 'pre_fill':
-                if not info_site.get('pre_fill_click_id'):
-                    return
-                click_by = _get_by(info_site.get('pre_fill_click_by'))
-                if not click_by:
-                    return
-                try:
-                    elemento_inicial = wait.until(
-                        EC.element_to_be_clickable(
-                            (click_by, info_site['pre_fill_click_id'])
-                        )
-                    )
-                    elemento_inicial.click()
-                    time.sleep(2)
-                except Exception:
-                    pass
-
-            # 2 select de tipo
-            elif nome_acao == 'select_tipo':
-                if not info_site.get('tipo_select_id'):
-                    return
-                select_by = _get_by(info_site.get('tipo_select_by', 'id')) or By.ID
-                try:
-                    select_el = wait.until(
-                        EC.element_to_be_clickable(
-                            (select_by, info_site['tipo_select_id']))
-                    )
-                    select_obj = Select(select_el)
-
-                    value = info_site.get('tipo_select_value')
-                    if value is not None:
-                        select_obj.select_by_value(value)
-                    else:
-                        text = info_site.get('tipo_select_text')
-                        if text:
-                            select_obj.select_by_visible_text(text)
-
-                    time.sleep(1)
-                    print("Select de tipo configurado com sucesso.")
-                except Exception as e:
-                    print(f"Aviso: não foi possível configurar select de tipo: {e}")
-
-            #3 ação específica para FGTS: emitir e salvar PDF
-            elif nome_acao == 'fgts_emitir_pdf':
-                try:
-                    _automatizar_fgts(contexto, driver, wait, certidao)
-                except Exception as e:
-                    print(f"[FGTS] Erro na ação fgts_emitir_pdf: {e}")
-
         # ordem das ações antes do cnpj
         steps_before_cnpj = info_site.get('steps_before_cnpj')
         if steps_before_cnpj is None:
@@ -1434,7 +1598,7 @@ def _executar_automacao_baixar(certidao, cfg):
             steps_before_cnpj = ['pre_fill', 'select_tipo']
 
         for step in steps_before_cnpj:
-            executar_acao_aux(step)
+            _baixar_executar_acao(step, info_site, wait, driver, certidao, contexto)
 
         if info_site.get('cnpj_field_id'):
             field_by = _get_by(info_site.get('by'))
@@ -1461,7 +1625,10 @@ def _executar_automacao_baixar(certidao, cfg):
                     pass
 
         if tipo_certidao_chave == 'ESTADUAL' and estado_emp == 'RS':
-            print('[ESTADUAL-RS][ALTCHA] Emissão unitária em modo manual: resolva o captcha e clique em Enviar.')
+            log_event(
+                'estadual_rs_manual_hint', certidao_id=certidao.id,
+                message='Emissão unitária em modo manual: resolva o captcha e clique em Enviar.',
+            )
 
         if tipo_certidao_chave == 'MUNICIPAL' and usar_config_municipal:
             steps_after = config_municipal.get('after_cnpj', []) if config_municipal else []
@@ -1486,7 +1653,7 @@ def _executar_automacao_baixar(certidao, cfg):
         if steps_after_cnpj is None:
             steps_after_cnpj = []
         for step in steps_after_cnpj:
-            executar_acao_aux(step)
+            _baixar_executar_acao(step, info_site, wait, driver, certidao, contexto)
 
         # sincroniza variaves ja usadas
         if contexto.get('pular_monitoramento'):
@@ -1509,121 +1676,34 @@ def _executar_automacao_baixar(certidao, cfg):
                     pass
 
         if not pular_monitoramento:
-            print("--- AGUARDANDO DOWNLOAD OU FECHAMENTO ---")
-
-            download_detectado = False
-
-            while True:
-                try:
-                    driver.window_handles
-                except Exception:
-                    print("Janela fechada pelo usuário.")
-                    break
-
-                if not download_detectado:
-                    novo_arquivo = file_manager.verificar_novo_arquivo(
-                        tempo_inicio)
-
-                    if novo_arquivo:
-                        print(f"Novo arquivo detectado: {novo_arquivo}")
-                        download_detectado = True
-                        sucesso, msg = file_manager.mover_e_renomear(
-                            novo_arquivo,
-                            certidao.empresa.nome,
-                            nome_certidao_arquivo
-                        )
-
-                        if sucesso:
-                            arquivo_salvo_msg = f"Arquivo salvo em: {msg}"
-                            print(arquivo_salvo_msg)
-                            try:
-                                certidao.caminho_arquivo = msg
-                                db.session.commit()
-                            except Exception as e_db:
-                                db.session.rollback()
-                                print(f"Aviso: não foi possível salvar caminho no banco: {e_db}")
-
-                            if tipo_certidao_chave == 'ESTADUAL' and estado_emp == 'RS':
-                                rs_estadual_classificacao, rs_estadual_msg = pdf.classificar_e_tratar_positivo(
-                                    certidao, msg, origem_log='ESTADUAL-RS', tipo_label='ESTADUAL RS'
-                                )
-                                print(f"[ESTADUAL-RS] Classificação do PDF: {rs_estadual_classificacao}")
-
-                            if (
-                                tipo_certidao_chave == 'MUNICIPAL'
-                                and regra_municipio
-                                and usar_config_municipal
-                                and bool((config_municipal or {}).get('classificar_pdf_status'))
-                            ):
-                                origem_pdf = f"MUNICIPAL-{regra_municipio.nome}"
-                                municipal_pdf_classificacao, municipal_pdf_msg = pdf.classificar_e_tratar_positivo(
-                                    certidao, msg, origem_log=origem_pdf,
-                                    tipo_label=f'MUNICIPAL ({regra_municipio.nome})'
-                                )
-                                print(f"[{origem_pdf}] Classificação do PDF: {municipal_pdf_classificacao}")
-
-                            if (
-                                tipo_certidao_chave not in {'MUNICIPAL', 'FEDERAL'}
-                                and not (tipo_certidao_chave == 'ESTADUAL' and estado_emp == 'RS')
-                            ):
-                                origem_pdf = (
-                                    f"ESTADUAL-{estado_emp}"
-                                    if tipo_certidao_chave == 'ESTADUAL' and estado_emp
-                                    else tipo_certidao_chave
-                                )
-                                classificacao_pdf, msg_pdf = pdf.classificar_e_tratar_positivo(
-                                    certidao,
-                                    msg,
-                                    origem_log=origem_pdf,
-                                    tipo_label=certidao.tipo.value,
-                                )
-                                if classificacao_pdf in {'positiva', 'erro'}:
-                                    certidao_pdf_classificacao = classificacao_pdf
-                                    certidao_pdf_msg = msg_pdf
-                            try:
-                                try:
-                                    janelas_abertas = list(driver.window_handles)
-                                except Exception:
-                                    janelas_abertas = []
-
-                                def _is_blank(url):
-                                    url = (url or '').lower()
-                                    return url == 'about:blank' or url == ''
-
-                                if len(janelas_abertas) > 1:
-                                    ultima = janelas_abertas[-1]
-                                    try:
-                                        driver.switch_to.window(ultima)
-                                        driver.close()
-                                    except Exception:
-                                        pass
-
-                                time.sleep(1)
-                                try:
-                                    driver.quit()
-                                except Exception as e_quit:
-                                    print(f"Aviso: erro ao fechar Chrome: {e_quit}")
-
-                                break
-                            except Exception as e:
-                                print(f"Erro ao fechar Chrome: {e}")
-                        else:
-                            print(f"Erro ao salvar: {msg}")
-
-                time.sleep(1)
+            arquivo_salvo_msg, classif = _baixar_monitorar_download(
+                driver, certidao, cfg, tempo_inicio, arquivo_salvo_msg
+            )
+            rs_estadual_classificacao = classif['rs_estadual_classificacao']
+            rs_estadual_msg = classif['rs_estadual_msg']
+            municipal_pdf_classificacao = classif['municipal_pdf_classificacao']
+            municipal_pdf_msg = classif['municipal_pdf_msg']
+            certidao_pdf_classificacao = classif['certidao_pdf_classificacao']
+            certidao_pdf_msg = classif['certidao_pdf_msg']
         else:
-            print("--- FGTS: monitoramento pulado (PDF gerado via CDP) ---")
+            log_event('fgts_monitor_skipped', certidao_id=certidao.id)
             if driver:
                 try:
                     time.sleep(1)
                     driver.quit()
                 except Exception as e_quit:
-                    print(f"Aviso: erro ao fechar Chrome no fluxo FGTS/CDP: {e_quit}")
+                    log_event(
+                        'emit_chrome_close_warning', level='WARNING',
+                        certidao_id=certidao.id, error=str(e_quit),
+                    )
 
     except Exception as e:
-        print(f"!!!!!!!!!! ERRO NO SELENIUM !!!!!!!!!!\n{e}")
+        log_event('emit_selenium_error', level='ERROR', certidao_id=certidao.id, error=str(e))
         if _erro_indica_navegador_fechado(e):
-            print("Chrome fechado durante a automação; retornando fluxo pendente.")
+            log_event(
+                'emit_browser_closed', level='WARNING', certidao_id=certidao.id,
+                message='Chrome fechado durante a automação; retornando fluxo pendente.',
+            )
             if driver:
                 try:
                     driver.quit()
@@ -1720,8 +1800,10 @@ def _montar_resposta_baixar(certidao, cfg, resultado):
         response_data['visualizar_token'] = _gerar_visualizar_token(certidao_id)
 
         if data_encontrada:
-            print(
-                f"[DEBUG] Data de validade encontrada: {data_encontrada.strftime('%d/%m/%Y')}")
+            log_event(
+                'emit_validade_encontrada', certidao_id=certidao_id,
+                validade=data_encontrada.strftime('%d/%m/%Y'),
+            )
             response_data['nova_data'] = data_encontrada.strftime('%Y-%m-%d')
             response_data['data_formatada'] = data_encontrada.strftime(
                 '%d/%m/%Y')
@@ -1729,8 +1811,10 @@ def _montar_resposta_baixar(certidao, cfg, resultado):
             data_calc = _calcular_validade_sem_data(certidao, tipo_certidao_chave, regra_municipio)
 
             if data_calc:
-                print(
-                    f"[DEBUG] Data de validade calculada: {data_calc.strftime('%d/%m/%Y')}")
+                log_event(
+                    'emit_validade_calculada', certidao_id=certidao_id,
+                    validade=data_calc.strftime('%d/%m/%Y'),
+                )
                 response_data['nova_data'] = data_calc.strftime('%Y-%m-%d')
                 response_data['data_formatada'] = data_calc.strftime(
                     '%d/%m/%Y')
@@ -1795,15 +1879,14 @@ def salvar_data_confirmada():
 def monitorar_download_federal(certidao_id):
     certidao = Certidao.query.get_or_404(certidao_id)
 
-    print(
-        f"--- INICIANDO MONITORAMENTO DE DOWNLOAD (FEDERAL) - ID: {certidao_id} ---")
+    log_event('federal_monitor_start', certidao_id=certidao_id)
 
     minha_chave_ts = file_manager.criar_chave_interrupcao()
 
     # Captura um snapshot antes de iniciar a janela de monitoramento
     # para detectar arquivos criados/alterados mesmo se o download iniciar cedo.
     snapshot_before = _snapshot_downloads_pdf()
-    print(f"[FEDERAL][MONITOR] snapshot inicial: {len(snapshot_before)} pdf(s)")
+    log_event('federal_monitor_snapshot', certidao_id=certidao_id, pdfs=len(snapshot_before))
 
     time.sleep(2)
 
@@ -1828,8 +1911,10 @@ def monitorar_download_federal(certidao_id):
 
     while (time.time() - tempo_inicio) < tempo_limite:
         if os.path.exists(chave_interrupcao):
-            print(
-                f"MONITORAMENTO FEDERAL (ID {certidao_id}) INTERROMPIDO POR NOVA REQUISIÇÃO.")
+            log_event(
+                'federal_monitor_interrupted', level='WARNING', certidao_id=certidao_id,
+                message='Monitoramento interrompido por nova requisição.',
+            )
             file_manager.remover_chave_interrupcao()
             return _json_error('Monitoramento interrompido.', 409, status='interrupted')
 
@@ -1841,14 +1926,14 @@ def monitorar_download_federal(certidao_id):
         agora = time.time()
         if (agora - ultimo_log) >= 5:
             restante = max(0, int(tempo_limite - (agora - tempo_inicio)))
-            print(
-                f"[FEDERAL][MONITOR] aguardando... restante={restante}s "
-                f"| novo_arquivo={'sim' if novo_arquivo else 'nao'}"
+            log_event(
+                'federal_monitor_waiting', certidao_id=certidao_id,
+                restante_s=restante, novo_arquivo=bool(novo_arquivo),
             )
             ultimo_log = agora
 
         if novo_arquivo:
-            print(f"Arquivo Federal detectado: {novo_arquivo}")
+            log_event('federal_file_detected', certidao_id=certidao_id, arquivo=str(novo_arquivo))
 
             sucesso, msg = file_manager.mover_e_renomear(
                 novo_arquivo,
@@ -1862,7 +1947,10 @@ def monitorar_download_federal(certidao_id):
                     db.session.commit()
                 except Exception as e_db:
                     db.session.rollback()
-                    print(f"[FEDERAL] Aviso: não foi possível salvar caminho no banco: {e_db}")
+                    log_event(
+                        'federal_db_save_failed', level='WARNING',
+                        certidao_id=certidao_id, error=str(e_db),
+                    )
                 validade_pdf = pdf.extrair_validade_federal(msg)
                 if validade_pdf:
                     return jsonify({
