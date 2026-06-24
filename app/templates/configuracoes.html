@@ -23,7 +23,7 @@
     <div class="col-12 col-lg-6">
         <div class="card border-0 shadow-sm h-100">
             <div class="card-header bg-body-tertiary border-bottom">
-                <strong>Validade das certidões</strong>
+                <strong>Parâmetros do sistema</strong>
             </div>
             <div class="card-body">
                 <form method="POST" action="{{ url_for('main.configuracoes') }}" class="row g-3">
@@ -62,6 +62,24 @@
                             {% endfor %}
                         </div>
                         <div class="form-text mt-1">Deixe em branco para usar o padrão.</div>
+                    </div>
+
+                    <div class="col-12"><hr class="my-1"></div>
+
+                    <div class="col-12">
+                        <label class="form-label fw-semibold" for="caminho-rede">Caminho de rede (pasta base das empresas)</label>
+                        <input
+                            type="text"
+                            class="form-control"
+                            id="caminho-rede"
+                            name="caminho_rede"
+                            placeholder="{{ caminho_rede_efetivo }}"
+                            value="{{ caminho_rede }}"
+                        >
+                        <div class="form-text">
+                            Pasta onde os PDFs das empresas são organizados. Em branco usa o padrão
+                            do ambiente (atual: <code>{{ caminho_rede_efetivo }}</code>).
+                        </div>
                     </div>
 
                     <div class="col-12">

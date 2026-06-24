@@ -23,7 +23,7 @@ from selenium.webdriver.support.ui import Select, WebDriverWait
 
 from app import db, file_manager
 from app.errors import descrever_erro, mensagem_usuario
-from app.automation import SITES_CERTIDOES, pdf, steps
+from app.automation import SITES_CERTIDOES, capture, pdf, steps
 from app.automation.batch_state import (
     FGTS_BATCH_LOCK,
     FGTS_BATCH_STATE,
@@ -951,6 +951,9 @@ def configuracoes():
                     return redirect(url_for('main.configuracoes'))
                 setattr(config, coluna, v)
 
+        caminho_rede_raw = (request.form.get('caminho_rede') or '').strip()
+        config.caminho_rede = caminho_rede_raw or None
+
         try:
             db.session.commit()
             flash('Configuracoes atualizadas com sucesso.', 'success')
@@ -970,6 +973,8 @@ def configuracoes():
         a_vencer_dias=a_vencer_dias,
         por_tipo=por_tipo,
         tipos_vencer=_TIPOS_VENCER,
+        caminho_rede=(config.caminho_rede if config else None) or '',
+        caminho_rede_efetivo=file_manager.get_caminho_rede(),
     )
 
 
@@ -1711,6 +1716,9 @@ def _executar_automacao_baixar(certidao, cfg):
                     pass
             resultado['window_closed'] = True
             return resultado
+        capture.capturar_contexto_falha(
+            driver, f'baixar_{tipo_certidao_chave}', certidao_id=certidao.id,
+        )
         if driver:
             try:
                 driver.quit()

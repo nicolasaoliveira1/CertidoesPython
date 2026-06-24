@@ -165,6 +165,8 @@ class ConfiguracaoSistema(db.Model):
     a_vencer_dias_estadual = db.Column(db.Integer, nullable=True)
     a_vencer_dias_municipal = db.Column(db.Integer, nullable=True)
     a_vencer_dias_trabalhista = db.Column(db.Integer, nullable=True)
+    # caminho base da rede onde os PDFs sao organizados; em branco usa env/default
+    caminho_rede = db.Column(db.String(500), nullable=True)
 
     def __repr__(self):
         return f'<ConfiguracaoSistema {self.id}>'

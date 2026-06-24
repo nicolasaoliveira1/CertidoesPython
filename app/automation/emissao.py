@@ -28,7 +28,7 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
 
 from app import db, file_manager
-from app.automation import pdf, steps
+from app.automation import capture, pdf, steps
 from app.automation.sites import SITES_CERTIDOES, VALIDADES_CERTIDOES
 from app.automation.driver import (
     _configurar_download_automatico_chrome,
@@ -656,6 +656,10 @@ def _emitir_estadual_rs_certidao(certidao_id, driver=None, usar_2captcha=False, 
             error_type=map_exception_to_error_type(exc).value,
             error=str(exc),
         )
+        capture.capturar_contexto_falha(
+            local_driver, 'estadual_rs_lote',
+            certidao_id=certidao_id, execution_id=execution_id,
+        )
         return False, True, mensagem_usuario(exc, contexto='lote Estadual RS')
     finally:
         if criado_localmente:
@@ -1109,6 +1113,10 @@ def _emitir_municipal_certidao_lote(certidao_id, driver=None, execution_id=None)
             error_type=err_type,
             error=str(exc),
         )
+        capture.capturar_contexto_falha(
+            local_driver, 'municipal_lote',
+            certidao_id=certidao_id, execution_id=execution_id,
+        )
         return False, True, mensagem_usuario(exc, contexto='lote municipal')
     finally:
         if local_driver and not criado_localmente:
@@ -1259,6 +1267,9 @@ def _emitir_fgts_certidao(certidao_id, driver=None, execution_id=None):
             duration_ms=int((time.time() - inicio_fluxo) * 1000),
             error_type=map_exception_to_error_type(exc).value,
             error=str(exc),
+        )
+        capture.capturar_contexto_falha(
+            local_driver, 'fgts', certidao_id=certidao_id, execution_id=execution_id,
         )
         return False, True, mensagem_usuario(exc, contexto='FGTS')
     finally:

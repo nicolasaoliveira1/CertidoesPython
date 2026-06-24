@@ -50,6 +50,12 @@ class Config:
     DIAGNOSTICO_PERSISTIR = _env_bool('DIAGNOSTICO_PERSISTIR', True)
     DIAGNOSTICO_RETENCAO_DIAS = _env_int('DIAGNOSTICO_RETENCAO_DIAS', 30)
 
+    # Captura de contexto (screenshot + HTML) na falha de automacao Selenium
+    SELENIUM_CAPTURE_ENABLED = _env_bool('SELENIUM_CAPTURE_ENABLED', True)
+    SELENIUM_CAPTURE_DIR = os.environ.get('SELENIUM_CAPTURE_DIR') or \
+        os.path.join(basedir, 'logs', 'selenium')
+    SELENIUM_CAPTURE_RETENCAO_DIAS = _env_int('SELENIUM_CAPTURE_RETENCAO_DIAS', 14)
+
     RS_CERT_AUTOSELECT_ENABLED = _env_bool('RS_CERT_AUTOSELECT_ENABLED', False)
     RS_CERT_AUTOSELECT_PATTERN = os.environ.get('RS_CERT_AUTOSELECT_PATTERN') or \
         'https://www.sefaz.rs.gov.br'

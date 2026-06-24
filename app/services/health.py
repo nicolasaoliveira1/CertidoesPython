@@ -22,14 +22,14 @@ def _check_db():
 def _check_network_path():
     from app import file_manager
 
-    path = file_manager.CAMINHO_REDE
+    path = file_manager.get_caminho_rede()
     if not path:
         return False, {
             'path': None,
             'exists': False,
             'readable': False,
             'writable': False,
-            'message': 'CAMINHO_REDE nao configurado',
+            'message': 'caminho de rede nao configurado',
         }
     exists = os.path.exists(path)
     readable = os.access(path, os.R_OK) if exists else False

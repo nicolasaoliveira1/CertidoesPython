@@ -9,9 +9,27 @@ from app.errors import map_exception_to_error_type
 from app.services.execution_logger import log_event
 from app.services.retry import retry_call
 
+# fallback quando nao ha config no banco: env CAMINHO_REDE ou default
 CAMINHO_REDE = os.environ.get('CAMINHO_REDE') or r"Z:\\PASTAS EMPRESAS"
-CAMINHO_SEM_MOVIMENTO = os.path.join(
-    CAMINHO_REDE, "A a Z", "EMPRESAS SEM MOVIMENTO")
+
+
+def get_caminho_rede():
+    """Resolve o caminho base da rede com precedencia:
+    config no banco (UI) > env CAMINHO_REDE > default. Best-effort: cai para o
+    fallback se nao houver app context ou linha de configuracao."""
+    try:
+        from app.models import ConfiguracaoSistema
+        config = ConfiguracaoSistema.query.get(1)
+        if config and (config.caminho_rede or '').strip():
+            return config.caminho_rede.strip()
+    except Exception:
+        pass
+    return CAMINHO_REDE
+
+
+def get_caminho_sem_movimento():
+    """Pasta 'EMPRESAS SEM MOVIMENTO' derivada do caminho base atual."""
+    return os.path.join(get_caminho_rede(), "A a Z", "EMPRESAS SEM MOVIMENTO")
 VARIACOES_DOCS = [
     "DOCUMENTOS EMPRESA", "DOCS. EMPRESA", "DOC. EMPRESA",
     "DOCUMENTOS", "DOCS", "DOCS EMPRESA", "DOC EMPRESA", 
@@ -136,7 +154,7 @@ def encontrar_pasta_empresa(nome_banco):
     if not nome_banco or not str(nome_banco).strip():
         return None
     inicio = time.time()
-    resultado_principal = buscar_na_pasta_especifica(CAMINHO_REDE, nome_banco)
+    resultado_principal = buscar_na_pasta_especifica(get_caminho_rede(), nome_banco)
     if resultado_principal:
         log_event(
             'empresa_pasta_encontrada',
@@ -149,7 +167,7 @@ def encontrar_pasta_empresa(nome_banco):
 
     log_event('empresa_pasta_busca_sem_movimento', empresa_nome=nome_banco)
     resultado_sem_movimento = buscar_na_pasta_especifica(
-        CAMINHO_SEM_MOVIMENTO, nome_banco)
+        get_caminho_sem_movimento(), nome_banco)
 
     if resultado_sem_movimento:
         log_event(

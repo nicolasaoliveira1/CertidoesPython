@@ -53,6 +53,16 @@ def create_app(config_class=Config):
     if app.config.get('DIAGNOSTICO_PERSISTIR', True):
         iniciar_persistencia(app, app.config.get('DIAGNOSTICO_RETENCAO_DIAS', 30))
 
+    # limpeza de capturas Selenium (screenshot/HTML) antigas
+    try:
+        from app.automation.capture import prune_capturas
+        prune_capturas(
+            app.config.get('SELENIUM_CAPTURE_RETENCAO_DIAS', 14),
+            base_dir=app.config.get('SELENIUM_CAPTURE_DIR'),
+        )
+    except Exception:
+        pass
+
     # versiona estáticos locais com ?v=mtime para o navegador nunca servir CSS/JS desatualizado
     @app.context_processor
     def _injetar_static_versionado():
