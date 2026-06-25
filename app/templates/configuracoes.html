@@ -28,22 +28,34 @@
             <div class="card-body">
                 <form method="POST" action="{{ url_for('main.configuracoes') }}" class="row g-3">
                     <div class="col-12">
-                        <label class="form-label fw-semibold" for="a-vencer-dias">Padrão (todos os tipos)</label>
-                        <input
-                            type="number"
-                            class="form-control"
-                            id="a-vencer-dias"
-                            name="a_vencer_dias"
-                            min="1"
-                            max="90"
-                            required
-                            value="{{ a_vencer_dias }}"
-                        >
-                        <div class="form-text">Usado para qualquer tipo sem configuração individual.</div>
+                        <h6 class="fw-bold mb-1">Alerta de vencimento</h6>
+                        <p class="text-body-secondary mb-0">
+                            Defina com quantos dias de antecedência uma certidão passa a ser sinalizada como
+                            <span class="fw-semibold text-warning-emphasis">a vencer</span> (amarelo) no dashboard.
+                            Acima desse limite ela fica verde; depois da data de validade, vermelha.
+                        </p>
                     </div>
 
                     <div class="col-12">
-                        <p class="form-label fw-semibold mb-2">Por tipo <span class="text-body-secondary fw-normal">(opcional — sobrepõe o padrão)</span></p>
+                        <label class="form-label fw-semibold" for="a-vencer-dias">Antecedência padrão</label>
+                        <div class="input-group">
+                            <input
+                                type="number"
+                                class="form-control"
+                                id="a-vencer-dias"
+                                name="a_vencer_dias"
+                                min="1"
+                                max="90"
+                                required
+                                value="{{ a_vencer_dias }}"
+                            >
+                            <span class="input-group-text">dias</span>
+                        </div>
+                        <div class="form-text">Vale para todos os tipos de certidão que não tiverem um valor próprio abaixo.</div>
+                    </div>
+
+                    <div class="col-12">
+                        <p class="form-label fw-semibold mb-2">Antecedência por tipo</p>
                         <div class="row g-2">
                             {% for chave, label, _ in tipos_vencer %}
                             <div class="col-6">
@@ -55,18 +67,19 @@
                                     name="a_vencer_dias_{{ chave }}"
                                     min="1"
                                     max="90"
-                                    placeholder="{{ a_vencer_dias }} (padrão)"
+                                    placeholder="{{ a_vencer_dias }} dias"
                                     value="{{ por_tipo[chave] if por_tipo[chave] is not none else '' }}"
                                 >
                             </div>
                             {% endfor %}
                         </div>
-                        <div class="form-text mt-1">Deixe em branco para usar o padrão.</div>
+                        <div class="form-text mt-1">Deixe em branco para usar a antecedência padrão de {{ a_vencer_dias }} dias.</div>
                     </div>
 
                     <div class="col-12"><hr class="my-1"></div>
 
                     <div class="col-12">
+                        <h6 class="fw-bold mb-1">Armazenamento</h6>
                         <label class="form-label fw-semibold" for="caminho-rede">Caminho de rede (pasta base das empresas)</label>
                         <input
                             type="text"

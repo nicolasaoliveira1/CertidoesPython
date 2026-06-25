@@ -42,6 +42,8 @@ def create_app(config_class=Config):
     migrate.init_app(app, db)
 
     with app.app_context():
+        if app.config.get('AUTO_DB_UPGRADE', True):
+            _aplicar_migrations_pendentes()
         checks = run_health_checks(app.config)
         log_event('startup_health_checks', checks=checks)
     
@@ -76,6 +78,20 @@ def create_app(config_class=Config):
         return {'static_versionado': static_versionado}
 
     return app
+
+
+def _aplicar_migrations_pendentes():
+    """Roda 'flask db upgrade' no boot (no-op se ja estiver no head).
+
+    Evita o cenario de codigo novo + schema velho, em que leituras de modelo
+    falham e caem em defaults silenciosos. Controlado por AUTO_DB_UPGRADE.
+    """
+    from flask_migrate import upgrade as _db_upgrade
+
+    try:
+        _db_upgrade()
+    except Exception as e:
+        log_event('startup_db_upgrade_failed', level='ERROR', error=str(e))
 
 
 def _limpar_chave_interrupcao_federal():

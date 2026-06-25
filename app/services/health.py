@@ -67,9 +67,38 @@ def _check_solver_config(config):
     }
 
 
+def _check_schema():
+    """Compara a revisao aplicada no banco com o head das migrations.
+
+    Drift de schema (banco atras do codigo) faz leituras de modelo falharem
+    silenciosamente; este check torna isso visivel no boot em vez de mascarar.
+    """
+    from app import db, migrate
+    from alembic.script import ScriptDirectory
+    from alembic.runtime.migration import MigrationContext
+
+    script = ScriptDirectory.from_config(migrate.get_config())
+    head = script.get_current_head()
+
+    conn = db.engine.connect()
+    try:
+        current = MigrationContext.configure(conn).get_current_revision()
+    finally:
+        conn.close()
+
+    em_dia = current == head
+    return em_dia, {
+        'current': current,
+        'head': head,
+        'message': 'ok' if em_dia
+        else f'schema desatualizado: banco em {current}, head {head} (rode "flask db upgrade")',
+    }
+
+
 def run_health_checks(config):
     return {
         'db': _timed_check(_check_db),
+        'schema': _timed_check(_check_schema),
         'network_path': _timed_check(_check_network_path),
         'chrome_profile': _timed_check(lambda: _check_chrome_profile(config)),
         'solver': _timed_check(lambda: _check_solver_config(config)),

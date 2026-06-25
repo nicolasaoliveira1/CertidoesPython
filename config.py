@@ -34,6 +34,10 @@ class Config:
     SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL') or \
         'sqlite:///' + os.path.join(basedir, 'instance', 'database.db')
 
+    # Aplica migrations pendentes ('flask db upgrade') no boot do app.
+    # Evita codigo novo rodando sobre schema antigo. Desligue com AUTO_DB_UPGRADE=0.
+    AUTO_DB_UPGRADE = _env_bool('AUTO_DB_UPGRADE', True)
+
     CHROME_PROFILE_DIR = os.environ.get('CHROME_PROFILE_DIR') or \
         os.path.join(basedir, 'chrome-profile')
     CHROME_PROFILE_NAME = os.environ.get('CHROME_PROFILE_NAME') or 'Certidoes'
