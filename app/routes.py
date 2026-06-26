@@ -539,6 +539,43 @@ def _escolher_cidade_canonica_dashboard(variantes):
 def inject_year():
     return {'year': datetime.now().year}
 
+
+def _contar_pendencias():
+    """Total global de certidões que exigem ação (vencidas + a vencer).
+
+    Consulta apenas as colunas necessárias para não materializar objetos
+    Certidao a cada chamada. Reutilizado pelo context processor (title da
+    aba no page-load) e pelo endpoint /api/pendencias (polling em tempo real).
+    """
+    hoje = date.today()
+    limites_por_tipo = {t: get_a_vencer_dias(tipo=t) for t in TipoCertidao}
+
+    total = 0
+    linhas = db.session.query(
+        Certidao.tipo,
+        Certidao.data_validade,
+        Certidao.status_especial,
+    ).all()
+    for tipo, data_validade, status_especial in linhas:
+        if status_especial == StatusEspecial.PENDENTE or not data_validade:
+            continue
+        if data_validade < hoje or (data_validade - hoje).days <= limites_por_tipo[tipo]:
+            total += 1
+
+    return total
+
+
+@bp.context_processor
+def inject_pendencias_total():
+    """Disponibiliza a contagem de pendências em todos os templates (title da aba)."""
+    return {'pendencias_total': _contar_pendencias()}
+
+
+@bp.route('/api/pendencias')
+def api_pendencias():
+    """Total de pendências para o polling do title da aba (base.html)."""
+    return jsonify({'total': _contar_pendencias()})
+
 @bp.route('/')
 def dashboard():
     status_filtros = request.args.getlist('status')

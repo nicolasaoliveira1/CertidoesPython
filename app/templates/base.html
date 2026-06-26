@@ -4,7 +4,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Zelo — Certidões</title>
+    <title>{% if pendencias_total and pendencias_total > 0 %}({{ pendencias_total }}) {% endif %}{% block titulo %}Certidões{% endblock %} · Zelo</title>
 
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
@@ -479,6 +479,54 @@
             });
         });
 
+    </script>
+
+    <script>
+        // Atualiza a contagem (N) no <title> da aba sem recarregar a pagina.
+        // Rede de seguranca: polling de fundo. Tempo real: os fluxos de emissao/
+        // edicao chamam window.atualizarPendencias() ao concluir.
+        (function () {
+            const tituloBase = document.title.replace(/^\(\d+\)\s*/, '');
+            let emVoo = false;
+            let debounceTimer = null;
+
+            function aplicarTotal(total) {
+                document.title = (total > 0 ? `(${total}) ` : '') + tituloBase;
+            }
+
+            function buscar() {
+                if (emVoo) {
+                    return;
+                }
+                emVoo = true;
+                fetch('/api/pendencias')
+                    .then(resp => resp.ok ? resp.json() : null)
+                    .then(data => {
+                        if (data && typeof data.total === 'number') {
+                            aplicarTotal(data.total);
+                        }
+                    })
+                    .catch(() => { })
+                    .finally(() => { emVoo = false; });
+            }
+
+            // Disparo imediato (polling/volta ao foco): nao consulta com a aba oculta.
+            window.recarregarPendencias = function () {
+                if (!document.hidden) {
+                    buscar();
+                }
+            };
+
+            // Disparo pos-acao: aguarda o commit assentar e agrupa rajadas de
+            // chamadas (varias certidoes num lote) numa unica consulta.
+            window.atualizarPendencias = function () {
+                clearTimeout(debounceTimer);
+                debounceTimer = setTimeout(buscar, 1500);
+            };
+
+            setInterval(window.recarregarPendencias, 30000);
+            document.addEventListener('visibilitychange', window.recarregarPendencias);
+        })();
     </script>
 
     {% block scripts %}{% endblock %}

@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% block titulo %}{{ empresa.nome }}{% endblock %}
 {% macro render_badge(certidao, hoje) -%}
 {%- set badge_class = 'text-bg-success' -%}
 {%- set icone_status = 'bi-check-circle-fill' -%}
