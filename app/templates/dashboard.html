@@ -376,7 +376,7 @@
                 <div class="modal-footer">
                     <button type="button" class="btn btn-outline-danger me-auto" id="btnPendenteManual">Marcar como
                         Pendente</button>
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-ghost" data-bs-dismiss="modal">Cancelar</button>
 
                     <button type="button" class="btn btn-primary" id="btnSalvarManual">Salvar Alterações</button>
                 </div>
@@ -401,8 +401,8 @@
                     <p class="text-muted text-center mt-2 mb-0">Salvar esta data no banco?</p>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-                    <a class="btn btn-outline-primary d-none btn-visualizar-certidao"
+                    <button type="button" class="btn btn-ghost" data-bs-dismiss="modal">Cancelar</button>
+                    <a class="btn btn-soft-primary d-none btn-visualizar-certidao"
                         id="btnVisualizarPdf">Visualizar</a>
                     <button type="button" class="btn btn-success" id="btnConfirmarSalvar">Confirmar e Salvar</button>
                 </div>
@@ -425,7 +425,7 @@
                             class="text-danger">PENDENTE</span>?</p>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Não, manter como
+                    <button type="button" class="btn btn-ghost" data-bs-dismiss="modal">Não, manter como
                         está</button>
                     <button type="button" class="btn btn-danger" id="btnConfirmarPendente">Sim, marcar Pendente</button>
                 </div>
@@ -542,7 +542,7 @@
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body">
-                    <p class="batch-modal-intro mb-3">Foram encontradas certidões FGTS de <strong id="fgtsBatchEmpresaDisplay">---</strong>:</p>
+                    <p class="batch-modal-intro mb-3">Emita apenas a certidão de <strong id="fgtsBatchEmpresaDisplay">---</strong> ou todas as FGTS encontradas no lote:</p>
                     <p class="text-muted small mb-3 d-none" id="fgtsBatchScopeHint"></p>
                     <div class="batch-kpi-grid">
                         <div class="batch-kpi-card is-danger">
@@ -560,10 +560,10 @@
                     </div>
                 </div>
                 <div class="modal-footer batch-modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-                    <button type="button" class="btn btn-primary" id="btnFgtsBatchStart">Iniciar lote</button>
-                    <button type="button" class="btn btn-outline-primary" id="btnFgtsSingleEmit">Emitir apenas
+                    <button type="button" class="btn btn-ghost" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-soft-primary" id="btnFgtsSingleEmit">Emitir apenas
                         esta</button>
+                    <button type="button" class="btn btn-primary" id="btnFgtsBatchStart">Iniciar lote</button>
                 </div>
             </div>
         </div>
@@ -622,7 +622,7 @@
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body">
-                    <p class="batch-modal-intro mb-3">Foram encontradas certidões Estadual RS de <strong id="rsBatchEmpresaDisplay">---</strong>:</p>
+                    <p class="batch-modal-intro mb-3">Emita apenas a certidão de <strong id="rsBatchEmpresaDisplay">---</strong> ou todas as Estadual RS encontradas no lote:</p>
                     <p class="text-muted small mb-3 d-none" id="rsBatchScopeHint"></p>
                     <div class="batch-kpi-grid">
                         <div class="batch-kpi-card is-danger">
@@ -642,10 +642,10 @@
                     </p>
                 </div>
                 <div class="modal-footer batch-modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-                    <button type="button" class="btn btn-primary" id="btnRsBatchStart">Iniciar lote</button>
-                    <button type="button" class="btn btn-outline-primary" id="btnRsSingleEmit">Emitir apenas
+                    <button type="button" class="btn btn-ghost" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-soft-primary" id="btnRsSingleEmit">Emitir apenas
                         esta</button>
+                    <button type="button" class="btn btn-primary" id="btnRsBatchStart">Iniciar lote</button>
                 </div>
             </div>
         </div>
@@ -718,7 +718,7 @@
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body">
-                    <p class="batch-modal-intro mb-3">Foram encontradas certidões Municipais de <strong id="municipalBatchEmpresaDisplay">---</strong>:</p>
+                    <p class="batch-modal-intro mb-3">Emita apenas a certidão de <strong id="municipalBatchEmpresaDisplay">---</strong> ou todas as Municipais encontradas no lote:</p>
                     <p class="text-muted small mb-3 d-none" id="municipalBatchScopeHint"></p>
                     <div class="batch-kpi-grid">
                         <div class="batch-kpi-card is-danger">
@@ -739,10 +739,10 @@
                     </p>
                 </div>
                 <div class="modal-footer batch-modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-                    <button type="button" class="btn btn-primary" id="btnMunicipalBatchStart">Iniciar lote</button>
-                    <button type="button" class="btn btn-outline-primary" id="btnMunicipalSingleEmit">Emitir apenas
+                    <button type="button" class="btn btn-ghost" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-soft-primary" id="btnMunicipalSingleEmit">Emitir apenas
                         esta</button>
+                    <button type="button" class="btn btn-primary" id="btnMunicipalBatchStart">Iniciar lote</button>
                 </div>
             </div>
         </div>
@@ -1917,7 +1917,7 @@
                                         });
                                     return;
                                 }
-                                if (fgtsBatchEmpresaDisplay) fgtsBatchEmpresaDisplay.textContent = fgtsBatchEmpresaNome || '';
+                                if (fgtsBatchEmpresaDisplay) fgtsBatchEmpresaDisplay.textContent = fgtsBatchEmpresaNome || 'esta empresa';
                                 if (fgtsBatchModal) fgtsBatchModal.show();
                             })
                             .catch(() => {
@@ -1989,7 +1989,7 @@
                                         });
                                     return;
                                 }
-                                if (rsBatchEmpresaDisplay) rsBatchEmpresaDisplay.textContent = rsBatchEmpresaNome || '';
+                                if (rsBatchEmpresaDisplay) rsBatchEmpresaDisplay.textContent = rsBatchEmpresaNome || 'esta empresa';
                                 if (rsBatchModal) rsBatchModal.show();
                             })
                             .catch(() => {
@@ -2102,7 +2102,7 @@
                                         });
                                     return;
                                 }
-                                if (municipalBatchEmpresaDisplay) municipalBatchEmpresaDisplay.textContent = municipalBatchEmpresaNome || '';
+                                if (municipalBatchEmpresaDisplay) municipalBatchEmpresaDisplay.textContent = municipalBatchEmpresaNome || 'esta empresa';
                                 if (municipalBatchModal) municipalBatchModal.show();
                             })
                             .catch(() => {

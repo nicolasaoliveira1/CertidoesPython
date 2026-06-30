@@ -674,7 +674,7 @@ footer {
 
 .batch-modal-intro {
     color: var(--bs-secondary-color);
-    font-weight: 500;
+    font-weight: 400;
 }
 
 .batch-kpi-grid {
@@ -725,6 +725,54 @@ footer {
 
 .batch-modal-footer {
     gap: 0.45rem;
+}
+
+/* Botao secundario "preenchido" (soft) para a acao "Emitir apenas esta":
+   tem presenca desde o repouso (sem o efeito de outline vazio ate o hover). */
+.btn-soft-primary {
+    color: var(--bs-primary);
+    background-color: rgba(var(--bs-primary-rgb), 0.12);
+    border: 1px solid transparent;
+}
+
+.btn-soft-primary:hover {
+    color: var(--bs-primary);
+    background-color: rgba(var(--bs-primary-rgb), 0.22);
+}
+
+.btn-soft-primary:focus-visible {
+    color: var(--bs-primary);
+    background-color: rgba(var(--bs-primary-rgb), 0.22);
+    box-shadow: 0 0 0 0.25rem rgba(var(--bs-primary-rgb), 0.3);
+}
+
+.btn-soft-primary:active {
+    color: var(--bs-primary);
+    background-color: rgba(var(--bs-primary-rgb), 0.3);
+}
+
+/* Botao terciario (fantasma) para acoes de dispensar/cancelar:
+   o nivel mais discreto da hierarquia (primario solido > secundario soft > terciario fantasma). */
+.btn-ghost {
+    color: var(--bs-secondary-color);
+    background-color: transparent;
+    border: 1px solid transparent;
+}
+
+.btn-ghost:hover {
+    color: var(--bs-body-color);
+    background-color: var(--bs-tertiary-bg);
+}
+
+.btn-ghost:focus-visible {
+    color: var(--bs-body-color);
+    background-color: var(--bs-tertiary-bg);
+    box-shadow: 0 0 0 0.25rem rgba(var(--bs-secondary-rgb), 0.25);
+}
+
+.btn-ghost:active {
+    color: var(--bs-body-color);
+    background-color: var(--bs-secondary-bg);
 }
 
 .batch-summary-grid {
