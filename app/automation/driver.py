@@ -208,8 +208,38 @@ def _criar_driver_chrome(anonimo=True, usar_perfil=False):
 
 
 class UcIndisponivelError(RuntimeError):
-    """undetected-chromedriver indisponivel: nao instalado ou incompativel
-    com o ambiente (ex.: falta de setuptools/distutils, versao do Chrome)."""
+    """undetected-chromedriver indisponivel: nao instalado ou nao foi possivel
+    iniciar o navegador (ex.: versao do Chrome incompativel com o ChromeDriver).
+    Carrega mensagem e acao acionaveis para o frontend."""
+
+    def __init__(self, message, acao=None):
+        super().__init__(message)
+        self.message = message
+        self.acao = acao
+
+
+def _detectar_chrome_version_main():
+    """Major version do Chrome instalado, para o uc baixar o ChromeDriver
+    compativel (evita 'This version of ChromeDriver only supports Chrome X').
+
+    Precedencia: env CHROME_UC_VERSION_MAIN > registro do Windows (BLBeacon) >
+    None (deixa o uc tentar auto-detectar)."""
+    env = (os.environ.get('CHROME_UC_VERSION_MAIN') or '').strip()
+    if env.isdigit():
+        return int(env)
+
+    if os.name == 'nt' and winreg is not None:
+        for hive in (winreg.HKEY_CURRENT_USER, winreg.HKEY_LOCAL_MACHINE):
+            try:
+                with winreg.OpenKey(hive, r'Software\Google\Chrome\BLBeacon') as chave:
+                    versao, _ = winreg.QueryValueEx(chave, 'version')
+            except OSError:
+                continue
+            major = str(versao).split('.')[0]
+            if major.isdigit():
+                return int(major)
+
+    return None
 
 
 _MUNICIPAL_PROFILE_LOCK = Lock()
@@ -254,7 +284,10 @@ def _criar_driver_uc(profile_dir=None, profile_name=None):
     try:
         import undetected_chromedriver as uc
     except ImportError as exc:
-        raise UcIndisponivelError('undetected-chromedriver indisponivel: ' + str(exc)) from exc
+        raise UcIndisponivelError(
+            'Driver anti-bloqueio nao instalado: instale undetected-chromedriver e setuptools no servidor.',
+            acao='Rode iniciar.bat ou "pip install -r requirements.txt" no venv e tente de novo.',
+        ) from exc
 
     if profile_dir is None and profile_name is None:
         profile_dir, profile_name = _get_municipal_profile_settings()
@@ -265,10 +298,15 @@ def _criar_driver_uc(profile_dir=None, profile_name=None):
     )
 
     try:
-        driver = uc.Chrome(options=options)
+        driver = uc.Chrome(options=options, version_main=_detectar_chrome_version_main())
     except Exception as exc:
         log_event('uc_driver_start_failed', level='WARNING', error=str(exc))
-        raise UcIndisponivelError('Falha ao iniciar undetected-chromedriver: ' + str(exc)) from exc
+        primeira_linha = (str(exc).strip().splitlines() or [''])[0]
+        raise UcIndisponivelError(
+            'Driver anti-bloqueio nao pode iniciar o Chrome: ' + primeira_linha,
+            acao='Verifique a versao do Chrome instalada (o ChromeDriver pode estar incompativel). '
+                 'Defina CHROME_UC_VERSION_MAIN se necessario. Detalhes no log pelo req_id.',
+        ) from exc
 
     try:
         _configurar_download_automatico_chrome(driver)

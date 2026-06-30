@@ -1574,9 +1574,9 @@ def _abrir_driver_baixar(cfg, certidao, resultado):
             log_event('uc_indisponivel', level='ERROR', certidao_id=certidao.id, error=str(exc))
             _municipal_profile_release()
             resultado['erro_acionavel'] = {
-                'message': 'Driver anti-bloqueio indisponivel: instale undetected-chromedriver (e setuptools) no servidor.',
+                'message': exc.message,
                 'error_type': ErrorType.PORTAL.value,
-                'acao': 'Instale/atualize o undetected-chromedriver no servidor e tente novamente.',
+                'acao': exc.acao or 'Verifique a instalacao do undetected-chromedriver e a versao do Chrome.',
                 'code': 409,
             }
             return None, False

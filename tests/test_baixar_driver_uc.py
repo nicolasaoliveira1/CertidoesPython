@@ -98,7 +98,8 @@ def test_perfil_ocupado_falha_rapido_sem_abrir_navegador(monkeypatch):
 
 def test_uc_indisponivel_falha_rapido_e_libera_lock(monkeypatch):
     called = []
-    liberou = _patch_factories(monkeypatch, called, uc_exc=UcIndisponivelError('sem pacote'))
+    exc = UcIndisponivelError('Driver anti-bloqueio nao pode iniciar o Chrome: versao X', acao='Acao Y')
+    liberou = _patch_factories(monkeypatch, called, uc_exc=exc)
     resultado = routes._resultado_baixar_vazio()
     drv, lock = routes._abrir_driver_baixar(
         _cfg('https://novohamburgo.atende.net/x'), _cert(), resultado
@@ -108,7 +109,9 @@ def test_uc_indisponivel_falha_rapido_e_libera_lock(monkeypatch):
     assert called == ['uc']  # tentou uc, NAO caiu para chrome (sem fallback)
     assert liberou == [True]  # lock liberado apos a falha
     assert resultado['erro_acionavel']['code'] == 409
-    assert 'undetected-chromedriver' in resultado['erro_acionavel']['message']
+    # a resposta surfaceia a mensagem e acao da propria excecao (nao hardcode)
+    assert resultado['erro_acionavel']['message'] == 'Driver anti-bloqueio nao pode iniciar o Chrome: versao X'
+    assert resultado['erro_acionavel']['acao'] == 'Acao Y'
 
 
 # ------------------ surface no _montar_resposta_baixar ------------------
