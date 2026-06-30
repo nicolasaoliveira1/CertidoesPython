@@ -24,16 +24,20 @@ RS_CERT_POLICY_LOCK = Lock()
 RS_CERT_POLICY_ACTIVE_COUNT = 0
 
 
-def _get_chrome_profile_settings():
-    profile_dir = None
-    profile_name = None
-
-    try:
-        profile_dir = current_app.config.get('CHROME_PROFILE_DIR')
-        profile_name = current_app.config.get('CHROME_PROFILE_NAME')
-    except RuntimeError:
-        profile_dir = os.environ.get('CHROME_PROFILE_DIR')
-        profile_name = os.environ.get('CHROME_PROFILE_NAME')
+def _get_chrome_profile_settings(profile_dir=None, profile_name=None):
+    # Precedencia: argumento explicito > config/env > default. Os overrides
+    # permitem um perfil dedicado (ex.: municipal) isolado do perfil Certidoes.
+    if profile_dir is None or profile_name is None:
+        try:
+            cfg_dir = current_app.config.get('CHROME_PROFILE_DIR')
+            cfg_name = current_app.config.get('CHROME_PROFILE_NAME')
+        except RuntimeError:
+            cfg_dir = os.environ.get('CHROME_PROFILE_DIR')
+            cfg_name = os.environ.get('CHROME_PROFILE_NAME')
+        if profile_dir is None:
+            profile_dir = cfg_dir
+        if profile_name is None:
+            profile_name = cfg_name
 
     if not profile_dir:
         profile_dir = os.path.abspath(
@@ -124,7 +128,7 @@ def _desativar_politica_autoselect_rs_temporaria():
             _sincronizar_politica_autoselect_rs(aplicar=False)
 
 
-def _build_chrome_options(anonimo=True, usar_perfil=False):
+def _build_chrome_options(anonimo=True, usar_perfil=False, profile_dir=None, profile_name=None):
     chrome_options = Options()
     chrome_options.add_argument("--start-maximized")
     chrome_options.add_argument("--disable-features=DownloadBubble,DownloadBubbleV2")
@@ -146,7 +150,7 @@ def _build_chrome_options(anonimo=True, usar_perfil=False):
         chrome_options.add_argument("--incognito")
 
     if usar_perfil:
-        profile_dir, profile_name = _get_chrome_profile_settings()
+        profile_dir, profile_name = _get_chrome_profile_settings(profile_dir, profile_name)
         if profile_dir:
             chrome_options.add_argument(f"--user-data-dir={profile_dir}")
         if profile_name:
