@@ -205,3 +205,74 @@ def _criar_driver_chrome(anonimo=True, usar_perfil=False):
         log_event('download_config_chrome_failed', level='WARNING', error=str(exc))
 
     return driver
+
+
+class UcIndisponivelError(RuntimeError):
+    """undetected-chromedriver indisponivel: nao instalado ou incompativel
+    com o ambiente (ex.: falta de setuptools/distutils, versao do Chrome)."""
+
+
+_MUNICIPAL_PROFILE_LOCK = Lock()
+
+
+def _municipal_profile_acquire(blocking=False):
+    """Adquire o lock do perfil municipal (um Chrome por vez nesse perfil).
+    Retorna True se adquiriu, False se ja estava em uso (blocking=False)."""
+    return _MUNICIPAL_PROFILE_LOCK.acquire(blocking=blocking)
+
+
+def _municipal_profile_release():
+    """Libera o lock do perfil municipal. Idempotente: liberar sem ter
+    adquirido nao lanca (seguro de chamar em finally)."""
+    try:
+        _MUNICIPAL_PROFILE_LOCK.release()
+    except RuntimeError:
+        pass
+
+
+def _get_municipal_profile_settings():
+    """Resolve (pasta, nome) do perfil dedicado aos fluxos municipais IPM.
+
+    Precedencia da pasta: env CHROME_PROFILE_MUNICIPAL_DIR > default sibling
+    'chrome-profile-municipal'. Nome fixo 'Municipal', isolado do perfil
+    'Certidoes' usado por RS/Federal (evita disputa de lock e contaminacao)."""
+    profile_dir = (os.environ.get('CHROME_PROFILE_MUNICIPAL_DIR') or '').strip()
+    if not profile_dir:
+        profile_dir = os.path.abspath(
+            os.path.join(os.path.dirname(__file__), '..', 'chrome-profile-municipal')
+        )
+    return _get_chrome_profile_settings(profile_dir=profile_dir, profile_name='Municipal')
+
+
+def _criar_driver_uc(profile_dir=None, profile_name=None):
+    """Cria um Chrome via undetected-chromedriver com perfil persistente
+    dedicado ao municipal, para elevar o score anti-bot do IPM Atende.Net e
+    reaproveitar o cookie de clearance entre execucoes.
+
+    Levanta UcIndisponivelError quando o pacote nao e importavel ou o
+    navegador nao pode ser iniciado (fail-fast, sem fallback para incognito)."""
+    try:
+        import undetected_chromedriver as uc
+    except ImportError as exc:
+        raise UcIndisponivelError('undetected-chromedriver indisponivel: ' + str(exc)) from exc
+
+    if profile_dir is None and profile_name is None:
+        profile_dir, profile_name = _get_municipal_profile_settings()
+
+    options = _build_chrome_options(
+        anonimo=False, usar_perfil=True,
+        profile_dir=profile_dir, profile_name=profile_name,
+    )
+
+    try:
+        driver = uc.Chrome(options=options)
+    except Exception as exc:
+        log_event('uc_driver_start_failed', level='WARNING', error=str(exc))
+        raise UcIndisponivelError('Falha ao iniciar undetected-chromedriver: ' + str(exc)) from exc
+
+    try:
+        _configurar_download_automatico_chrome(driver)
+    except Exception as exc:
+        log_event('download_config_chrome_failed', level='WARNING', error=str(exc))
+
+    return driver
