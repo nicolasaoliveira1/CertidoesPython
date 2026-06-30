@@ -21,6 +21,8 @@ instance/
 
 # Perfil dedicado do Chrome / dados locais da automação
 chrome-profile/
+# Perfil dedicado do Chrome para fluxos municipais IPM (undetected-chromedriver)
+chrome-profile-municipal/
 
 # Configurações do editor de código
 .vscode/
