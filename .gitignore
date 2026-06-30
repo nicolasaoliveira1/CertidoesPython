@@ -60,6 +60,11 @@ tools/ui-harness/shots/
 
 # Claude Code — versiona .claude/skills (compartilhado); ignora config pessoal/local
 .claude/settings.local.json
+# Skill instalada localmente (uso pessoal, não versionada)
+.claude/skills/tlc-spec-driven/
+
+# Specs de trabalho da skill spec-driven (uso local, não versionadas)
+.specs/
 
 # Artefatos locais diversos
 Thumbs.db
